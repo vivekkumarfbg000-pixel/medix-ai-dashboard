@@ -4,14 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+
 import {
   Dialog,
   DialogContent,
@@ -307,83 +300,78 @@ const Inventory = () => {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Medicine Name</TableHead>
-                    <TableHead>Batch</TableHead>
-                    <TableHead className="text-center">Quantity</TableHead>
-                    <TableHead className="text-right">Price (₹)</TableHead>
-                    <TableHead>Expiry Date</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredInventory.map((item) => {
-                    const status = getExpiryStatus(item.expiry_date);
-                    const days = item.expiry_date 
-                      ? differenceInDays(new Date(item.expiry_date), new Date())
-                      : null;
-                    
-                    return (
-                      <TableRow 
-                        key={item.id}
-                        className={status === "danger" || status === "expired" ? "bg-destructive/5" : ""}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredInventory.map((item) => {
+                const status = getExpiryStatus(item.expiry_date);
+                const days = item.expiry_date
+                  ? differenceInDays(new Date(item.expiry_date), new Date())
+                  : null;
+
+                return (
+                  <div
+                    key={item.id}
+                    className="medical-card group relative hover:shadow-xl transition-all duration-300"
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                          <Package className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-lg text-foreground leading-tight">{item.medicine_name}</h3>
+                          {item.generic_name && (
+                            <p className="text-xs text-muted-foreground">{item.generic_name}</p>
+                          )}
+                        </div>
+                      </div>
+                      <Badge
+                        variant={item.quantity < (item.reorder_level || 10) ? "destructive" : "secondary"}
+                        className="glass-card bg-white/50"
                       >
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{item.medicine_name}</p>
-                            {item.generic_name && (
-                              <p className="text-sm text-muted-foreground">{item.generic_name}</p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {item.batch_number || "-"}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge 
-                            variant={item.quantity < (item.reorder_level || 10) ? "destructive" : "secondary"}
-                          >
-                            {item.quantity}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          ₹{item.unit_price.toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          {item.expiry_date ? format(new Date(item.expiry_date), "MMM dd, yyyy") : "-"}
-                        </TableCell>
-                        <TableCell>
-                          {status === "expired" && (
-                            <Badge variant="destructive" className="gap-1">
-                              <AlertTriangle className="w-3 h-3" />
-                              Expired
-                            </Badge>
-                          )}
-                          {status === "danger" && (
-                            <Badge className="bg-destructive/20 text-destructive border-destructive/30 gap-1">
-                              <AlertTriangle className="w-3 h-3" />
-                              {days} days
-                            </Badge>
-                          )}
-                          {status === "warning" && (
-                            <Badge className="bg-warning/20 text-warning border-warning/30">
-                              {days} days
-                            </Badge>
-                          )}
-                          {status === "safe" && item.expiry_date && (
-                            <Badge variant="outline" className="text-success border-success/30">
-                              Safe
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                        {item.quantity} units
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                      <div>
+                        <p className="text-muted-foreground text-xs uppercase tracking-wider">Batch</p>
+                        <p className="font-medium">{item.batch_number || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs uppercase tracking-wider">Price</p>
+                        <p className="font-medium text-primary">₹{item.unit_price.toFixed(2)}</p>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-border/50 flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">
+                        Exp: {item.expiry_date ? format(new Date(item.expiry_date), "MMM dd, yyyy") : "-"}
+                      </span>
+
+                      {status === "expired" && (
+                        <Badge variant="destructive" className="gap-1 text-xs">
+                          <AlertTriangle className="w-3 h-3" /> Expired
+                        </Badge>
+                      )}
+                      {status === "danger" && (
+                        <Badge className="bg-destructive/10 text-destructive border-destructive/20 gap-1 text-xs">
+                          <AlertTriangle className="w-3 h-3" /> {days} days
+                        </Badge>
+                      )}
+                      {status === "warning" && (
+                        <Badge className="bg-warning/10 text-warning border-warning/20 text-xs">
+                          {days} days left
+                        </Badge>
+                      )}
+                      {status === "safe" && item.expiry_date && (
+                        <Badge variant="outline" className="text-success border-success/30 bg-success/5 text-xs">
+                          Safe
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
