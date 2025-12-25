@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, DollarSign, Package, Users, ArrowUpRight } from "lucide-react";
+import { TrendingUp, TrendingDown, IndianRupee, Package, Users, ArrowUpRight } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -88,7 +88,7 @@ export default function Analytics() {
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Total Revenue
             </CardTitle>
-            <DollarSign className="w-4 h-4 text-primary" />
+            <IndianRupee className="w-4 h-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₹{currentMonthRevenue.toLocaleString()}</div>
@@ -178,27 +178,27 @@ export default function Analytics() {
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis dataKey="month" className="text-xs" />
                       <YAxis className="text-xs" tickFormatter={(value) => `₹${value / 1000}k`} />
-                      <Tooltip 
+                      <Tooltip
                         formatter={(value: number) => [`₹${value.toLocaleString()}`, ""]}
-                        contentStyle={{ 
+                        contentStyle={{
                           backgroundColor: "hsl(var(--card))",
                           border: "1px solid hsl(var(--border))",
                           borderRadius: "8px"
                         }}
                       />
                       <Legend />
-                      <Area 
-                        type="monotone" 
-                        dataKey="revenue" 
-                        stroke="hsl(var(--primary))" 
+                      <Area
+                        type="monotone"
+                        dataKey="revenue"
+                        stroke="hsl(var(--primary))"
                         fillOpacity={1}
                         fill="url(#colorRevenue)"
                         name="Revenue"
                       />
-                      <Area 
-                        type="monotone" 
-                        dataKey="profit" 
-                        stroke="hsl(var(--chart-2))" 
+                      <Area
+                        type="monotone"
+                        dataKey="profit"
+                        stroke="hsl(var(--chart-2))"
                         fillOpacity={1}
                         fill="url(#colorProfit)"
                         name="Profit"
@@ -221,17 +221,17 @@ export default function Analytics() {
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis dataKey="day" className="text-xs" />
                       <YAxis className="text-xs" tickFormatter={(value) => `₹${value / 1000}k`} />
-                      <Tooltip 
+                      <Tooltip
                         formatter={(value: number) => [`₹${value.toLocaleString()}`, "Sales"]}
-                        contentStyle={{ 
+                        contentStyle={{
                           backgroundColor: "hsl(var(--card))",
                           border: "1px solid hsl(var(--border))",
                           borderRadius: "8px"
                         }}
                       />
-                      <Bar 
-                        dataKey="sales" 
-                        fill="hsl(var(--primary))" 
+                      <Bar
+                        dataKey="sales"
+                        fill="hsl(var(--primary))"
                         radius={[4, 4, 0, 0]}
                       />
                     </BarChart>
@@ -254,19 +254,19 @@ export default function Analytics() {
                   <BarChart data={topSellingDrugs} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis type="number" className="text-xs" />
-                    <YAxis 
-                      dataKey="name" 
-                      type="category" 
-                      width={120} 
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={120}
                       className="text-xs"
                       tick={{ fontSize: 11 }}
                     />
-                    <Tooltip 
+                    <Tooltip
                       formatter={(value: number, name: string) => [
                         name === "sales" ? `${value} units` : `₹${value.toLocaleString()}`,
                         name === "sales" ? "Units Sold" : "Revenue"
                       ]}
-                      contentStyle={{ 
+                      contentStyle={{
                         backgroundColor: "hsl(var(--card))",
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "8px"
@@ -307,9 +307,9 @@ export default function Analytics() {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip 
+                      <Tooltip
                         formatter={(value: number) => [`₹${value.toLocaleString()}`, "Profit"]}
-                        contentStyle={{ 
+                        contentStyle={{
                           backgroundColor: "hsl(var(--card))",
                           border: "1px solid hsl(var(--border))",
                           borderRadius: "8px"
@@ -332,8 +332,8 @@ export default function Analytics() {
                     <div key={category.category} className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div 
-                            className="w-3 h-3 rounded-full" 
+                          <div
+                            className="w-3 h-3 rounded-full"
                             style={{ backgroundColor: COLORS[index % COLORS.length] }}
                           />
                           <span className="text-sm font-medium">{category.category}</span>
@@ -346,9 +346,9 @@ export default function Analytics() {
                         </div>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className="h-full rounded-full transition-all duration-500"
-                          style={{ 
+                          style={{
                             width: `${category.margin}%`,
                             backgroundColor: COLORS[index % COLORS.length]
                           }}

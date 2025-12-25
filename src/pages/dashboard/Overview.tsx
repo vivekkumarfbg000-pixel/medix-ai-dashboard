@@ -7,7 +7,7 @@ import {
   Package,
   TrendingUp,
   AlertTriangle,
-  DollarSign,
+  IndianRupee,
   ArrowUpRight,
   ArrowDownRight,
   Clock,
@@ -78,7 +78,7 @@ const Overview = () => {
       value: `₹${totalValue.toLocaleString()}`,
       change: "+12.5%",
       trend: "up",
-      icon: DollarSign,
+      icon: IndianRupee,
       color: "text-success",
       bgColor: "bg-success/10"
     },
