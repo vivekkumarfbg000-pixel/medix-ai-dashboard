@@ -4,11 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { 
-  MessageSquare, 
-  Check, 
-  X, 
-  Clock, 
+import {
+  MessageSquare,
+  Check,
+  X,
+  Clock,
   Phone,
   User,
   Package,
@@ -50,6 +50,32 @@ const Orders = () => {
 
   useEffect(() => {
     fetchOrders();
+
+    // Subscribe to real-time order updates
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen for INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'orders'
+        },
+        (payload) => {
+          console.log('Realtime Order Update:', payload);
+          if (payload.eventType === 'INSERT') {
+            toast.info("New WhatsApp Order Received! 🔔");
+            fetchOrders();
+          } else {
+            fetchOrders();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const updateOrderStatus = async (orderId: string, status: "approved" | "rejected") => {
@@ -67,7 +93,7 @@ const Orders = () => {
     }
   };
 
-  const filteredOrders = orders.filter(order => 
+  const filteredOrders = orders.filter(order =>
     filter === "all" ? true : order.status === filter
   );
 
@@ -125,7 +151,7 @@ const Orders = () => {
             <MessageSquare className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-2">No orders found</h3>
             <p className="text-muted-foreground">
-              {filter === "all" 
+              {filter === "all"
                 ? "Orders will appear here when received via WhatsApp"
                 : `No ${filter} orders at the moment`
               }
@@ -153,11 +179,11 @@ const Orders = () => {
                           </p>
                         )}
                       </div>
-                      <Badge 
+                      <Badge
                         className="ml-auto lg:hidden"
                         variant={
                           order.status === "pending" ? "secondary" :
-                          order.status === "approved" ? "default" : "destructive"
+                            order.status === "approved" ? "default" : "destructive"
                         }
                       >
                         {order.status}
@@ -200,11 +226,11 @@ const Orders = () => {
 
                   {/* Status & Actions */}
                   <div className="flex items-center gap-3">
-                    <Badge 
+                    <Badge
                       className="hidden lg:inline-flex"
                       variant={
                         order.status === "pending" ? "secondary" :
-                        order.status === "approved" ? "default" : "destructive"
+                          order.status === "approved" ? "default" : "destructive"
                       }
                     >
                       {order.status}

@@ -3,10 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  Package, 
-  TrendingUp, 
-  AlertTriangle, 
+import {
+  Package,
+  TrendingUp,
+  AlertTriangle,
   DollarSign,
   ArrowUpRight,
   ArrowDownRight,
@@ -16,6 +16,7 @@ import {
   Users
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
+import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 
 interface InventoryItem {
   id: string;
@@ -194,16 +195,15 @@ const Overview = () => {
               <div className="space-y-3">
                 {expiringItems.slice(0, 5).map((item) => {
                   const status = getExpiryStatus(item.expiry_date);
-                  const days = item.expiry_date 
+                  const days = item.expiry_date
                     ? differenceInDays(new Date(item.expiry_date), new Date())
                     : 0;
-                  
+
                   return (
-                    <div 
-                      key={item.id} 
-                      className={`flex items-center justify-between p-3 rounded-lg border backdrop-blur-sm ${
-                        status === "expired" ? "bg-destructive/10 border-destructive/30" : "bg-warning/10 border-warning/30"
-                      }`}
+                    <div
+                      key={item.id}
+                      className={`flex items-center justify-between p-3 rounded-lg border backdrop-blur-sm ${status === "expired" ? "bg-destructive/10 border-destructive/30" : "bg-warning/10 border-warning/30"
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <Pill className="w-5 h-5" />
@@ -255,10 +255,10 @@ const Overview = () => {
                         {format(new Date(order.created_at), "MMM dd, HH:mm")}
                       </div>
                     </div>
-                    <Badge 
+                    <Badge
                       variant={
-                        order.status === "pending" ? "secondary" : 
-                        order.status === "approved" ? "default" : "destructive"
+                        order.status === "pending" ? "secondary" :
+                          order.status === "approved" ? "default" : "destructive"
                       }
                       className="backdrop-blur-sm"
                     >
@@ -270,6 +270,14 @@ const Overview = () => {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <ActivityFeed />
+        {/* Recent Orders - Moved here or kept in 3-col grid above? 
+              Based on design, let's keep Recent Orders in the top grid and Activity Feed below 
+              or make a new row. The user specifically asked for Activity Feed on Overview page.
+          */}
       </div>
 
       {/* Low Stock Alert */}
