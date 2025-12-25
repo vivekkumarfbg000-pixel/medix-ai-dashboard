@@ -1,14 +1,15 @@
-import { 
-  Package, 
-  FileText, 
-  MessageSquare, 
-  Brain, 
-  TrendingUp, 
-  Bell, 
+import {
+  Package,
+  FileText,
+  MessageSquare,
+  Brain,
+  TrendingUp,
+  Bell,
   Settings,
   LogOut,
   Pill,
-  LayoutDashboard
+  LayoutDashboard,
+  Activity
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +33,7 @@ const mainNavItems = [
   { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
   { title: "Inventory", url: "/dashboard/inventory", icon: Package },
   { title: "Diary Scan", url: "/dashboard/diary-scan", icon: FileText },
+  { title: "Lab Reports", url: "/dashboard/lab-analyzer", icon: Activity },
   { title: "Orders", url: "/dashboard/orders", icon: MessageSquare },
 ];
 
@@ -154,7 +156,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton 
+            <SidebarMenuButton
               onClick={handleLogout}
               tooltip="Sign Out"
               className="sidebar-link text-destructive hover:text-destructive hover:bg-destructive/10"
