@@ -23,6 +23,33 @@ export const drugService = {
    */
   async searchDrug(query: string): Promise<DrugInfo | null> {
     try {
+      // 1. Try direct search on OpenFDA
+      const directResponse = await this.queryOpenFDA(query);
+      if (directResponse) return directResponse;
+
+      // 2. If direct search failed, try to resolve the name using NLM RxNav (e.g. Crocin -> Paracetamol)
+      const rxcui = await this.getRxCUI(query);
+      if (rxcui) {
+        const name = await this.getRxCUIProperty(rxcui, 'name');
+        if (name && name.toLowerCase() !== query.toLowerCase()) {
+          console.log(`Resolved '${query}' to '${name}'`);
+          const resolvedResponse = await this.queryOpenFDA(name);
+          if (resolvedResponse) return {
+            ...resolvedResponse,
+            name: `${query} (${name})` // Show User's query + Resolved Name
+          };
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Error fetching drug info:", error);
+      return null;
+    }
+  },
+
+  async queryOpenFDA(query: string): Promise<DrugInfo | null> {
+    try {
       const response = await fetch(
         `${OPENFDA_API_URL}?search=openfda.brand_name:"${query}"+OR+openfda.generic_name:"${query}"&limit=1`
       );
@@ -43,8 +70,17 @@ export const drugService = {
           .map((text: string) => ({ effect: text.substring(0, 150) + "...", severity: "moderate" })),
         warnings: (result.warnings || ["No specific warnings found"]).slice(0, 3)
       };
-    } catch (error) {
-      console.error("Error fetching drug info:", error);
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async getRxCUIProperty(rxcui: string, propName: string): Promise<string | null> {
+    try {
+      const response = await fetch(`${NLM_RXNAV_API_URL}/rxcui/${rxcui}/properties.json`);
+      const data = await response.json();
+      return data.properties?.[propName] || null;
+    } catch (e) {
       return null;
     }
   },
