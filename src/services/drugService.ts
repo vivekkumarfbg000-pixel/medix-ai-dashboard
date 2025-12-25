@@ -30,17 +30,96 @@ const OPENFDA_API_URL = "https://api.fda.gov/drug/label.json";
 const RXNAV_API_URL = "https://rxnav.nlm.nih.gov/REST";
 
 const COMMON_BRAND_MAP: Record<string, string> = {
+  // Pain & Fever
   "dolo": "acetaminophen",
   "crocin": "acetaminophen",
-  "panadol": "acetaminophen",
   "calpol": "acetaminophen",
+  "saridon": "acetaminophen", // + propyphenazone/caffeine -> usually maps to paracetamol base for safety check
+  "combiflam": "ibuprofen", // + paracetamol
   "mezol": "acetaminophen",
-  "combiflam": "ibuprofen",
-  "augmentin": "amoxicillin",
+  "flexon": "ibuprofen",
+  "brufen": "ibuprofen",
+  "voveran": "diclofenac",
+  "dynapar": "diclofenac",
+  "zerodol": "aceclofenac",
+  "nise": "nimesulide",
+
+  // Antibiotics
+  "augmentin": "amoxicillin", // + clavulanate
+  "clamox": "amoxicillin",
+  "moxikind": "amoxicillin",
   "azithral": "azithromycin",
-  "allegra": "fexofenadine",
+  "azibact": "azithromycin",
+  "taxim": "cefixime",
+  "zipod": "cefpodoxime",
+  "ciplox": "ciprofloxacin",
+  "oflox": "ofloxacin",
+  "norflox": "norfloxacin",
+  "metrogyl": "metronidazole",
+
+  // Acidity & Gastric
+  "digene": "aluminum hydroxide", // anatacid mix
+  "gelusil": "aluminum hydroxide",
+  "pan": "pantoprazole",
   "pantop": "pantoprazole",
-  "montek": "montelukast"
+  "pantocid": "pantoprazole",
+  "pan d": "pantoprazole", // + domperidone
+  "omiez": "omeprazole",
+  "omez": "omeprazole",
+  "rantac": "ranitidine",
+  "aciloc": "ranitidine",
+  "rabekind": "rabeprazole",
+  "sucrafil": "sucralfate",
+  "ganaton": "itopride",
+
+  // Cold, Cough & Allergy
+  "allegra": "fexofenadine",
+  "cetriz": "cetirizine",
+  "okacet": "cetirizine",
+  "montair": "montelukast",
+  "montek": "montelukast",
+  "vicks action 500": "acetaminophen", // + decongestants
+  "cheston cold": "cetirizine",
+  "grilinctus": "dextromethorphan",
+  "ascoril": "terbutaline", // expectorant mix
+  "benadryl": "diphenhydramine",
+  "corex": "chlorpheniramine", // old formulation codeine, keeping safe generic map
+
+  // Vitamins & Supplements
+  "becosules": "multivitamin",
+  "shelcal": "calcium carbonate", // + vit d3
+  "cipcal": "calcium carbonate",
+  "neurobion": "vitamin b complex",
+  "polybion": "vitamin b complex",
+  "liv 52": "herbal liver supplement", // specialized handling might be needed, mapping to generic term
+  "limcee": "ascorbic acid",
+  "celin": "ascorbic acid",
+  "evion": "tocopherol", // Vitamin E
+
+  // Chronic (Diabetes, BP, Cardiac)
+  "glycomet": "metformin",
+  "glyciphage": "metformin",
+  "istamet": "metformin",
+  "janumet": "sitagliptin", // + metformin
+  "amlong": "amlodipine",
+  "stamlo": "amlodipine",
+  "telma": "telmisartan",
+  "telmikind": "telmisartan",
+  "losar": "losartan",
+  "atorva": "atorvastatin",
+  "storvas": "atorvastatin",
+  "rosuvas": "rosuvastatin",
+  "ecosprin": "aspirin",
+
+  // Others
+  "volini": "diclofenac", // gel
+  "betadine": "povidone-iodine",
+  "thyronorm": "thyroxine",
+  "eltroxin": "thyroxine",
+  "unwanted 72": "levonorgestrel",
+  "ipill": "levonorgestrel",
+  "manforce": "sildenafil",
+  "viagra": "sildenafil"
 };
 
 class DrugService {
