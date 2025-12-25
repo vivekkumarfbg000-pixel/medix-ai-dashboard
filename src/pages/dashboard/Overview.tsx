@@ -136,16 +136,16 @@ const Overview = () => {
             Welcome back! Here's your pharmacy at a glance.
           </p>
         </div>
-        <Button className="w-fit">
+        <Button className="w-fit shadow-glow">
           <Pill className="w-4 h-4 mr-2" />
           Add Medicine
         </Button>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid - Glassmorphism Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat, i) => (
-          <Card key={i} className="stat-card group hover:border-primary/30 transition-all duration-300">
+          <Card key={i} className="glass-card group hover:border-primary/30 transition-all duration-300 hover:shadow-glass-lg">
             <CardContent className="p-5">
               <div className="flex items-start justify-between">
                 <div className="space-y-2">
@@ -159,7 +159,7 @@ const Overview = () => {
                     </span>
                   </div>
                 </div>
-                <div className={`${stat.bgColor} p-3 rounded-xl group-hover:scale-110 transition-transform`}>
+                <div className={`${stat.bgColor} p-3 rounded-xl group-hover:scale-110 transition-transform backdrop-blur-sm`}>
                   <stat.icon className={`w-5 h-5 ${stat.color}`} />
                 </div>
               </div>
@@ -171,7 +171,7 @@ const Overview = () => {
       {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Expiry Alerts */}
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 glass-card">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
@@ -181,7 +181,7 @@ const Overview = () => {
                 </CardTitle>
                 <CardDescription>Items expiring within 60 days</CardDescription>
               </div>
-              <Button variant="outline" size="sm">View All</Button>
+              <Button variant="outline" size="sm" className="glass-card">View All</Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -201,8 +201,8 @@ const Overview = () => {
                   return (
                     <div 
                       key={item.id} 
-                      className={`flex items-center justify-between p-3 rounded-lg border ${
-                        status === "expired" ? "expiry-danger" : "expiry-warning"
+                      className={`flex items-center justify-between p-3 rounded-lg border backdrop-blur-sm ${
+                        status === "expired" ? "bg-destructive/10 border-destructive/30" : "bg-warning/10 border-warning/30"
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -226,7 +226,7 @@ const Overview = () => {
         </Card>
 
         {/* Recent Orders */}
-        <Card>
+        <Card className="glass-card">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
@@ -247,7 +247,7 @@ const Overview = () => {
             ) : (
               <div className="space-y-4">
                 {orders.map((order) => (
-                  <div key={order.id} className="flex items-center justify-between">
+                  <div key={order.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/10 transition-colors">
                     <div>
                       <p className="font-medium text-foreground">{order.customer_name}</p>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -260,6 +260,7 @@ const Overview = () => {
                         order.status === "pending" ? "secondary" : 
                         order.status === "approved" ? "default" : "destructive"
                       }
+                      className="backdrop-blur-sm"
                     >
                       {order.status}
                     </Badge>
@@ -273,7 +274,7 @@ const Overview = () => {
 
       {/* Low Stock Alert */}
       {lowStockItems.length > 0 && (
-        <Card className="border-warning/50 bg-warning/5">
+        <Card className="glass-card border-warning/30 bg-warning/5">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-warning">
               <TrendingUp className="w-5 h-5" />
@@ -284,7 +285,7 @@ const Overview = () => {
           <CardContent>
             <div className="flex flex-wrap gap-2">
               {lowStockItems.map((item) => (
-                <Badge key={item.id} variant="outline" className="border-warning text-warning">
+                <Badge key={item.id} variant="outline" className="border-warning/50 text-warning backdrop-blur-sm">
                   {item.medicine_name} ({item.quantity})
                 </Badge>
               ))}

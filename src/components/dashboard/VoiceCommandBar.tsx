@@ -1,0 +1,203 @@
+import { useState, useRef, useCallback } from "react";
+import { Mic, MicOff, Loader2, Volume2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+interface VoiceCommandBarProps {
+  onTranscriptionComplete: (transcription: string, parsedItems: ParsedItem[]) => void;
+}
+
+export interface ParsedItem {
+  name: string;
+  quantity: number;
+  contact?: string;
+}
+
+export function VoiceCommandBar({ onTranscriptionComplete }: VoiceCommandBarProps) {
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationRef = useRef<number | null>(null);
+
+  const parseTranscription = (text: string): ParsedItem[] => {
+    // Simple parsing logic - can be enhanced with n8n AI processing
+    const items: ParsedItem[] = [];
+    const parts = text.toLowerCase().split(",").map(p => p.trim());
+    let contact: string | undefined;
+
+    parts.forEach(part => {
+      // Check for contact info
+      const contactMatch = part.match(/contact\s+(.+)/i);
+      if (contactMatch) {
+        contact = contactMatch[1].trim();
+        return;
+      }
+
+      // Parse quantity and medicine name
+      const quantityMatch = part.match(/^(\d+)\s+(.+)/);
+      if (quantityMatch) {
+        items.push({
+          name: quantityMatch[2].trim(),
+          quantity: parseInt(quantityMatch[1], 10),
+          contact
+        });
+      } else if (part.length > 0) {
+        items.push({
+          name: part,
+          quantity: 1,
+          contact
+        });
+      }
+    });
+
+    // Add contact to all items if found
+    if (contact) {
+      items.forEach(item => item.contact = contact);
+    }
+
+    return items;
+  };
+
+  const updateAudioLevel = useCallback(() => {
+    if (analyserRef.current) {
+      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+      analyserRef.current.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+      setAudioLevel(average / 255);
+    }
+    if (isRecording) {
+      animationRef.current = requestAnimationFrame(updateAudioLevel);
+    }
+  }, [isRecording]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Set up audio analysis for visualization
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        setIsProcessing(true);
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        
+        try {
+          // For now, simulate transcription (n8n webhook will be added later)
+          // In production, this would call the n8n webhook
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          // Simulated transcription result
+          const mockTranscription = "2 Crocin, 1 Paracetamol, contact 9876543210";
+          const parsedItems = parseTranscription(mockTranscription);
+          
+          onTranscriptionComplete(mockTranscription, parsedItems);
+          toast.success("Voice command processed!");
+        } catch (error) {
+          console.error("Transcription error:", error);
+          toast.error("Failed to process voice command");
+        } finally {
+          setIsProcessing(false);
+        }
+
+        // Clean up
+        stream.getTracks().forEach(track => track.stop());
+        audioContext.close();
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      updateAudioLevel();
+      toast.info("Recording... Speak now");
+    } catch (error) {
+      console.error("Microphone access error:", error);
+      toast.error("Could not access microphone");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setAudioLevel(0);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    }
+  };
+
+  return (
+    <div className="voice-bar">
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Volume2 className="w-5 h-5 text-primary" />
+          <span className="font-semibold text-foreground">Voice Billing</span>
+        </div>
+        
+        <div className="flex-1 flex items-center justify-center gap-3">
+          <span className="text-sm text-muted-foreground hidden sm:block">
+            {isRecording 
+              ? "Listening... Say '2 Crocin, 1 Paracetamol, contact 98765'" 
+              : isProcessing 
+                ? "Processing your voice command..." 
+                : "Click the mic to start voice billing"}
+          </span>
+          
+          {/* Audio level indicator */}
+          {isRecording && (
+            <div className="flex items-center gap-1">
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "w-1 rounded-full transition-all duration-75",
+                    audioLevel > i * 0.2 ? "bg-primary" : "bg-muted"
+                  )}
+                  style={{ height: `${12 + audioLevel * 20}px` }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <Button
+          variant={isRecording ? "destructive" : "default"}
+          size="lg"
+          className={cn(
+            "rounded-full w-14 h-14 p-0 shadow-lg transition-all",
+            isRecording && "animate-pulse ring-4 ring-destructive/30",
+            isProcessing && "opacity-50 cursor-not-allowed"
+          )}
+          onClick={isRecording ? stopRecording : startRecording}
+          disabled={isProcessing}
+        >
+          {isProcessing ? (
+            <Loader2 className="w-6 h-6 animate-spin" />
+          ) : isRecording ? (
+            <MicOff className="w-6 h-6" />
+          ) : (
+            <Mic className="w-6 h-6" />
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
