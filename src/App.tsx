@@ -10,6 +10,7 @@ import { DashboardLayout } from "./components/dashboard/DashboardLayout";
 import Overview from "./pages/dashboard/Overview";
 import Inventory from "./pages/dashboard/Inventory";
 import DiaryScan from "./pages/dashboard/DiaryScan";
+import LabAnalyzer from "./pages/dashboard/LabAnalyzer";
 import Orders from "./pages/dashboard/Orders";
 import AIInsights from "./pages/dashboard/AIInsights";
 import Forecasting from "./pages/dashboard/Forecasting";
@@ -31,6 +32,7 @@ const App = () => (
             <Route index element={<Overview />} />
             <Route path="inventory" element={<Inventory />} />
             <Route path="diary-scan" element={<DiaryScan />} />
+            <Route path="lab-analyzer" element={<LabAnalyzer />} />
             <Route path="orders" element={<Orders />} />
             <Route path="ai-insights" element={<AIInsights />} />
             <Route path="forecasting" element={<Forecasting />} />
