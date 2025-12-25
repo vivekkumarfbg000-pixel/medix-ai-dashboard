@@ -24,6 +24,8 @@ export interface ClinicalDrugInfo {
     savings: number;
   }[];
   is_h1_drug?: boolean; // For Compliance Shield
+  banned_status?: { is_banned: boolean; reason: string }; // Anti-Malpractice
+  education_tips?: { diet: string[]; lifestyle: string[]; warning: string }; // Dawa-Gyaan
   safety_warning: string;
 }
 
@@ -119,15 +121,66 @@ const COMMON_BRAND_MAP: Record<string, string> = {
   "rosuvas": "rosuvastatin",
   "ecosprin": "aspirin",
 
-  // Others
-  "volini": "diclofenac", // gel
-  "betadine": "povidone-iodine",
-  "thyronorm": "thyroxine",
-  "eltroxin": "thyroxine",
-  "unwanted 72": "levonorgestrel",
-  "ipill": "levonorgestrel",
-  "manforce": "sildenafil",
   "viagra": "sildenafil"
+};
+
+const PROFIT_SUBSTITUTES: Record<string, { name: string; generic_name: string; price: number; margin_percentage: number; savings: number }[]> = {
+  "pantoprazole": [
+    { name: "Pantop-40", generic_name: "Pantoprazole 40mg", price: 155, margin_percentage: 12, savings: 0 },
+    { name: "Pan-40", generic_name: "Pantoprazole 40mg", price: 155, margin_percentage: 12, savings: 0 },
+    { name: "Pantocid-40", generic_name: "Pantoprazole 40mg", price: 162, margin_percentage: 10, savings: -7 },
+    // High Margin Generic / Branded Generic
+    { name: "Panto-Safe", generic_name: "Pantoprazole 40mg", price: 85, margin_percentage: 45, savings: 70 }
+  ],
+  "amoxicillin": [
+    { name: "Augmentin 625", generic_name: "Amoxi-Clav 625", price: 223, margin_percentage: 15, savings: 0 },
+    { name: "Moxikind-CV 625", generic_name: "Amoxi-Clav 625", price: 180, margin_percentage: 25, savings: 43 }
+  ],
+  "acetaminophen": [
+    { name: "Dolo 650", generic_name: "Paracetamol 650mg", price: 32, margin_percentage: 18, savings: 0 },
+    { name: "Calpol 650", generic_name: "Paracetamol 650mg", price: 30, margin_percentage: 18, savings: 2 },
+    { name: "Pacimol 650", generic_name: "Paracetamol 650mg", price: 22, margin_percentage: 35, savings: 10 }
+  ]
+};
+
+const H1_DRUGS_LIST = [
+  "alprazolam", "diazepam", "clonazepam", "zolpidem", "tramadol", // Sedatives/Sleep
+  "amoxicillin", "azithromycin", "ciprofloxacin", "cefixime", "ofloxacin", "levofloxacin", // Antibiotics
+  "tuberculosis", "rifampicin", "isoniazid",
+  "buprenorphine", "tapentadol"
+];
+
+// CDSCO Banned Fixed Dose Combinations (Anti-Malpractice Database)
+const BANNED_COMBINATIONS: Record<string, string> = {
+  "nimesulide paracetamol": "Banned in children < 12 years. Hepatotoxicity risk.",
+  "cisapride": "Banned due to cardiac risks.",
+  "phenylpropanolamine": "Banned. Risk of stroke.",
+  "codeine chlorpheniramine alcohol": "Banned. Risk of abuse and respiratory depression.",
+  "pioglitazone metformin": "Suspended warnings. Bladder cancer risk check required."
+};
+
+// "Dawa-Gyaan" Patient Education Database
+const PATIENT_EDUCATION: Record<string, { diet: string[], lifestyle: string[], warning: string }> = {
+  "antibiotic": {
+    diet: ["Eat Probiotics (Curd/Yogurt) to protect stomach.", "Avoid spicy food."],
+    lifestyle: ["Complete the full course even if you feel better.", "Drink 3L water daily."],
+    warning: "Alcohol may cause severe reaction."
+  },
+  "painkiller": {
+    diet: ["Take with food/milk to avoid acidity.", "Avoid alcohol."],
+    lifestyle: ["Do not take on empty stomach."],
+    warning: "Long term use affects kidneys."
+  },
+  "antidiabetic": {
+    diet: ["Avoid sugar & refined carbs.", "Eat fiber-rich food."],
+    lifestyle: ["Walk 30 mins daily.", "Check feet for injuries."],
+    warning: "Monitor for sudden sugar drop (Hypoglycemia)."
+  },
+  "antihypertensive": {
+    diet: ["Reduce salt intake.", "Eat bananas/potassium rich food."],
+    lifestyle: ["Monitor BP weekly.", "Manage stress."],
+    warning: "Do not stop suddenly. Rebound BP risk."
+  }
 };
 
 class DrugService {
@@ -221,6 +274,21 @@ class DrugService {
     // Check Compliance (H1 Shield)
     const isH1 = H1_DRUGS_LIST.some(drug => genericName.includes(drug));
 
+    // Check Banned Status (Satya-Check)
+    let bannedStatus = { is_banned: false, reason: "" };
+    for (const banned in BANNED_COMBINATIONS) {
+      if (genericName.includes(banned) || originalQuery.toLowerCase().includes(banned)) {
+        bannedStatus = { is_banned: true, reason: BANNED_COMBINATIONS[banned] };
+        break;
+      }
+    }
+
+    // Get Patient Education (Dawa-Gyaan)
+    let education = PATIENT_EDUCATION["painkiller"]; // Default fallback
+    if (genericName.includes("biotic") || genericName.includes("illin") || genericName.includes("mycin") || genericName.includes("cef")) education = PATIENT_EDUCATION["antibiotic"];
+    else if (genericName.includes("metformin") || genericName.includes("glipizide") || genericName.includes("insulin")) education = PATIENT_EDUCATION["antidiabetic"];
+    else if (genericName.includes("sartan") || genericName.includes("pril") || genericName.includes("pine")) education = PATIENT_EDUCATION["antihypertensive"];
+
     return {
       name: resolvedGeneric ? `${originalQuery} (${resolvedGeneric})` : (info.openfda?.brand_name?.[0] || originalQuery),
       generic_name: info.openfda?.generic_name?.[0] || resolvedGeneric || "Unknown",
@@ -248,6 +316,8 @@ class DrugService {
       },
       substitutes: foundSubstitutes,
       is_h1_drug: isH1,
+      banned_status: bannedStatus,
+      education_tips: education,
       safety_warning: "⚠️ CLINICAL DISCLAIMER: This information is for educational purposes only. Always consult a licensed physician before starting any medication."
     };
   }

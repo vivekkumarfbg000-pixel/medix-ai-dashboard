@@ -17,7 +17,10 @@ import {
   Bot,
   IndianRupee,
   TrendingUp,
-  ShieldAlert
+  ShieldAlert,
+  Stethoscope,
+  Brain,
+  MessageSquare
 } from "lucide-react";
 import { drugService, ClinicalDrugInfo, InteractionResult } from "@/services/drugService";
 import VoiceInput from "@/components/common/VoiceInput";
@@ -208,32 +211,63 @@ const AIInsights = () => {
                       <Badge variant="secondary" className="text-xs">RX ONLY</Badge>
                     </div>
 
-                    {/* MARGADARSHAK PROFIT ENGINE */}
-                    {drugInfo.substitutes && drugInfo.substitutes.length > 0 && (
-                      <div className="mt-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
-                        <h3 className="text-green-800 font-bold flex items-center gap-2 mb-2">
-                          <TrendingUp className="w-5 h-5" />
-                          Margadarshak Insight: Profit Opportunity
+                  </div>
+
+                  {/* SATYA-CHECK: BANNED DRUG ALERT */}
+                  {drugInfo.banned_status?.is_banned && (
+                    <div className="bg-red-50 border-l-4 border-red-600 p-4 rounded-r-lg animate-pulse mb-4">
+                      <h3 className="font-bold text-red-700 flex items-center gap-2 mb-2 text-lg">
+                        <ShieldAlert className="w-6 h-6" /> STOP! BANNED DRUG DETECTED
+                      </h3>
+                      <p className="text-red-800 font-medium">Reason: {drugInfo.banned_status.reason}</p>
+                      <p className="text-sm text-red-600 mt-1">Sale of this composition is illegal under CDSCO gazette.</p>
+                      <Button variant="destructive" className="mt-2 w-full font-bold">
+                        DO NOT DISPENSE
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* DAWA-GYAAN: PATIENT EDUCATION CARD */}
+                  {drugInfo.education_tips && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
+                      <div className="flex justify-between items-start">
+                        <h3 className="text-blue-900 font-bold flex items-center gap-2 text-lg">
+                          <Brain className="w-5 h-5" /> Dawa-Gyaan: Patient Tips
                         </h3>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          {drugInfo.substitutes.map((sub, idx) => (
-                            <div key={idx} className="bg-white p-3 rounded border border-green-100 shadow-sm flex justify-between items-center">
-                              <div>
-                                <p className="font-semibold text-green-900">{sub.name}</p>
-                                <p className="text-xs text-green-600">{sub.generic_name}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-bold text-green-700">₹{sub.price}</p>
-                                <Badge className="bg-green-600 hover:bg-green-700 text-white border-none">
-                                  Save ₹{sub.savings}
-                                </Badge>
-                              </div>
-                            </div>
-                          ))}
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white gap-2"
+                          onClick={() => {
+                            const tips = drugInfo.education_tips;
+                            if (!tips) return;
+                            const msg = `*💊 PharmaAssist Care Card*\n\n*Medicine:* ${drugInfo.name}\n\n*🥗 Diet:* ${tips.diet.join(", ")}\n*🚶 Lifestyle:* ${tips.lifestyle.join(", ")}\n\n*⚠️ Warning:* ${tips.warning}\n\n_Get Well Soon!_`;
+                            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" /></svg>
+                          Share Care Card
+                        </Button>
+                      </div>
+                      <div className="grid sm:grid-cols-2 gap-4 mt-3">
+                        <div>
+                          <p className="text-xs font-bold uppercase text-blue-500 tracking-wider">Recommended Diet</p>
+                          <ul className="list-disc list-inside text-sm text-blue-800 mt-1">
+                            {drugInfo.education_tips.diet.map((t, i) => <li key={i}>{t}</li>)}
+                          </ul>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold uppercase text-blue-500 tracking-wider">Lifestyle Advice</p>
+                          <ul className="list-disc list-inside text-sm text-blue-800 mt-1">
+                            {drugInfo.education_tips.lifestyle.map((t, i) => <li key={i}>{t}</li>)}
+                          </ul>
                         </div>
                       </div>
-                    )}
-                  </div>
+                      <div className="mt-3 bg-yellow-50 border border-yellow-200 p-2 rounded text-xs text-yellow-800 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                        <b>Warning:</b> {drugInfo.education_tips.warning}
+                      </div>
+                    </div>
+                  )}
 
                   {/* CRITICAL BOXED WARNINGS */}
                   {drugInfo.boxed_warnings && drugInfo.boxed_warnings.length > 0 && (
@@ -248,6 +282,59 @@ const AIInsights = () => {
                       </ul>
                     </div>
                   )}
+
+                  {/* MARGADARSHAK PROFIT ENGINE */}
+                  {drugInfo.substitutes && drugInfo.substitutes.length > 0 && (
+                    <div className="mt-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+                      <h3 className="text-green-800 font-bold flex items-center gap-2 mb-2">
+                        <TrendingUp className="w-5 h-5" />
+                        Margadarshak Insight: Profit Opportunity
+                      </h3>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {drugInfo.substitutes.map((sub, idx) => (
+                          <div key={idx} className="bg-white p-3 rounded border border-green-100 shadow-sm flex justify-between items-center">
+                            <div>
+                              <p className="font-semibold text-green-900">{sub.name}</p>
+                              <p className="text-xs text-green-600">{sub.generic_name}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-green-700">₹{sub.price}</p>
+                              <Badge className="bg-green-600 hover:bg-green-700 text-white border-none">
+                                Save ₹{sub.savings}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* MARGADARSHAK PROFIT ENGINE */}
+                  {drugInfo.substitutes && drugInfo.substitutes.length > 0 && (
+                    <div className="mt-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+                      <h3 className="text-green-800 font-bold flex items-center gap-2 mb-2">
+                        <TrendingUp className="w-5 h-5" />
+                        Margadarshak Insight: Profit Opportunity
+                      </h3>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {drugInfo.substitutes.map((sub, idx) => (
+                          <div key={idx} className="bg-white p-3 rounded border border-green-100 shadow-sm flex justify-between items-center">
+                            <div>
+                              <p className="font-semibold text-green-900">{sub.name}</p>
+                              <p className="text-xs text-green-600">{sub.generic_name}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-green-700">₹{sub.price}</p>
+                              <Badge className="bg-green-600 hover:bg-green-700 text-white border-none">
+                                Save ₹{sub.savings}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* REMOVED EXTRA CLOSING DIV */}
 
                   <div className="grid md:grid-cols-2 gap-6">
                     <Card className="bg-muted/30">
@@ -409,7 +496,7 @@ const AIInsights = () => {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </div >
   );
 };
 
