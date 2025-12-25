@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ const Inventory = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const { canModify } = useUserRole("SHOP_ID_PLACEHOLDER"); // In a real app, pass the actual shop_id or context
   const [newItem, setNewItem] = useState({
     medicine_name: "",
     generic_name: "",
@@ -65,6 +67,26 @@ const Inventory = () => {
 
   useEffect(() => {
     fetchInventory();
+
+    // Subscribe to real-time inventory updates (Stock Sync)
+    const channel = supabase
+      .channel('inventory-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'inventory'
+        },
+        () => {
+          fetchInventory();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const getExpiryStatus = (expiryDate: string | null) => {
@@ -103,6 +125,7 @@ const Inventory = () => {
       expiry_date: newItem.expiry_date || null,
       manufacturer: newItem.manufacturer || null,
       category: newItem.category || null,
+
     });
 
     if (error) {
@@ -141,6 +164,10 @@ const Inventory = () => {
             Manage your medicine stock and track expiry dates
           </p>
         </div>
+      </div>
+
+      {/* Only show Add button if user has permission */}
+      {canModify && (
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -244,7 +271,7 @@ const Inventory = () => {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+      )}
 
       {/* Search & Filters */}
       <Card>
