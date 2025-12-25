@@ -16,6 +16,14 @@ export interface ClinicalDrugInfo {
     common: string[];
     severe: string[];
   };
+  substitutes?: {
+    name: string;
+    generic_name: string;
+    price: number;
+    margin_percentage: number;
+    savings: number;
+  }[];
+  is_h1_drug?: boolean; // For Compliance Shield
   safety_warning: string;
 }
 
@@ -198,6 +206,20 @@ class DrugService {
 
   private formatClinicalData(data: any, originalQuery: string, resolvedGeneric: string | null): ClinicalDrugInfo {
     const info = data;
+    const genericName = (info.openfda?.generic_name?.[0] || resolvedGeneric || "Unknown").toLowerCase();
+
+    // Find Substitutes (Profit Engine)
+    // Check against resolved generic name (e.g. "acetaminophen")
+    let foundSubstitutes = [];
+    for (const key in PROFIT_SUBSTITUTES) {
+      if (genericName.includes(key)) {
+        foundSubstitutes = PROFIT_SUBSTITUTES[key];
+        break;
+      }
+    }
+
+    // Check Compliance (H1 Shield)
+    const isH1 = H1_DRUGS_LIST.some(drug => genericName.includes(drug));
 
     return {
       name: resolvedGeneric ? `${originalQuery} (${resolvedGeneric})` : (info.openfda?.brand_name?.[0] || originalQuery),
@@ -224,6 +246,8 @@ class DrugService {
         common: this.extractSideEffects(info.adverse_reactions?.[0] || ""),
         severe: ["Seek immediate help if allergic reaction occurs."]
       },
+      substitutes: foundSubstitutes,
+      is_h1_drug: isH1,
       safety_warning: "⚠️ CLINICAL DISCLAIMER: This information is for educational purposes only. Always consult a licensed physician before starting any medication."
     };
   }
