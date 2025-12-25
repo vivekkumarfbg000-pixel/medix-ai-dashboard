@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useUserShops } from "@/hooks/useUserShops";
 import { useUserRole } from "@/hooks/useUserRole";
+import { ThemeToggle } from "../common/ThemeToggle";
 
 export function DashboardLayout() {
   const navigate = useNavigate();
@@ -95,6 +96,7 @@ export function DashboardLayout() {
             </div>
 
             <div className="flex items-center gap-3">
+              <ThemeToggle />
               <ActiveUsers roomId={currentShop?.id || "default"} />
               <Button variant="ghost" size="icon" className="relative">
                 <Bell className="w-5 h-5" />
