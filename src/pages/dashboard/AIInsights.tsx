@@ -12,13 +12,15 @@ import {
   AlertTriangle,
   Info,
   FileText,
-  MessageSquare,
-  Stethoscope,
   Plus,
   X,
-  Bot
+  Bot,
+  IndianRupee,
+  TrendingUp,
+  ShieldAlert
 } from "lucide-react";
 import { drugService, ClinicalDrugInfo, InteractionResult } from "@/services/drugService";
+import VoiceInput from "@/components/common/VoiceInput";
 
 const AIInsights = () => {
   const [activeTab, setActiveTab] = useState("info");
@@ -156,43 +158,81 @@ const AIInsights = () => {
             <CardContent className="pt-6 space-y-6">
               <div className="relative">
                 <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Enter brand or generic name (e.g., Crocin, Amoxicillin)..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 h-12 text-lg"
-                      onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    />
-                    {showSuggestions && suggestions.length > 0 && (
-                      <div className="absolute z-10 w-full bg-popover border rounded-md shadow-md mt-1 overflow-hidden">
-                        {suggestions.map((s, i) => (
-                          <div
-                            key={i}
-                            className="px-4 py-2 hover:bg-muted cursor-pointer text-sm"
-                            onClick={() => handleSearch(s)}
-                          >
-                            {s}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  <div className="relative flex-1 flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Enter brand or generic name (e.g., Crocin, Amoxicillin)..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 h-12 text-lg"
+                        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                      />
+                      {showSuggestions && suggestions.length > 0 && (
+                        <div className="absolute z-10 w-full bg-popover border rounded-md shadow-md mt-1 overflow-hidden">
+                          {suggestions.map((s, i) => (
+                            <div
+                              key={i}
+                              className="px-4 py-2 hover:bg-muted cursor-pointer text-sm"
+                              onClick={() => handleSearch(s)}
+                            >
+                              {s}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <VoiceInput onTranscript={(text) => handleSearch(text)} />
+                    <Button size="lg" onClick={() => handleSearch()} disabled={loading} className="px-8">
+                      {loading ? <Activity className="w-4 h-4 animate-spin" /> : "Analyze"}
+                    </Button>
                   </div>
-                  <Button size="lg" onClick={() => handleSearch()} disabled={loading} className="px-8">
-                    {loading ? <Activity className="w-4 h-4 animate-spin" /> : "Analyze"}
-                  </Button>
                 </div>
               </div>
 
               {drugInfo && (
                 <div className="space-y-6 animate-in fade-in-50 slide-in-from-bottom-2">
-                  <div className="flex items-center justify-between border-b pb-4">
-                    <div>
-                      <h2 className="text-2xl font-bold text-primary">{drugInfo.name}</h2>
-                      <p className="text-sm text-muted-foreground font-mono">{drugInfo.generic_name}</p>
+                  <div className="flex flex-col gap-2 border-b pb-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h2 className="text-2xl font-bold text-primary flex items-center gap-2">
+                          {drugInfo.name}
+                          {drugInfo.is_h1_drug && (
+                            <Badge variant="destructive" className="animate-pulse gap-1">
+                              <ShieldAlert className="w-3 h-3" /> H1 DRUG - REGISTER MANDATORY
+                            </Badge>
+                          )}
+                        </h2>
+                        <p className="text-sm text-muted-foreground font-mono">{drugInfo.generic_name}</p>
+                      </div>
+                      <Badge variant="secondary" className="text-xs">RX ONLY</Badge>
                     </div>
-                    <Badge variant="secondary" className="text-xs">RX ONLY</Badge>
+
+                    {/* MARGADARSHAK PROFIT ENGINE */}
+                    {drugInfo.substitutes && drugInfo.substitutes.length > 0 && (
+                      <div className="mt-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+                        <h3 className="text-green-800 font-bold flex items-center gap-2 mb-2">
+                          <TrendingUp className="w-5 h-5" />
+                          Margadarshak Insight: Profit Opportunity
+                        </h3>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {drugInfo.substitutes.map((sub, idx) => (
+                            <div key={idx} className="bg-white p-3 rounded border border-green-100 shadow-sm flex justify-between items-center">
+                              <div>
+                                <p className="font-semibold text-green-900">{sub.name}</p>
+                                <p className="text-xs text-green-600">{sub.generic_name}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold text-green-700">₹{sub.price}</p>
+                                <Badge className="bg-green-600 hover:bg-green-700 text-white border-none">
+                                  Save ₹{sub.savings}
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* CRITICAL BOXED WARNINGS */}
