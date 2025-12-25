@@ -78,11 +78,9 @@ export function DashboardLayout() {
       <div className="min-h-screen flex w-full bg-medical-canvas">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Voice Command Bar - Fixed at top */}
-          <VoiceCommandBar onTranscriptionComplete={handleTranscriptionComplete} />
-          
+
           {/* Header */}
-          <header className="h-16 border-b border-border/50 glass-card flex items-center justify-between px-4 lg:px-6 sticky top-[72px] z-10">
+          <header className="h-16 border-b border-border/50 glass-card flex items-center justify-between px-4 lg:px-6 sticky top-0 z-20 gap-4">
             <div className="flex items-center gap-4">
               <SidebarTrigger className="lg:hidden" />
               <ShopSwitcher />
@@ -91,6 +89,11 @@ export function DashboardLayout() {
                 <kbd className="inline-flex h-5 items-center gap-1 rounded border bg-muted/50 px-1.5 font-mono text-[10px]"><Command className="w-3 h-3" />K</kbd>
               </Button>
             </div>
+
+            <div className="flex-1 flex justify-center max-w-2xl px-4">
+              <VoiceCommandBar onTranscriptionComplete={handleTranscriptionComplete} compact />
+            </div>
+
             <div className="flex items-center gap-3">
               <ActiveUsers roomId={currentShop?.id || "default"} />
               <Button variant="ghost" size="icon" className="relative">

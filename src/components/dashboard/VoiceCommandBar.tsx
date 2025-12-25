@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 interface VoiceCommandBarProps {
   onTranscriptionComplete: (transcription: string, parsedItems: ParsedItem[]) => void;
+  compact?: boolean;
 }
 
 export interface ParsedItem {
@@ -14,7 +15,7 @@ export interface ParsedItem {
   contact?: string;
 }
 
-export function VoiceCommandBar({ onTranscriptionComplete }: VoiceCommandBarProps) {
+export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: VoiceCommandBarProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -77,7 +78,7 @@ export function VoiceCommandBar({ onTranscriptionComplete }: VoiceCommandBarProp
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+
       // Set up audio analysis for visualization
       const audioContext = new AudioContext();
       const source = audioContext.createMediaStreamSource(stream);
@@ -99,16 +100,16 @@ export function VoiceCommandBar({ onTranscriptionComplete }: VoiceCommandBarProp
       mediaRecorder.onstop = async () => {
         setIsProcessing(true);
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        
+
         try {
           // For now, simulate transcription (n8n webhook will be added later)
           // In production, this would call the n8n webhook
           await new Promise(resolve => setTimeout(resolve, 1500));
-          
+
           // Simulated transcription result
           const mockTranscription = "2 Crocin, 1 Paracetamol, contact 9876543210";
           const parsedItems = parseTranscription(mockTranscription);
-          
+
           onTranscriptionComplete(mockTranscription, parsedItems);
           toast.success("Voice command processed!");
         } catch (error) {
@@ -145,22 +146,22 @@ export function VoiceCommandBar({ onTranscriptionComplete }: VoiceCommandBarProp
   };
 
   return (
-    <div className="voice-bar">
-      <div className="flex items-center gap-4">
+    <div className={cn("voice-bar transition-all", compact ? "bg-transparent p-0 border-0 shadow-none w-full" : "")}>
+      <div className={cn("flex items-center gap-4", compact && "gap-2")}>
         <div className="flex items-center gap-2">
           <Volume2 className="w-5 h-5 text-primary" />
-          <span className="font-semibold text-foreground">Voice Billing</span>
+          <span className={cn("font-semibold text-foreground", compact && "hidden xl:block")}>Voice Billing</span>
         </div>
-        
-        <div className="flex-1 flex items-center justify-center gap-3">
-          <span className="text-sm text-muted-foreground hidden sm:block">
-            {isRecording 
-              ? "Listening... Say '2 Crocin, 1 Paracetamol, contact 98765'" 
-              : isProcessing 
-                ? "Processing your voice command..." 
+
+        <div className={cn("flex-1 flex items-center justify-center gap-3", compact && "justify-start")}>
+          <span className={cn("text-sm text-muted-foreground hidden sm:block", compact && "text-xs truncate max-w-[200px] hidden lg:block")}>
+            {isRecording
+              ? "Listening... Say '2 Crocin, 1 Paracetamol, contact 98765'"
+              : isProcessing
+                ? "Processing your voice command..."
                 : "Click the mic to start voice billing"}
           </span>
-          
+
           {/* Audio level indicator */}
           {isRecording && (
             <div className="flex items-center gap-1">
@@ -182,7 +183,8 @@ export function VoiceCommandBar({ onTranscriptionComplete }: VoiceCommandBarProp
           variant={isRecording ? "destructive" : "default"}
           size="lg"
           className={cn(
-            "rounded-full w-14 h-14 p-0 shadow-lg transition-all",
+            "rounded-full shadow-lg transition-all",
+            compact ? "w-10 h-10" : "w-14 h-14",
             isRecording && "animate-pulse ring-4 ring-destructive/30",
             isProcessing && "opacity-50 cursor-not-allowed"
           )}
@@ -194,7 +196,7 @@ export function VoiceCommandBar({ onTranscriptionComplete }: VoiceCommandBarProp
           ) : isRecording ? (
             <MicOff className="w-6 h-6" />
           ) : (
-            <Mic className="w-6 h-6" />
+            <Mic className={cn(compact ? "w-4 h-4" : "w-6 h-6")} />
           )}
         </Button>
       </div>
