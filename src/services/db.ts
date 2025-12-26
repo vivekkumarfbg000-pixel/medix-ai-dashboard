@@ -9,16 +9,22 @@ export interface Medicine {
     quantity: number;
     mrp: number;
     minStockLevel: number;
+    isH1?: boolean;
+    syncStatus?: 'pending' | 'synced' | 'failed';
+    supabaseId?: string;
 }
 
 export interface Order {
     id?: number;
     customerName: string;
+    doctorName?: string; // Added for H1 Compliance
     mobileNumber?: string;
-    items: { medicineId: number; name: string; quantity: number; price: number }[];
+    items: { medicineId: number; name: string; quantity: number; price: number; isH1?: boolean }[];
     totalAmount: number;
     status: 'pending' | 'completed' | 'cancelled';
     createdAt: Date;
+    syncStatus?: 'pending' | 'synced' | 'failed';
+    supabaseId?: string;
 }
 
 export class PharmaDB extends Dexie {
@@ -27,9 +33,9 @@ export class PharmaDB extends Dexie {
 
     constructor() {
         super('PharmaAssistDB');
-        this.version(1).stores({
-            medicines: '++id, name, genericName, expiryDate, quantity', // Index for searching/sorting
-            orders: '++id, customerName, status, createdAt'
+        this.version(3).stores({
+            medicines: '++id, name, genericName, expiryDate, quantity, isH1, syncStatus, supabaseId',
+            orders: '++id, customerName, doctorName, status, createdAt, syncStatus, supabaseId'
         });
     }
 }

@@ -4,11 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Bell, 
-  AlertTriangle, 
-  Clock, 
-  Package, 
+import {
+  Bell,
+  AlertTriangle,
+  Clock,
+  Package,
   Users,
   Calendar,
   CheckCircle,
@@ -56,7 +56,7 @@ const Alerts = () => {
   const expiryAlerts = inventory.filter(item => {
     if (!item.expiry_date) return false;
     const days = differenceInDays(new Date(item.expiry_date), new Date());
-    return days <= 60 && days >= 0;
+    return days <= 90 && days >= 0;
   });
 
   const expiredItems = inventory.filter(item => {
@@ -64,7 +64,7 @@ const Alerts = () => {
     return differenceInDays(new Date(item.expiry_date), new Date()) < 0;
   });
 
-  const lowStockItems = inventory.filter(item => 
+  const lowStockItems = inventory.filter(item =>
     item.quantity < (item.reorder_level || 10)
   );
 
@@ -204,24 +204,24 @@ const Alerts = () => {
         </TabsContent>
 
         <TabsContent value="expiry">
-          <AlertsList 
-            alerts={allAlerts.filter(a => a.type === "expiry" || a.type === "expired")} 
+          <AlertsList
+            alerts={allAlerts.filter(a => a.type === "expiry" || a.type === "expired")}
             loading={loading}
             emptyMessage="No expiry alerts"
           />
         </TabsContent>
 
         <TabsContent value="stock">
-          <AlertsList 
-            alerts={allAlerts.filter(a => a.type === "stock")} 
+          <AlertsList
+            alerts={allAlerts.filter(a => a.type === "stock")}
             loading={loading}
             emptyMessage="All stock levels are healthy"
           />
         </TabsContent>
 
         <TabsContent value="reminders">
-          <AlertsList 
-            alerts={allAlerts.filter(a => a.type === "reminder")} 
+          <AlertsList
+            alerts={allAlerts.filter(a => a.type === "reminder")}
             loading={loading}
             emptyMessage="No upcoming refill reminders"
           />
@@ -263,26 +263,24 @@ const AlertsList = ({ alerts, loading, emptyMessage = "No alerts" }: AlertsListP
   return (
     <div className="space-y-3">
       {alerts.map((alert, i) => (
-        <Card 
+        <Card
           key={i}
           className={
             alert.severity === "critical" ? "border-destructive/50 bg-destructive/5" :
-            alert.severity === "high" ? "border-warning/50 bg-warning/5" :
-            alert.severity === "medium" ? "border-border" : "border-info/50 bg-info/5"
+              alert.severity === "high" ? "border-warning/50 bg-warning/5" :
+                alert.severity === "medium" ? "border-border" : "border-info/50 bg-info/5"
           }
         >
           <CardContent className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className={`p-2 rounded-lg ${
-                alert.severity === "critical" ? "bg-destructive/20" :
+              <div className={`p-2 rounded-lg ${alert.severity === "critical" ? "bg-destructive/20" :
                 alert.severity === "high" ? "bg-warning/20" :
-                alert.severity === "medium" ? "bg-muted" : "bg-info/20"
-              }`}>
+                  alert.severity === "medium" ? "bg-muted" : "bg-info/20"
+                }`}>
                 {alert.type === "expiry" || alert.type === "expired" ? (
-                  <Clock className={`w-5 h-5 ${
-                    alert.severity === "critical" ? "text-destructive" :
+                  <Clock className={`w-5 h-5 ${alert.severity === "critical" ? "text-destructive" :
                     alert.severity === "high" ? "text-warning" : "text-muted-foreground"
-                  }`} />
+                    }`} />
                 ) : alert.type === "stock" ? (
                   <Package className="w-5 h-5 text-info" />
                 ) : (
@@ -296,7 +294,7 @@ const AlertsList = ({ alerts, loading, emptyMessage = "No alerts" }: AlertsListP
             </div>
             <Badge variant={
               alert.severity === "critical" ? "destructive" :
-              alert.severity === "high" ? "secondary" : "outline"
+                alert.severity === "high" ? "secondary" : "outline"
             }>
               {alert.severity}
             </Badge>
