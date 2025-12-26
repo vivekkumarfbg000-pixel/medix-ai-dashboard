@@ -9,7 +9,8 @@ import {
   LogOut,
   Pill,
   LayoutDashboard,
-  Activity
+  Activity,
+  ShieldAlert
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +35,7 @@ const mainNavItems = [
   { title: "Inventory", url: "/dashboard/inventory", icon: Package },
   { title: "Diary Scan", url: "/dashboard/diary-scan", icon: FileText },
   { title: "Lab Reports", url: "/dashboard/lab-analyzer", icon: Activity },
+  { title: "Compliance", url: "/dashboard/compliance", icon: ShieldAlert },
   { title: "Orders", url: "/dashboard/orders", icon: MessageSquare },
 ];
 

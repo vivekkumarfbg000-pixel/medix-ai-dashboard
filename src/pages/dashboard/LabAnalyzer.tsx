@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Upload, FileText, CheckCircle, AlertTriangle, Send, Activity, ArrowRight } from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertTriangle, Send, Activity, ArrowRight, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -113,16 +113,32 @@ const LabAnalyzer = () => {
                             </div>
                         ) : (
                             <>
-                                <h3 className="text-lg font-semibold mb-2">Drag & drop report here</h3>
+                                <h3 className="text-lg font-semibold mb-2">Upload or Scan Report</h3>
                                 <p className="text-sm text-muted-foreground mb-6">Supports PDF, JPG, PNG (Max 10MB)</p>
-                                <div className="relative">
-                                    <Button size="lg">Browse Files</Button>
-                                    <input
-                                        type="file"
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                        onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-                                        accept=".pdf,.jpg,.jpeg,.png"
-                                    />
+                                <div className="flex flex-col sm:flex-row gap-4 justify-center w-full max-w-md">
+                                    <div className="relative flex-1">
+                                        <Button size="lg" variant="outline" className="w-full gap-2 border-primary/20 hover:bg-primary/5">
+                                            <Upload className="w-4 h-4" /> Upload File
+                                        </Button>
+                                        <input
+                                            type="file"
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                                            accept=".pdf,.jpg,.jpeg,.png"
+                                        />
+                                    </div>
+                                    <div className="relative flex-1">
+                                        <Button size="lg" className="w-full gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/20">
+                                            <Camera className="w-4 h-4" /> Scan Report
+                                        </Button>
+                                        <input
+                                            type="file"
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                                            accept="image/*"
+                                            capture="environment"
+                                        />
+                                    </div>
                                 </div>
                             </>
                         )}

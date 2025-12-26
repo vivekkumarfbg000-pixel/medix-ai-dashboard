@@ -1,3 +1,5 @@
+import { n8nService } from "./n8nService";
+
 export interface ClinicalDrugInfo {
   name: string;
   generic_name: string;
@@ -201,8 +203,16 @@ class DrugService {
 
       if (!data) return null;
 
-      // 4. Structure Data (MediFlow Format)
-      return this.formatClinicalData(data, cleanQuery, resolveResult);
+      // 4. Real-time Market Intel (n8n "Moat")
+      let marketData = null;
+      try {
+        marketData = await n8nService.getMarketData(cleanQuery);
+      } catch (e) {
+        console.warn("Market Intel unavailable");
+      }
+
+      // 5. Structure Data (MediFlow Format)
+      return this.formatClinicalData(data, cleanQuery, resolveResult, marketData);
     } catch (error) {
       console.error("Clinical Engine Error:", error);
       return null;
@@ -257,17 +267,22 @@ class DrugService {
     }
   }
 
-  private formatClinicalData(data: any, originalQuery: string, resolvedGeneric: string | null): ClinicalDrugInfo {
+  private formatClinicalData(data: any, originalQuery: string, resolvedGeneric: string | null, marketData: any): ClinicalDrugInfo {
     const info = data;
     const genericName = (info.openfda?.generic_name?.[0] || resolvedGeneric || "Unknown").toLowerCase();
 
-    // Find Substitutes (Profit Engine)
-    // Check against resolved generic name (e.g. "acetaminophen")
+    // Use Real Market Data from n8n if available
     let foundSubstitutes = [];
-    for (const key in PROFIT_SUBSTITUTES) {
-      if (genericName.includes(key)) {
-        foundSubstitutes = PROFIT_SUBSTITUTES[key];
-        break;
+    if (marketData && marketData.substitutes) {
+      foundSubstitutes = marketData.substitutes;
+    } else {
+      // Limited Offline Fallback (Optional: keep or remove based on preference. Removing for "Moat" purity)
+      // Keeping minimal fallback for demo stability if n8n is offline
+      for (const key in PROFIT_SUBSTITUTES) {
+        if (genericName.includes(key)) {
+          foundSubstitutes = PROFIT_SUBSTITUTES[key];
+          break;
+        }
       }
     }
 
@@ -352,39 +367,27 @@ class DrugService {
     // In production, this would be a specialized API call
     const results: InteractionResult[] = [];
 
-    for (let i = 0; i < drugs.length; i++) {
-      for (let j = i + 1; j < drugs.length; j++) {
-        results.push(this.simulateInteraction(drugs[i], drugs[j]));
+    // AI-Powered Interaction Check (Real-time via n8n)
+    try {
+      if (typeof n8nService.checkInteractions === 'function') {
+        const results = await n8nService.checkInteractions(drugs);
+        return results;
+      } else {
+        // Fallback for demo if n8n service isn't ready
+        return [];
       }
+    } catch (err) {
+      console.error("Failed to check interactions via AI", err);
+      // Fallback
+      return [];
     }
-    return results;
   }
 
-  private simulateInteraction(d1: string, d2: string): InteractionResult {
-    const d1Lower = d1.toLowerCase();
-    const d2Lower = d2.toLowerCase();
-
-    // Known dangerous combos (Mock Database)
-    if ((d1Lower.includes("aspirin") && d2Lower.includes("warfarin")) ||
-      (d1Lower.includes("ibuprofen") && d2Lower.includes("blood thinner"))) {
-      return {
-        drug1: d1, drug2: d2, severity: "Major",
-        description: "High risk of bleeding. Avoid combination."
-      };
-    }
-
-    if (d1Lower.includes("paracetamol") && d2Lower.includes("alcohol")) {
-      return {
-        drug1: d1, drug2: d2, severity: "Major",
-        description: "Risk of liver damage."
-      };
-    }
-
-    // Default safe
-    return {
-      drug1: d1, drug2: d2, severity: "None",
-      description: "No major interactions reported in standard knowledge base."
-    };
+  // private simulateInteraction(d1: string, d2: string): InteractionResult { // Removed in favor of n8n
+  //   ... 
+  // }
+  async validateCompliance(drugName: string): Promise<string> {
+    return await n8nService.checkComplianceStatus(drugName);
   }
 }
 

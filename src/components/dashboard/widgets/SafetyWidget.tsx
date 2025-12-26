@@ -33,17 +33,17 @@ export const SafetyWidget = () => {
             </CardHeader>
             <CardContent className="space-y-6">
                 {/* LASA Monitor */}
-                <div className="bg-orange-50 dark:bg-orange-950/20 rounded-lg p-3 border border-orange-100 dark:border-orange-900/50">
+                <div className="bg-orange-50 dark:bg-slate-800 rounded-lg p-3 border border-orange-100 dark:border-orange-900/30">
                     <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle className="w-4 h-4 text-orange-600" />
-                        <span className="text-xs font-bold text-orange-800 dark:text-orange-300 uppercase tracking-wide">LASA Alert (Look-Alike)</span>
+                        <span className="text-xs font-bold text-orange-800 dark:text-orange-400 uppercase tracking-wide">LASA Alert (Look-Alike)</span>
                     </div>
-                    <div className="flex items-center justify-between text-sm p-2 bg-white dark:bg-background rounded border shadow-sm">
+                    <div className="flex items-center justify-between text-sm p-2 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 shadow-sm">
                         <span className="font-medium text-destructive">Humalog</span>
                         <span className="text-xs text-muted-foreground">vs</span>
                         <span className="font-medium text-destructive">Humulin</span>
                     </div>
-                    <p className="text-[10px] text-orange-600 mt-1 text-center font-medium">Double check before dispensing!</p>
+                    <p className="text-[10px] text-orange-600 dark:text-orange-300 mt-1 text-center font-medium">Double check before dispensing!</p>
                 </div>
 
                 {/* Mini Interaction Checker */}

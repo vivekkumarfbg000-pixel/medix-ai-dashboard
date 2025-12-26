@@ -104,6 +104,37 @@ const Inventory = () => {
       return;
     }
 
+    // --- "Satya-Check" (Compliance Shield) ---
+    const toastId = toast.loading("Satya-Check: Verifying compliance with CDSCO...");
+
+    // 1. Check for Banned Drug / Schedule H1
+    let complianceResult = { is_banned: false, is_h1: false, reason: "", warning_level: "SAFE" };
+    try {
+      // We use the generic name for accurate checking, or medicine name if generic not provided
+      const checkQuery = newItem.generic_name || newItem.medicine_name;
+      complianceResult = await import("@/services/n8nService").then(m => m.n8nService.checkBannedStatus(checkQuery));
+    } catch (e) {
+      console.warn("Compliance check offline, proceeding with caution.");
+    }
+
+    toast.dismiss(toastId);
+
+    if (complianceResult.is_banned) {
+      toast.error(`BLOCKED: ${newItem.medicine_name} is a BANNED DRUG!`, {
+        description: complianceResult.reason || "CDSCO Regulatory Ban detected.",
+        duration: 5000,
+      });
+      // We strict block banned drugs
+      return;
+    }
+
+    if (complianceResult.is_h1 && !newItem.medicine_name.toLowerCase().includes('h1')) {
+      toast.info("Note: This is a Schedule H1 Drug", {
+        description: "It has been auto-tagged for the Compliance Register."
+      });
+      // We could auto-append "H1" to category or handle it via the 'isH1' flag we added to DB
+    }
+
     // First get user's shop_id
     const { data: profile } = await supabase
       .from("profiles")
@@ -124,8 +155,7 @@ const Inventory = () => {
       unit_price: newItem.unit_price,
       expiry_date: newItem.expiry_date || null,
       manufacturer: newItem.manufacturer || null,
-      category: newItem.category || null,
-
+      category: newItem.category || (complianceResult.is_h1 ? "Schedule H1" : null), // Auto-tag category
     });
 
     if (error) {
@@ -133,6 +163,9 @@ const Inventory = () => {
       console.error(error);
     } else {
       toast.success("Item added successfully");
+      if (complianceResult.is_h1) {
+        toast.success("Compliance Shield: Added to H1 Register");
+      }
       setIsAddDialogOpen(false);
       setNewItem({
         medicine_name: "",

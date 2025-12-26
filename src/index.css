@@ -9,7 +9,8 @@
 @layer base {
   :root {
     /* Hospital Blue Canvas - Light Theme */
-    --background: 210 50% 98%; /* #f7fbff matches hsl(210, 50%, 98%) roughly, ensuring light hospital blue */
+    --background: 210 50% 98%;
+    /* #f7fbff matches hsl(210, 50%, 98%) roughly, ensuring light hospital blue */
     --foreground: 215 25% 15%;
 
     /* Glassmorphism Card */
@@ -20,7 +21,8 @@
     --popover-foreground: 215 25% 15%;
 
     /* Primary Professional Blue #0056b3 */
-    --primary: 211 100% 35%; /* Updated to match #0056b3 precisely */
+    --primary: 211 100% 35%;
+    /* Updated to match #0056b3 precisely */
     --primary-foreground: 0 0% 100%;
 
     /* Secondary - Soft Blue */
@@ -38,13 +40,13 @@
     /* Status Colors */
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    
+
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
-    
+
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-    
+
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
 
@@ -97,28 +99,33 @@
 
   .dark {
     --background: 215 28% 9%;
-    --foreground: 210 40% 98%;
+    --foreground: 0 0% 100%;
+    /* Pure White */
 
     --card: 215 28% 14%;
-    --card-foreground: 210 40% 98%;
+    --card-foreground: 0 0% 100%;
+    /* Pure White */
 
     --popover: 215 28% 14%;
-    --popover-foreground: 210 40% 98%;
+    --popover-foreground: 0 0% 100%;
+    /* Pure White */
 
     --primary: 199 89% 55%;
     --primary-foreground: 215 28% 9%;
 
     --secondary: 215 25% 17%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary-foreground: 0 0% 100%;
+    /* Pure White */
 
     --muted: 215 25% 17%;
-    --muted-foreground: 215 20% 65%;
+    --muted-foreground: 0 0% 90%;
+    /* High contrast muted */
 
     --accent: 180 60% 50%;
     --accent-foreground: 215 28% 9%;
 
     --destructive: 0 62% 50%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
     --success: 142 71% 45%;
     --success-foreground: 215 28% 9%;
@@ -171,12 +178,18 @@
     background: linear-gradient(180deg, hsl(215 28% 9%) 0%, hsl(215 28% 7%) 100%);
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-semibold tracking-tight;
   }
 }
 
 @layer components {
+
   /* Glassmorphism Card */
   .glass-card {
     @apply rounded-xl border;
@@ -344,6 +357,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -354,6 +368,7 @@
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -365,6 +380,7 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -372,18 +388,24 @@
 }
 
 @keyframes float {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0);
   }
+
   50% {
     transform: translateY(-5px);
   }
 }
 
 @keyframes pulse-recording {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 hsl(0 84% 60% / 0.5);
   }
+
   50% {
     box-shadow: 0 0 0 12px hsl(0 84% 60% / 0);
   }
@@ -394,6 +416,7 @@
     transform: scale(0.8);
     opacity: 1;
   }
+
   100% {
     transform: scale(2.4);
     opacity: 0;

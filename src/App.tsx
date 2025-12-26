@@ -18,6 +18,7 @@ const Inventory = lazy(() => import("./pages/dashboard/Inventory"));
 const DiaryScan = lazy(() => import("./pages/dashboard/DiaryScan"));
 const LabAnalyzer = lazy(() => import("./pages/dashboard/LabAnalyzer"));
 const Orders = lazy(() => import("./pages/dashboard/Orders"));
+const Compliance = lazy(() => import("./pages/dashboard/Compliance"));
 const AIInsights = lazy(() => import("./pages/dashboard/AIInsights"));
 const Forecasting = lazy(() => import("./pages/dashboard/Forecasting"));
 const Alerts = lazy(() => import("./pages/dashboard/Alerts"));
@@ -37,9 +38,12 @@ const LoadingFallback = () => (
   </div>
 );
 
+import { syncService } from "./services/syncService";
+
 const App = () => {
   useEffect(() => {
     seedDatabase();
+    syncService.startSync();
   }, []);
 
   return (
@@ -57,6 +61,7 @@ const App = () => {
                 <Route path="inventory" element={<Inventory />} />
                 <Route path="diary-scan" element={<DiaryScan />} />
                 <Route path="lab-analyzer" element={<LabAnalyzer />} />
+                <Route path="compliance" element={<Compliance />} />
                 <Route path="orders" element={<Orders />} />
                 <Route path="ai-insights" element={<AIInsights />} />
                 <Route path="forecasting" element={<Forecasting />} />

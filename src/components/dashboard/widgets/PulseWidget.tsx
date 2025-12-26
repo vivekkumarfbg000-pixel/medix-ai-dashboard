@@ -52,7 +52,7 @@ export const PulseWidget = () => {
             {/* Stock Health & AI Insight */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Stock Health */}
-                <Card className="glass-card bg-red-50/50 border-red-100 dark:bg-red-900/10 dark:border-red-900/50">
+                <Card className="glass-card bg-red-50/50 border-red-100 dark:bg-slate-800 dark:border-red-900/50">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
                             <AlertOctagon className="w-4 h-4" /> Critical Stock
@@ -61,7 +61,7 @@ export const PulseWidget = () => {
                     <CardContent>
                         <div className="flex items-end gap-2">
                             <span className="text-3xl font-bold text-red-600 dark:text-red-400">12</span>
-                            <span className="text-xs text-red-600/80 mb-1 font-medium">Items near zero</span>
+                            <span className="text-xs text-red-600/80 dark:text-red-300/80 mb-1 font-medium">Items near zero</span>
                         </div>
                         <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1">
                             <PackageX className="w-3 h-3" /> Auto-reorder suggested
@@ -70,18 +70,18 @@ export const PulseWidget = () => {
                 </Card>
 
                 {/* AI Insight */}
-                <Card className="glass-card bg-blue-50/50 border-blue-100 dark:bg-blue-900/10 dark:border-blue-900/50 relative overflow-hidden">
+                <Card className="glass-card bg-blue-50/50 border-blue-100 dark:bg-slate-800 dark:border-blue-900/50 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-2 opacity-10">
                         <Lightbulb className="w-12 h-12 text-blue-500" />
                     </div>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-bold text-blue-700 dark:text-blue-400 flex items-center gap-2">
+                        <CardTitle className="text-sm font-bold text-blue-700 dark:text-[#0ea5e9] flex items-center gap-2">
                             <Lightbulb className="w-4 h-4" /> AI Pro Tip
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-sm font-medium text-blue-900 dark:text-blue-200 leading-snug">
-                            "Dengue cases rising in your area. Stock up on <span className="underline decoration-wavy">Platelet Boosters</span> & <span className="underline decoration-wavy">Paracetamol</span>."
+                        <p className="text-sm font-medium text-foreground leading-snug">
+                            "Dengue cases rising in your area. Stock up on <span className="underline decoration-wavy decoration-[#0ea5e9]">Platelet Boosters</span> & <span className="underline decoration-wavy decoration-[#0ea5e9]">Paracetamol</span>."
                         </p>
                     </CardContent>
                 </Card>

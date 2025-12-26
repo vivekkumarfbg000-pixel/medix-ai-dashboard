@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { useUserShops } from "@/hooks/useUserShops";
 import { useUserRole } from "@/hooks/useUserRole";
 import { ThemeToggle } from "../common/ThemeToggle";
+import { SyncStatus } from "../common/SyncStatus";
 
 export function DashboardLayout() {
   const navigate = useNavigate();
@@ -97,6 +98,7 @@ export function DashboardLayout() {
 
             <div className="flex items-center gap-3">
               <ThemeToggle />
+              <SyncStatus />
               <ActiveUsers roomId={currentShop?.id || "default"} />
               <Button variant="ghost" size="icon" className="relative">
                 <Bell className="w-5 h-5" />
