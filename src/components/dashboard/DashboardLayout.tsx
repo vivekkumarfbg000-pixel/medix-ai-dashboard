@@ -82,7 +82,13 @@ export function DashboardLayout() {
         <div className="flex-1 flex flex-col min-w-0">
 
           {/* Header */}
-          <header className="h-16 border-b border-border/50 glass-card flex items-center justify-between px-4 lg:px-6 sticky top-0 z-20 gap-4">
+          <header
+            className="border-b border-border/50 glass-card flex items-center justify-between px-4 lg:px-6 sticky top-0 z-50 gap-4 transition-all duration-200"
+            style={{
+              paddingTop: 'max(1rem, var(--safe-area-top))',
+              height: 'calc(4rem + var(--safe-area-top))'
+            }}
+          >
             <div className="flex items-center gap-4">
               <SidebarTrigger className="lg:hidden" />
               <ShopSwitcher />
@@ -98,7 +104,7 @@ export function DashboardLayout() {
 
             <div className="flex items-center gap-3">
               <ThemeToggle />
-              <SyncStatus />
+              {/* <SyncStatus /> */}
               <ActiveUsers roomId={currentShop?.id || "default"} />
               <Button variant="ghost" size="icon" className="relative">
                 <Bell className="w-5 h-5" />

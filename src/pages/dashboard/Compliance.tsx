@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { Download, ShieldAlert, FileText, CheckCircle } from "lucide-react";
-import { db, Order } from "@/services/db";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 // Mock H1 Sales Data Structure (since we might not have real data yet)
@@ -29,39 +29,43 @@ const Compliance = () => {
 
     const fetchH1Data = async () => {
         try {
-            const orders = await db.orders.toArray();
+            const { data: orders, error } = await supabase
+                .from("orders")
+                .select("*")
+                .order("created_at", { ascending: false });
+
+            if (error) throw error;
+
             const h1Entries: H1Entry[] = [];
 
-            // In a real app, we would join with the Medicines table to check 'isH1'
-            // For this SaaS MVP, we will simulate H1 detection based on common names if the flag isn't set yet.
-            // Or we assume the 'isH1' flag is on the order item.
+            // Supabase 'orders' has 'order_items' as JSONB
+            for (const order of orders || []) {
+                const items = order.order_items as any[];
+                if (!items || !Array.isArray(items)) continue;
 
-            const commonH1Drugs = ["Alprazolam", "Zolpidem", "Clonazepam", "Augmentin", "Azithral"];
-
-            for (const order of orders) {
-                if (!order.items) continue;
-
-                for (const item of order.items) {
-                    // Check if item is H1 (either via DB flag or naive check for demo)
-                    const isH1 = item.isH1 || commonH1Drugs.some(d => item.name.includes(d));
+                for (const item of items) {
+                    // Check if item is H1 (flagged in Order or partial name match fallback)
+                    // Note: We now save is_h1 flag in Orders.tsx
+                    const isH1 = item.is_h1 === true || item.schedule_h1 === true;
 
                     if (isH1) {
                         h1Entries.push({
-                            id: order.id || 0,
-                            date: order.createdAt instanceof Date ? order.createdAt.toISOString() : new Date().toISOString(),
-                            patientName: order.customerName,
-                            doctorName: order.doctorName || "Unknown",
+                            id: Number(order.id) || 0, // ID is string uuid so this might be NaN but id usage is minimal
+                            date: order.created_at,
+                            patientName: order.customer_name,
+                            doctorName: "Self/OTC", // We don't verify Doctor yet in this flow
                             drugName: item.name,
-                            quantity: item.quantity,
-                            batchNumber: "BATCH-" + (order.id || "X") // Mock if not linked
+                            quantity: item.qty || item.quantity,
+                            batchNumber: item.batch_number || "BATCH-NA"
                         });
                     }
                 }
             }
 
-            setH1Register(h1Entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+            setH1Register(h1Entries);
         } catch (error) {
             console.error("Error fetching H1 data:", error);
+            toast.error("Failed to load Compliance Register");
         } finally {
             setLoading(false);
         }

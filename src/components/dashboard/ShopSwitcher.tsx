@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useUserShops } from "@/hooks/useUserShops";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
 
 export function ShopSwitcher() {
   const { shops, currentShop, loading, switchShop } = useUserShops();
@@ -23,12 +24,12 @@ export function ShopSwitcher() {
 
   if (shops.length <= 1) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-md">
+      <Link to="/dashboard/settings" className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-md hover:bg-muted transition-colors cursor-pointer">
         <Building2 className="w-4 h-4 text-muted-foreground" />
         <span className="text-sm font-medium truncate max-w-32">
           {currentShop?.name || "My Shop"}
         </span>
-      </div>
+      </Link>
     );
   }
 

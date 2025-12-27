@@ -7,11 +7,8 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.13.0'
-        classpath 'com.google.gms:google-services:4.4.4'
-
-        // NOTE: Do not place your application dependencies here; they belong
-        // in the individual module build.gradle files
+        classpath 'com.android.tools.build:gradle:8.13.2'
+        classpath 'com.google.gms:google-services:4.4.2'
     }
 }
 
@@ -21,6 +18,26 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+    }
+
+    // Force Kotlin version to resolve duplicate class issues
+    configurations.all {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'org.jetbrains.kotlin' && details.requested.name.startsWith('kotlin-stdlib')) {
+                details.useVersion '1.9.22'
+            }
+        }
+    }
+}
+
+// Ensure all subprojects (including Capacitor plugins) use the correct compile SDK
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty("android")) {
+            android {
+                compileSdkVersion 35
+            }
+        }
     }
 }
 

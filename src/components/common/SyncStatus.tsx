@@ -7,8 +7,13 @@ export const SyncStatus = () => {
     const [status, setStatus] = useState<'idle' | 'syncing' | 'error'>('idle');
 
     useEffect(() => {
-        const unsubscribe = syncService.subscribe(setStatus);
-        return unsubscribe;
+        try {
+            const unsubscribe = syncService.subscribe(setStatus);
+            return unsubscribe;
+        } catch (error) {
+            console.error("SyncStatus subscription failed:", error);
+            setStatus('error');
+        }
     }, []);
 
     return (

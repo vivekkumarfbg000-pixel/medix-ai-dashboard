@@ -128,9 +128,9 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
       setIsRecording(true);
       updateAudioLevel();
       toast.info("Recording... Speak now");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Microphone access error:", error);
-      toast.error("Could not access microphone");
+      toast.error(`Could not access microphone: ${error.message || "Permission denied"}`);
     }
   };
 

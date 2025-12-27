@@ -29,23 +29,37 @@ const Settings = () => {
 
   useEffect(() => {
     const fetchShop = async () => {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .single();
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-      if (profile?.shop_id) {
-        const { data: shopData } = await supabase
-          .from("shops")
-          .select("*")
-          .eq("id", profile.shop_id)
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("shop_id")
+          .eq('id', user.id)
           .single();
 
-        if (shopData) {
-          setShop(shopData);
+        if (profile?.shop_id) {
+          const { data: shopData, error } = await supabase
+            .from("shops")
+            .select("*")
+            .eq("id", profile.shop_id)
+            .single();
+
+          if (error) {
+            console.error("Error fetching shop:", error);
+            toast.error("Could not load shop details");
+          }
+
+          if (shopData) {
+            setShop(shopData);
+          }
         }
+      } catch (e) {
+        console.error("Error in fetchShop:", e);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchShop();
@@ -53,7 +67,7 @@ const Settings = () => {
 
   const handleSaveShop = async () => {
     if (!shop) return;
-    
+
     setSaving(true);
     const { error } = await supabase
       .from("shops")
@@ -65,11 +79,18 @@ const Settings = () => {
       .eq("id", shop.id);
 
     if (error) {
-      toast.error("Failed to save settings");
+      console.error("Save error:", error);
+      toast.error(`Failed to save settings: ${error.message}`);
     } else {
       toast.success("Settings saved successfully");
     }
     setSaving(false);
+  };
+
+  const updateShopField = (field: keyof ShopData, value: string) => {
+    if (shop) {
+      setShop({ ...shop, [field]: value });
+    }
   };
 
   if (loading) {
@@ -113,8 +134,9 @@ const Settings = () => {
             <Input
               id="shop-name"
               value={shop?.name || ""}
-              onChange={(e) => setShop(shop ? { ...shop, name: e.target.value } : null)}
+              onChange={(e) => updateShopField('name', e.target.value)}
               placeholder="Enter shop name"
+              disabled={!shop}
             />
           </div>
           <div className="space-y-2">
@@ -122,8 +144,9 @@ const Settings = () => {
             <Input
               id="address"
               value={shop?.address || ""}
-              onChange={(e) => setShop(shop ? { ...shop, address: e.target.value } : null)}
+              onChange={(e) => updateShopField('address', e.target.value)}
               placeholder="Enter shop address"
+              disabled={!shop}
             />
           </div>
           <div className="space-y-2">
@@ -131,11 +154,12 @@ const Settings = () => {
             <Input
               id="phone"
               value={shop?.phone || ""}
-              onChange={(e) => setShop(shop ? { ...shop, phone: e.target.value } : null)}
+              onChange={(e) => updateShopField('phone', e.target.value)}
               placeholder="Enter phone number"
+              disabled={!shop}
             />
           </div>
-          <Button onClick={handleSaveShop} disabled={saving}>
+          <Button onClick={handleSaveShop} disabled={saving || !shop}>
             <Save className="w-4 h-4 mr-2" />
             {saving ? "Saving..." : "Save Changes"}
           </Button>
@@ -163,7 +187,7 @@ const Settings = () => {
             </div>
             <Switch
               checked={notifications.expiryAlerts}
-              onCheckedChange={(checked) => 
+              onCheckedChange={(checked) =>
                 setNotifications({ ...notifications, expiryAlerts: checked })
               }
             />
@@ -177,7 +201,7 @@ const Settings = () => {
             </div>
             <Switch
               checked={notifications.lowStockAlerts}
-              onCheckedChange={(checked) => 
+              onCheckedChange={(checked) =>
                 setNotifications({ ...notifications, lowStockAlerts: checked })
               }
             />
@@ -191,7 +215,7 @@ const Settings = () => {
             </div>
             <Switch
               checked={notifications.orderNotifications}
-              onCheckedChange={(checked) => 
+              onCheckedChange={(checked) =>
                 setNotifications({ ...notifications, orderNotifications: checked })
               }
             />
@@ -205,7 +229,7 @@ const Settings = () => {
             </div>
             <Switch
               checked={notifications.refillReminders}
-              onCheckedChange={(checked) => 
+              onCheckedChange={(checked) =>
                 setNotifications({ ...notifications, refillReminders: checked })
               }
             />

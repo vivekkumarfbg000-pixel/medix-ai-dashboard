@@ -1,259 +1,272 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  TrendingUp, 
-  TrendingDown, 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
+import {
+  TrendingUp,
+  TrendingDown,
   AlertTriangle,
   Calendar,
   Package,
-  ArrowUpRight
+  ArrowUpRight,
+  Zap,
+  RefreshCw,
+  ShoppingCart,
+  Hourglass
 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from "recharts";
+
+// --- TYPES ---
+interface StockoutRisk {
+  medicine: string;
+  currentStock: number;
+  avgDailySales: number;
+  burnRate: number; // days remaining
+  safetyStock: number;
+  reorderQty: number;
+  criticality: "high" | "medium" | "low";
+}
+
+interface ExpiryRisk {
+  medicine: string;
+  batch: string;
+  expiryDate: string;
+  qty: number;
+  value: number;
+  daysToExpiry: number;
+  recommendation: string;
+}
 
 const Forecasting = () => {
-  // Simulated forecast data
-  const stockForecast = [
-    { month: "Jan", actual: 450, predicted: null },
-    { month: "Feb", actual: 380, predicted: null },
-    { month: "Mar", actual: 520, predicted: null },
-    { month: "Apr", actual: 410, predicted: null },
-    { month: "May", actual: null, predicted: 380 },
-    { month: "Jun", actual: null, predicted: 350 },
-    { month: "Jul", actual: null, predicted: 290 },
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("demand");
+
+  // --- MOCK DATA ---
+  const demandForecastData = [
+    { month: "Jan", sales: 450, forecast: 440 },
+    { month: "Feb", sales: 380, forecast: 390 },
+    { month: "Mar", sales: 520, forecast: 500 },
+    { month: "Apr", sales: 410, forecast: 420 },
+    { month: "May", sales: 460, forecast: 450 },
+    { month: "Jun", sales: null, forecast: 490 }, // Future
+    { month: "Jul", sales: null, forecast: 510 }, // Future
+    { month: "Aug", sales: null, forecast: 550 }, // Future (Seasonal Spike)
   ];
 
-  const salesTrend = [
-    { day: "Mon", sales: 12500 },
-    { day: "Tue", sales: 15800 },
-    { day: "Wed", sales: 13200 },
-    { day: "Thu", sales: 18900 },
-    { day: "Fri", sales: 22100 },
-    { day: "Sat", sales: 28500 },
-    { day: "Sun", sales: 16700 },
+  const stockoutRisks: StockoutRisk[] = [
+    { medicine: "Metformin 500mg", currentStock: 45, avgDailySales: 12, burnRate: 3.75, safetyStock: 100, reorderQty: 200, criticality: "high" },
+    { medicine: "Amoxicillin 625mg", currentStock: 15, avgDailySales: 5, burnRate: 3, safetyStock: 50, reorderQty: 100, criticality: "high" },
+    { medicine: "Telmisartan 40mg", currentStock: 220, avgDailySales: 18, burnRate: 12, safetyStock: 150, reorderQty: 0, criticality: "low" }, // Healthy
+    { medicine: "Pantoprazole 40mg", currentStock: 80, avgDailySales: 10, burnRate: 8, safetyStock: 100, reorderQty: 150, criticality: "medium" },
   ];
 
-  const stockoutPredictions = [
-    { medicine: "Paracetamol 500mg", daysLeft: 5, currentStock: 23, avgDailySales: 4.5 },
-    { medicine: "Amoxicillin 250mg", daysLeft: 8, currentStock: 40, avgDailySales: 5 },
-    { medicine: "Omeprazole 20mg", daysLeft: 12, currentStock: 36, avgDailySales: 3 },
-    { medicine: "Cetirizine 10mg", daysLeft: 15, currentStock: 75, avgDailySales: 5 },
-    { medicine: "Metformin 500mg", daysLeft: 18, currentStock: 90, avgDailySales: 5 },
+  const expiryRisks: ExpiryRisk[] = [
+    { medicine: "Ceftriaxone Inj", batch: "XJ99", expiryDate: "2024-06-15", qty: 50, value: 2500, daysToExpiry: 20, recommendation: "Discount 50%" },
+    { medicine: "Insulin Glargine", batch: "IN22", expiryDate: "2024-07-01", qty: 10, value: 5000, daysToExpiry: 35, recommendation: "Push to Clinics" },
+    { medicine: "Cough Syrup", batch: "CS11", expiryDate: "2024-08-10", qty: 120, value: 12000, daysToExpiry: 75, recommendation: "Bundle Offer" },
   ];
 
   const seasonalAlerts = [
-    { season: "Flu Season", risk: "high", medicines: ["Paracetamol", "Ibuprofen", "Cough Syrup"] },
-    { season: "Dengue Season", risk: "medium", medicines: ["ORS", "Paracetamol", "Platelet supplements"] },
+    { season: "Monsoon (Flu)", start: "July", impact: "High", drugs: ["Paracetamol", "Antihistamines", "Mosquito Repellents"], action: "Stock up +30%" },
+    { season: "Winter (Respiratory)", start: "Nov", impact: "Medium", drugs: ["Cough Syrups", "Antibiotics", "Inhalers"], action: "Stock up +15%" },
   ];
 
+  // --- HANDLERS ---
+  const runAIAnalysis = () => {
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      toast.success("AI Analysis Complete", {
+        description: "Updated demand forecasts and risk assessments."
+      });
+    }, 2000);
+  };
+
+  const addToReorder = (item: StockoutRisk) => {
+    toast.success(`Added ${item.reorderQty} units of ${item.medicine} to Purchase Order`);
+  };
+
+  const applyDiscount = (item: ExpiryRisk) => {
+    toast.success(`Applied ${item.recommendation} to ${item.medicine}`);
+  };
+
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in pb-10">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Stock Forecasting</h1>
-          <p className="text-muted-foreground mt-1">
-            AI-powered predictions for inventory management
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">FutureSight AI</h1>
+          <p className="text-muted-foreground mt-1">Predictive Analytics for Inventory Optimization</p>
         </div>
-        <Button variant="outline">
-          <Calendar className="w-4 h-4 mr-2" />
-          Last 30 Days
+        <Button onClick={runAIAnalysis} disabled={loading} className="bg-primary hover:bg-primary/90">
+          {loading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+          Run Forecast Analysis
         </Button>
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Stock Level Forecast */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingDown className="w-5 h-5 text-warning" />
-              Stock Level Forecast
-            </CardTitle>
-            <CardDescription>
-              Predicted inventory levels for the next 3 months
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={stockForecast}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="month" className="text-xs" />
-                  <YAxis className="text-xs" />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px"
-                    }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="actual" 
-                    stroke="hsl(var(--primary))" 
-                    strokeWidth={2}
-                    dot={{ fill: "hsl(var(--primary))" }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="predicted" 
-                    stroke="hsl(var(--warning))" 
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    dot={{ fill: "hsl(var(--warning))" }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex items-center justify-center gap-6 mt-4 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-0.5 bg-primary" />
-                <span className="text-muted-foreground">Actual</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-0.5 bg-warning" style={{ borderBottom: "2px dashed" }} />
-                <span className="text-muted-foreground">Predicted</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
+          <TabsTrigger value="demand">Demand & Sales</TabsTrigger>
+          <TabsTrigger value="stockouts">Stockout Risks</TabsTrigger>
+          <TabsTrigger value="expiry">Expiry Matrix</TabsTrigger>
+        </TabsList>
 
-        {/* Sales Trend */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-success" />
-              Weekly Sales Trend
-            </CardTitle>
-            <CardDescription>
-              Revenue analysis for the current week
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={salesTrend}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="day" className="text-xs" />
-                  <YAxis className="text-xs" />
-                  <Tooltip 
-                    formatter={(value) => [`₹${value}`, "Sales"]}
-                    contentStyle={{ 
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px"
-                    }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="sales" 
-                    stroke="hsl(var(--success))"
-                    fill="hsl(var(--success) / 0.2)"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        {/* TAB 1: DEMAND FORECASTING */}
+        <TabsContent value="demand" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-blue-500" /> Sales Forecast
+                </CardTitle>
+                <CardDescription>AI Prediction vs Actual Sales (Next 3 Months)</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={demandForecastData}>
+                    <defs>
+                      <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="colorForecast" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                    <Area type="monotone" dataKey="sales" stroke="#3b82f6" fillOpacity={1} fill="url(#colorSales)" name="Actual Sales" />
+                    <Area type="monotone" dataKey="forecast" stroke="#10b981" strokeDasharray="5 5" fillOpacity={1} fill="url(#colorForecast)" name="AI Forecast" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
 
-      {/* Stockout Predictions */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
+            <Card className="border-l-4 border-l-purple-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-purple-500" /> Seasonal Prep
+                </CardTitle>
+                <CardDescription>Upcoming Demand Spikes (Based on Regional Trends)</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {seasonalAlerts.map((season, idx) => (
+                  <div key={idx} className="p-4 bg-muted/50 rounded-lg border flex flex-col gap-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-lg">{season.season}</span>
+                      <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">Starts {season.start}</Badge>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      {season.drugs.map((d, i) => <Badge key={i} variant="secondary">{d}</Badge>)}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-purple-700">
+                      <ArrowUpRight className="w-4 h-4" /> Recommendation: {season.action}
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* TAB 2: STOCKOUT RISKS (SMART REORDER) */}
+        <TabsContent value="stockouts" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-500" /> Critical Low Stock
+                  </CardTitle>
+                  <CardDescription>Items projected to stockout within 7 days</CardDescription>
+                </div>
+                <Button variant="outline" size="sm">Download PO</Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {stockoutRisks.filter(r => r.criticality !== 'low').map((item, idx) => (
+                  <div key={idx} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg hover:border-red-400 transition-colors bg-card">
+                    <div className="space-y-1 min-w-[200px]">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-lg">{item.medicine}</span>
+                        {item.criticality === 'high' && <Badge variant="destructive" className="animate-pulse">Critical</Badge>}
+                      </div>
+                      <p className="text-sm text-muted-foreground">Stock: {item.currentStock} | Burning {item.avgDailySales}/day</p>
+                    </div>
+
+                    <div className="flex-1 px-4 py-2 md:py-0">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span>Burn Rate (Days Left)</span>
+                        <span className={item.burnRate < 4 ? "text-red-500 font-bold" : "text-orange-500"}>{item.burnRate.toFixed(1)} Days</span>
+                      </div>
+                      <Progress value={Math.max(0, (item.burnRate / 30) * 100)} className="h-2" />
+                    </div>
+
+                    <div className="flex items-center gap-4 min-w-[200px] justify-end">
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Suggested Order</p>
+                        <p className="font-bold text-xl text-primary">{item.reorderQty}</p>
+                      </div>
+                      <Button size="icon" onClick={() => addToReorder(item)}>
+                        <ShoppingCart className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {stockoutRisks.filter(r => r.criticality !== 'low').length === 0 && (
+                  <p className="text-center py-8 text-muted-foreground">Inventory health is excellent. No immediate stockouts predicted.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 3: EXPIRY MATRIX */}
+        <TabsContent value="expiry" className="space-y-6">
+          <Card className="border-l-4 border-l-red-500">
+            <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Package className="w-5 h-5 text-primary" />
-                Stockout Predictions
+                <Hourglass className="w-5 h-5 text-red-500" /> Liquidation Candidates
               </CardTitle>
-              <CardDescription>
-                Medicines predicted to run out based on current sales velocity
-              </CardDescription>
-            </div>
-            <Button size="sm">
-              Generate Reorder List
-              <ArrowUpRight className="w-4 h-4 ml-1" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {stockoutPredictions.map((item, i) => (
-              <div 
-                key={i}
-                className={`flex items-center justify-between p-4 rounded-lg border ${
-                  item.daysLeft <= 7 ? "border-destructive/50 bg-destructive/5" :
-                  item.daysLeft <= 14 ? "border-warning/50 bg-warning/5" :
-                  "border-border"
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    item.daysLeft <= 7 ? "bg-destructive/20" :
-                    item.daysLeft <= 14 ? "bg-warning/20" :
-                    "bg-muted"
-                  }`}>
-                    <Package className={`w-5 h-5 ${
-                      item.daysLeft <= 7 ? "text-destructive" :
-                      item.daysLeft <= 14 ? "text-warning" :
-                      "text-muted-foreground"
-                    }`} />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">{item.medicine}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {item.currentStock} units • {item.avgDailySales} avg/day
-                    </p>
-                  </div>
-                </div>
-                <Badge variant={
-                  item.daysLeft <= 7 ? "destructive" :
-                  item.daysLeft <= 14 ? "secondary" : "outline"
-                }>
-                  {item.daysLeft} days left
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              <CardDescription>High-value stock nearing expiry. Action required to prevent loss.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 gap-4">
+                {expiryRisks.map((item, idx) => (
+                  <div key={idx} className="flex flex-wrap items-center justify-between p-4 bg-muted/30 rounded-lg border border-red-100">
+                    <div>
+                      <h4 className="font-bold">{item.medicine}</h4>
+                      <p className="text-sm text-muted-foreground">Batch: {item.batch} • Exp: {item.expiryDate}</p>
+                    </div>
 
-      {/* Seasonal Alerts */}
-      <Card className="border-info/50 bg-info/5">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-info">
-            <AlertTriangle className="w-5 h-5" />
-            Seasonal Demand Alerts
-          </CardTitle>
-          <CardDescription>
-            Prepare for upcoming seasonal demand spikes
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            {seasonalAlerts.map((alert, i) => (
-              <div key={i} className="p-4 rounded-lg bg-card border">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-medium">{alert.season}</span>
-                  <Badge variant={alert.risk === "high" ? "destructive" : "secondary"}>
-                    {alert.risk} risk
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {alert.medicines.map((med, j) => (
-                    <Badge key={j} variant="outline" className="text-xs">
-                      {med}
-                    </Badge>
-                  ))}
-                </div>
+                    <div className="text-center px-4">
+                      <p className="text-xs text-muted-foreground">Total Value</p>
+                      <p className="font-bold text-lg text-foreground">₹{item.value.toLocaleString()}</p>
+                    </div>
+
+                    <div className="text-center px-4">
+                      <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">Expires in {item.daysToExpiry} days</Badge>
+                    </div>
+
+                    <Button variant="secondary" className="gap-2" onClick={() => applyDiscount(item)}>
+                      <TrendingDown className="w-4 h-4" />
+                      {item.recommendation}
+                    </Button>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+      </Tabs>
     </div>
   );
 };
