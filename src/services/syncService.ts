@@ -5,6 +5,19 @@ import { toast } from 'sonner';
 class SyncService {
     private isSyncing = false;
     private syncInterval: NodeJS.Timeout | null = null;
+    private listeners: ((status: 'idle' | 'syncing' | 'error') => void)[] = [];
+
+    // Subscribe to status changes
+    subscribe(listener: (status: 'idle' | 'syncing' | 'error') => void) {
+        this.listeners.push(listener);
+        return () => {
+            this.listeners = this.listeners.filter(l => l !== listener);
+        };
+    }
+
+    private notifyListeners(status: 'idle' | 'syncing' | 'error') {
+        this.listeners.forEach(l => l(status));
+    }
 
     // Start background sync
     startSync(intervalMs = 30000) {
@@ -17,12 +30,15 @@ class SyncService {
     async syncAll() {
         if (this.isSyncing) return;
         this.isSyncing = true;
+        this.notifyListeners('syncing');
         try {
             await this.pushMedicines();
             await this.pushOrders();
             // await this.pullMedicines(); // Implementation for future
+            this.notifyListeners('idle');
         } catch (error) {
             console.error("Sync Failed", error);
+            this.notifyListeners('error');
         } finally {
             this.isSyncing = false;
         }
@@ -36,10 +52,20 @@ class SyncService {
         const { data: user } = await supabase.auth.getUser();
         if (!user.user) return; // Not logged in
 
+        // Fetch shop_id 
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('shop_id')
+            .eq('id', user.user.id)
+            .single();
+
+        if (!profile?.shop_id) return;
+
         for (const med of pending) {
             try {
                 // Map to Snake Case for Supabase
                 const payload = {
+                    shop_id: profile.shop_id,
                     name: med.name,
                     generic_name: med.genericName,
                     batch_number: med.batchNumber,
@@ -47,8 +73,6 @@ class SyncService {
                     quantity: med.quantity,
                     mrp: med.mrp,
                     min_stock_level: med.minStockLevel,
-                    // shop_id is handled by RLS defaults if set up, or we might need to fetch it.
-                    // For now assuming RLS policies handle owner_id via auth.
                 };
 
                 const { data, error } = await supabase
@@ -66,7 +90,6 @@ class SyncService {
                 });
             } catch (err) {
                 console.error("Failed to sync medicine", med.name, err);
-                // Optionally mark as failed
             }
         }
         toast.success(`Synced ${pending.length} medicines to Cloud`);
@@ -79,14 +102,28 @@ class SyncService {
         const { data: user } = await supabase.auth.getUser();
         if (!user.user) return;
 
+        // Fetch shop_id for the current user
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('shop_id')
+            .eq('id', user.user.id)
+            .single();
+
+        if (!profile?.shop_id) {
+            console.error("No shop_id found for user, cannot sync orders");
+            return;
+        }
+
         for (const order of pending) {
             try {
                 const payload = {
+                    shop_id: profile.shop_id,
                     customer_name: order.customerName,
-                    mobile_number: order.mobileNumber,
+                    // Fix: Ensure correct field mapping and prevent duplicates
+                    customer_phone: order.mobileNumber,
                     total_amount: order.totalAmount,
                     status: order.status,
-                    items: order.items, // JSONB
+                    order_items: order.items,
                     created_at: order.createdAt.toISOString()
                 };
 

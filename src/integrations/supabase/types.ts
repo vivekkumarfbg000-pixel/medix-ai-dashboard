@@ -61,6 +61,47 @@ export type Database = {
           },
         ]
       }
+      catalogs: {
+        Row: {
+          brand: string | null
+          created_at: string
+          distributor_id: number
+          drug_name: string
+          id: number
+          in_stock: boolean | null
+          min_order_qty: number | null
+          price: number | null
+        }
+        Insert: {
+          brand?: string | null
+          created_at?: string
+          distributor_id: number
+          drug_name: string
+          id?: number
+          in_stock?: boolean | null
+          min_order_qty?: number | null
+          price?: number | null
+        }
+        Update: {
+          brand?: string | null
+          created_at?: string
+          distributor_id?: number
+          drug_name?: string
+          id?: number
+          in_stock?: boolean | null
+          min_order_qty?: number | null
+          price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalogs_distributor_id_fkey"
+            columns: ["distributor_id"]
+            isOneToOne: false
+            referencedRelation: "distributors"
+            referencedColumns: ["id"]
+          },
+        ]
+      },
       diary_scans: {
         Row: {
           confirmed: boolean | null
@@ -169,6 +210,13 @@ export type Database = {
           mrp: number | null
           min_stock_level: number | null
           shop_id: string | null
+          hsn_code: string | null
+          sgst_rate: number | null
+          cgst_rate: number | null
+          igst_rate: number | null
+          schedule_h1: boolean | null
+          salt_composition: string | null
+          manufacturer: string | null
           created_at: string
           sync_status: string | null
           supabase_id: string | null
@@ -183,6 +231,13 @@ export type Database = {
           mrp?: number | null
           min_stock_level?: number | null
           shop_id?: string | null
+          hsn_code?: string | null
+          sgst_rate?: number | null
+          cgst_rate?: number | null
+          igst_rate?: number | null
+          schedule_h1?: boolean | null
+          salt_composition?: string | null
+          manufacturer?: string | null
           created_at?: string
           sync_status?: string | null
           supabase_id?: string | null
@@ -197,6 +252,13 @@ export type Database = {
           mrp?: number | null
           min_stock_level?: number | null
           shop_id?: string | null
+          hsn_code?: string | null
+          sgst_rate?: number | null
+          cgst_rate?: number | null
+          igst_rate?: number | null
+          schedule_h1?: boolean | null
+          salt_composition?: string | null
+          manufacturer?: string | null
           created_at?: string
           sync_status?: string | null
           supabase_id?: string | null
@@ -222,6 +284,8 @@ export type Database = {
           source: string | null
           status: string
           total_amount: number | null
+          tax_total: number | null
+          invoice_number: string | null
           updated_at: string
         }
         Insert: {
@@ -234,6 +298,8 @@ export type Database = {
           source?: string | null
           status?: string
           total_amount?: number | null
+          tax_total?: number | null
+          invoice_number?: string | null
           updated_at?: string
         }
         Update: {
@@ -246,6 +312,8 @@ export type Database = {
           source?: string | null
           status?: string
           total_amount?: number | null
+          tax_total?: number | null
+          invoice_number?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -393,6 +461,8 @@ export type Database = {
           name: string
           owner_id: string
           phone: string | null
+          gstin: string | null
+          dl_number: string | null
           updated_at: string
         }
         Insert: {
@@ -402,6 +472,8 @@ export type Database = {
           name: string
           owner_id: string
           phone?: string | null
+          gstin?: string | null
+          dl_number?: string | null
           updated_at?: string
         }
         Update: {
@@ -411,6 +483,8 @@ export type Database = {
           name?: string
           owner_id?: string
           phone?: string | null
+          gstin?: string | null
+          dl_number?: string | null
           updated_at?: string
         }
         Relationships: []

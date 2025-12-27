@@ -1,40 +1,3 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
-import Tesseract from 'tesseract.js';
-import {
-  Upload,
-  FileText,
-  CheckCircle,
-  XCircle,
-  Camera,
-  Loader2,
-  AlertCircle,
-  Eye,
-  List,
-  Edit2
-} from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-
-interface ExtractedItem {
-  id: number;
-  name: string;
-  qty: string;
-  price: string;
-  dosage: string;
-  type: "detailed" | "simple";
-}
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -142,21 +105,37 @@ const DiaryScan = () => {
       toast.info(steps[i], { duration: 1000 });
     }
 
-    // Mock Result based on User's Diary Image
-    const mockResults: ExtractedItem[] = [
-      { id: 1, sequence: 1, medication_name: "Monaditue", strength: "-", dosage_frequency: "1 x 1", duration: "-", notes: "" },
-      { id: 2, sequence: 2, medication_name: "Rapiclav", strength: "625 mg", dosage_frequency: "1 x 3", duration: "5 days", notes: "Antibiotic" },
-      { id: 3, sequence: 3, medication_name: "Azibact", strength: "500 mg", dosage_frequency: "1 x 1", duration: "5 days", notes: "Antibiotic" },
-      { id: 4, sequence: 4, medication_name: "Amoxikind DX", strength: "-", dosage_frequency: "2 tsp x 3", duration: "-", notes: "Syrup" },
-      { id: 5, sequence: 5, medication_name: "Tryptiline Plus", strength: "-", dosage_frequency: "1 x 1", duration: "-", notes: "Night", lasa_alert: true },
-      { id: 6, sequence: 6, medication_name: "Dilzem SR", strength: "90 mg", dosage_frequency: "1 x 1", duration: "-", notes: "" },
-      { id: 7, sequence: 7, medication_name: "Mainox D3", strength: "-", dosage_frequency: "1 Cap Weekly", duration: "4 weeks", notes: "Vitamin D" },
-      { id: 8, sequence: 8, medication_name: "Ossotone CT", strength: "-", dosage_frequency: "1 + 1", duration: "30 days", notes: "Calcium" },
-    ];
+    // Real AI Processing via aiService
+    try {
+      const { aiService } = await import("@/services/aiService");
 
-    setExtractedItems(mockResults);
+      const result = await aiService.analyzeDocument(selectedFile, 'prescription');
+
+      if (result && result.items) {
+        setExtractedItems(result.items);
+        toast.success("AI Analysis Complete!");
+      } else {
+        throw new Error("Invalid response structure");
+      }
+    } catch (error) {
+      console.warn("AI Service unavailable, using demo data:", error);
+      toast.warning("AI Service Offline. Running in Demo Mode.");
+
+      // Mock Result Fallback
+      const mockResults: ExtractedItem[] = [
+        { id: 1, sequence: 1, medication_name: "Monaditue", strength: "-", dosage_frequency: "1 x 1", duration: "-", notes: "" },
+        { id: 2, sequence: 2, medication_name: "Rapiclav", strength: "625 mg", dosage_frequency: "1 x 3", duration: "5 days", notes: "Antibiotic" },
+        { id: 3, sequence: 3, medication_name: "Azibact", strength: "500 mg", dosage_frequency: "1 x 1", duration: "5 days", notes: "Antibiotic" },
+        { id: 4, sequence: 4, medication_name: "Amoxikind DX", strength: "-", dosage_frequency: "2 tsp x 3", duration: "-", notes: "Syrup" },
+        { id: 5, sequence: 5, medication_name: "Tryptiline Plus", strength: "-", dosage_frequency: "1 x 1", duration: "-", notes: "Night", lasa_alert: true },
+        { id: 6, sequence: 6, medication_name: "Dilzem SR", strength: "90 mg", dosage_frequency: "1 x 1", duration: "-", notes: "" },
+        { id: 7, sequence: 7, medication_name: "Mainox D3", strength: "-", dosage_frequency: "1 Cap Weekly", duration: "4 weeks", notes: "Vitamin D" },
+        { id: 8, sequence: 8, medication_name: "Ossotone CT", strength: "-", dosage_frequency: "1 + 1", duration: "30 days", notes: "Calcium" },
+      ];
+      setExtractedItems(mockResults);
+    }
+
     setIsProcessing(false);
-    toast.success("AI Analysis Complete!");
   };
 
   const handleConfirm = () => {
@@ -305,28 +284,28 @@ const DiaryScan = () => {
                           <Input
                             value={item.medication_name}
                             onChange={(e) => updateItem(item.id, 'medication_name', e.target.value)}
-                            className="h-8 font-medium"
+                            className="h-auto border-none shadow-none bg-transparent focus-visible:ring-0 px-0 font-medium"
                           />
                         </TableCell>
                         <TableCell>
                           <Input
                             value={item.strength}
                             onChange={(e) => updateItem(item.id, 'strength', e.target.value)}
-                            className="h-8"
+                            className="h-auto border-none shadow-none bg-transparent focus-visible:ring-0 px-0"
                           />
                         </TableCell>
                         <TableCell>
                           <Input
                             value={item.dosage_frequency}
                             onChange={(e) => updateItem(item.id, 'dosage_frequency', e.target.value)}
-                            className="h-8"
+                            className="h-auto border-none shadow-none bg-transparent focus-visible:ring-0 px-0"
                           />
                         </TableCell>
                         <TableCell>
                           <Input
                             value={item.duration}
                             onChange={(e) => updateItem(item.id, 'duration', e.target.value)}
-                            className="h-8"
+                            className="h-auto border-none shadow-none bg-transparent focus-visible:ring-0 px-0"
                           />
                         </TableCell>
                         <TableCell>
@@ -339,7 +318,7 @@ const DiaryScan = () => {
                             <Input
                               value={item.notes}
                               onChange={(e) => updateItem(item.id, 'notes', e.target.value)}
-                              className="h-8 text-muted-foreground"
+                              className="h-auto border-none shadow-none bg-transparent focus-visible:ring-0 px-0 text-muted-foreground"
                             />
                           )}
                         </TableCell>

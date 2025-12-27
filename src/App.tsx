@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
+import { useMobileBackHandler } from "./hooks/use-mobile-back-handler";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -23,6 +24,7 @@ const AIInsights = lazy(() => import("./pages/dashboard/AIInsights"));
 const Forecasting = lazy(() => import("./pages/dashboard/Forecasting"));
 const Alerts = lazy(() => import("./pages/dashboard/Alerts"));
 const Settings = lazy(() => import("./pages/dashboard/Settings"));
+const Marketplace = lazy(() => import("./pages/dashboard/Marketplace"));
 
 const queryClient = new QueryClient();
 
@@ -40,10 +42,19 @@ const LoadingFallback = () => (
 
 import { syncService } from "./services/syncService";
 
+const MobileNavHandler = () => {
+  useMobileBackHandler();
+  return null;
+};
+
 const App = () => {
   useEffect(() => {
     seedDatabase();
-    syncService.startSync();
+    try {
+      syncService.startSync();
+    } catch (e) {
+      console.error("Failed to start sync service:", e);
+    }
   }, []);
 
   return (
@@ -52,6 +63,7 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <MobileNavHandler />
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               <Route path="/" element={<Navigate to="/auth" replace />} />
@@ -66,6 +78,7 @@ const App = () => {
                 <Route path="ai-insights" element={<AIInsights />} />
                 <Route path="forecasting" element={<Forecasting />} />
                 <Route path="alerts" element={<Alerts />} />
+                <Route path="marketplace" element={<Marketplace />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
               <Route path="*" element={<NotFound />} />

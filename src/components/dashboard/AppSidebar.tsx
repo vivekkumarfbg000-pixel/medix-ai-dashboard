@@ -10,7 +10,8 @@ import {
   Pill,
   LayoutDashboard,
   Activity,
-  ShieldAlert
+  ShieldAlert,
+  Store
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +37,7 @@ const mainNavItems = [
   { title: "Diary Scan", url: "/dashboard/diary-scan", icon: FileText },
   { title: "Lab Reports", url: "/dashboard/lab-analyzer", icon: Activity },
   { title: "Compliance", url: "/dashboard/compliance", icon: ShieldAlert },
+  { title: "Marketplace", url: "/dashboard/marketplace", icon: Store },
   { title: "Orders", url: "/dashboard/orders", icon: MessageSquare },
 ];
 
@@ -46,10 +48,16 @@ const aiNavItems = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
   const collapsed = state === "collapsed";
+
+  const handleMobileClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -69,7 +77,7 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border h-full max-h-screen flex flex-col">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
@@ -84,7 +92,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-2 py-4">
+      <SidebarContent className="px-2 py-4 flex-1 overflow-y-auto">
         <SidebarGroup>
           <SidebarGroupLabel className="px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {!collapsed && "Main"}
@@ -101,6 +109,7 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/dashboard"}
+                      onClick={handleMobileClick}
                       className={cn(
                         "sidebar-link",
                         isActive(item.url) && "sidebar-link-active"
@@ -131,6 +140,7 @@ export function AppSidebar() {
                   >
                     <NavLink
                       to={item.url}
+                      onClick={handleMobileClick}
                       className={cn(
                         "sidebar-link",
                         isActive(item.url) && "sidebar-link-active"
@@ -147,11 +157,11 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-2 border-t border-sidebar-border">
+      <SidebarFooter className="p-2 border-t border-sidebar-border pb-[calc(0.5rem+var(--safe-area-bottom))]">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Settings">
-              <NavLink to="/dashboard/settings" className="sidebar-link">
+              <NavLink to="/dashboard/settings" onClick={handleMobileClick} className="sidebar-link">
                 <Settings className="w-5 h-5 flex-shrink-0" />
                 {!collapsed && <span>Settings</span>}
               </NavLink>

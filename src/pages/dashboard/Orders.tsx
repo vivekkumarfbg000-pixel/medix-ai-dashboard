@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,22 +8,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   MessageSquare,
-  Check,
-  X,
-  Clock,
-  Phone,
   User,
-  Package,
   RefreshCw,
   ShoppingCart,
   Plus,
   Trash2,
   TrendingUp,
-  AlertTriangle,
-  ArrowRight
+  ArrowRight,
+  FileText
 } from "lucide-react";
 import { format } from "date-fns";
 import { drugService } from "@/services/drugService";
+import VoiceInput from "@/components/common/VoiceInput";
+import { calculateTax, formatCurrency } from "@/utils/taxCalculator";
+import { InvoiceTemplate } from "@/components/common/InvoiceTemplate";
+import { createRoot } from "react-dom/client";
 
 interface Order {
   id: string;
@@ -32,6 +31,8 @@ interface Order {
   order_items: unknown;
   status: string;
   total_amount: number | null;
+  tax_total: number | null;
+  invoice_number: string | null;
   source: string;
   created_at: string;
 }
@@ -40,7 +41,12 @@ interface CartItem {
   id: string;
   name: string;
   quantity: number;
-  price: number;
+  price: number; // MRP (Inclusive)
+  hsn_code?: string;
+  sgst_rate: number;
+  cgst_rate: number;
+  igst_rate: number;
+  schedule_h1?: boolean;
   substitute?: {
     name: string;
     price: number;
@@ -60,6 +66,35 @@ const Orders = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+
+  const handlePrintInvoice = async (order: Order) => {
+    // Fetch shop details for the invoice header
+    const { data: profile } = await supabase.from('profiles').select('shop_id').single();
+    let shopDetails = undefined;
+
+    if (profile?.shop_id) {
+      const { data: shop } = await supabase.from('shops').select('*').eq('id', profile.shop_id).single();
+      if (shop) shopDetails = shop;
+    }
+
+    // Create a hidden iframe or new window for printing
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (printWindow) {
+      printWindow.document.write('<html><head><title>Print Invoice</title>');
+      // Inject styles - naive approach or link to main css
+      printWindow.document.write('<style>body { font-family: sans-serif; } table { width: 100%; border-collapse: collapse; } th, td { padding: 8px; text-align: left; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .border-b { border-bottom: 1px solid #ddd; } .text-sm { font-size: 0.875rem; } .text-xs { font-size: 0.75rem; } .flex { display: flex; } .justify-between { justify-content: space-between; } .mb-6 { margin-bottom: 1.5rem; } .p-8 { padding: 2rem; }</style>');
+      printWindow.document.write('</head><body><div id="print-root"></div></body></html>');
+
+      const root = createRoot(printWindow.document.getElementById('print-root')!);
+      root.render(<InvoiceTemplate order={order} shopDetails={shopDetails} />);
+
+      // Allow time for render
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 500);
+    }
+  };
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -105,68 +140,105 @@ const Orders = () => {
     };
   }, []);
 
-  const updateOrderStatus = async (orderId: string, status: "approved" | "rejected") => {
-    const { error } = await supabase
-      .from("orders")
-      .update({ status })
-      .eq("id", orderId);
+  // --- POS FUNCTIONS ---
 
-    if (error) {
-      toast.error("Failed to update order");
-    } else {
-      toast.success(`Order ${status}`);
-      fetchOrders();
+  const handleVoiceInput = (text: string) => {
+    const cleanText = text.replace(/add/i, "").replace(/medicine/i, "").trim();
+    if (cleanText) {
+      setSearchQuery(cleanText);
+      setTimeout(() => {
+        handleAddItemWithQuery(cleanText);
+      }, 500);
     }
   };
 
-  // --- POS FUNCTIONS ---
+  const handleAddItemWithQuery = async (query: string) => {
+    if (!query) return;
 
-  const handleAddItem = async () => {
-    if (!searchQuery) return;
+    // 1. Try Local Inventory First (for accurate price & tax)
+    const { data: localItem } = await supabase
+      .from("medicines")
+      // @ts-ignore
+      .select("*")
+      .ilike('name', `%${query}%`)
+      .limit(1)
+      .single();
 
-    // Simulate Price Lookup (In real app, fetch from Inventory DB)
-    // Using mock for demo
-    const mockPrice = Math.floor(Math.random() * 200) + 50;
+    let name = query;
+    let price = 0;
+    let hsn_code = "";
+    let sgst_rate = 0;
+    let cgst_rate = 0;
+    let igst_rate = 0;
 
-    // Check for Substitutes (The Profit Engine)
-    const drugInfo = await drugService.searchDrug(searchQuery);
     let foundSub = null;
-    if (drugInfo?.substitutes && drugInfo.substitutes.length > 0) {
-      // Find the best substitute (highest margin)
-      // Sort by margin desc
-      const bestSub = drugInfo.substitutes.sort((a, b) => b.margin_percentage - a.margin_percentage)[0];
 
-      if (bestSub.margin_percentage > 15) { // Only nudge if margin is significant
-        foundSub = {
-          name: bestSub.name,
-          price: bestSub.price,
-          savings: bestSub.savings,
-          margin: bestSub.margin_percentage
-        };
+    if (localItem && localItem.quantity && localItem.quantity > 0) {
+      name = localItem.name;
+      // @ts-ignore
+      price = localItem.mrp || localItem.unit_price || 0;
+      // @ts-ignore
+      hsn_code = localItem.hsn_code || "3004";
+      // @ts-ignore
+      sgst_rate = localItem.sgst_rate || 0;
+      // @ts-ignore
+      cgst_rate = localItem.cgst_rate || 0;
+      // @ts-ignore
+      igst_rate = localItem.igst_rate || 0;
+      toast.success(`Found in Inventory: ${name}`);
+    } else {
+      // 2. Fallback to Global Knowledge Base
+      const mockPrice = Math.floor(Math.random() * 200) + 50;
+      price = mockPrice;
+      // Default Tax for unknown items (Standard 12% GST assumed for demo or 0)
+      sgst_rate = 6;
+      cgst_rate = 6;
+
+      const drugInfo = await drugService.searchDrug(query);
+      if (drugInfo) {
+        name = drugInfo.name; // Use canonical name
+        if (drugInfo.substitutes && drugInfo.substitutes.length > 0) {
+          const bestSub = drugInfo.substitutes.sort((a, b) => b.margin_percentage - a.margin_percentage)[0];
+          if (bestSub.margin_percentage > 15) {
+            foundSub = {
+              name: bestSub.name,
+              price: bestSub.price,
+              savings: bestSub.savings,
+              margin: bestSub.margin_percentage
+            };
+          }
+        }
       }
     }
 
     const newItem: CartItem = {
       id: Date.now().toString(),
-      name: searchQuery,
-      price: mockPrice,
+      name: name,
+      price: price,
       quantity: 1,
+      hsn_code,
+      sgst_rate,
+      cgst_rate,
+      igst_rate,
       substitute: foundSub || undefined
     };
 
-    setCart([...cart, newItem]);
+    setCart(prev => [...prev, newItem]);
     setSearchQuery("");
 
     if (foundSub) {
       toast("💡 Profit Opportunity Detected!", {
         description: `Switch ${newItem.name} to ${foundSub.name} to earn ${foundSub.margin}% margin!`,
-        action: {
-          label: "Switch Now",
-          onClick: () => switchSubstitute(newItem.id, foundSub!)
-        },
+        action: { label: "Switch Now", onClick: () => switchSubstitute(newItem.id, foundSub!) },
         duration: 8000,
       });
+    } else if (!localItem) {
+      toast.success(`External Added: ${name}`);
     }
+  };
+
+  const handleAddItem = async () => {
+    await handleAddItemWithQuery(searchQuery);
   };
 
   const switchSubstitute = (itemId: string, sub: NonNullable<CartItem['substitute']>) => {
@@ -174,9 +246,9 @@ const Orders = () => {
       if (item.id === itemId) {
         return {
           ...item,
-          name: sub.name, // Switch name
-          price: sub.price, // Switch price
-          substitute: undefined // Remove nudge
+          name: sub.name,
+          price: sub.price,
+          substitute: undefined
         };
       }
       return item;
@@ -190,8 +262,25 @@ const Orders = () => {
     setCart(cart.filter(item => item.id !== id));
   };
 
-  const calculateTotal = () => {
-    return cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const calculateCartTotals = () => {
+    let subtotal = 0;
+    let totalTax = 0;
+
+    cart.forEach(item => {
+      const breakdown = calculateTax(item.price * item.quantity, item.sgst_rate, item.cgst_rate, item.igst_rate, true);
+      subtotal += breakdown.taxableAmount; // Base amount
+      totalTax += breakdown.totalTax;
+    });
+
+    // We display Total Payable (which is MRP sum usually for retail)
+    // Total Payable = Subtotal + Tax
+    const totalPayable = subtotal + totalTax;
+
+    return {
+      subtotal,
+      totalTax,
+      totalPayable
+    };
   };
 
   const completeSale = async () => {
@@ -200,26 +289,46 @@ const Orders = () => {
     const { data: profile } = await supabase.from('profiles').select('shop_id').single();
     if (!profile) return;
 
+    const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+    const totals = calculateCartTotals();
+
+    // Prepare items with snapshot of tax data
+    const orderItems = cart.map(c => {
+      const tax = calculateTax(c.price * c.quantity, c.sgst_rate, c.cgst_rate, c.igst_rate, true);
+      return {
+        name: c.name,
+        qty: c.quantity,
+        price: c.price,
+        hsn: c.hsn_code,
+        tax_breakdown: tax
+      };
+    });
+
     const { error } = await supabase.from('orders').insert({
       shop_id: profile.shop_id,
       customer_name: customerName || "Walk-in Customer",
       customer_phone: customerPhone || null,
-      total_amount: calculateTotal(),
+      total_amount: totals.totalPayable,
+      tax_total: totals.totalTax,
+      invoice_number: invoiceNumber,
       status: 'approved',
       source: 'manual_pos',
-      order_items: cart.map(c => ({ name: c.name, qty: c.quantity, price: c.price }))
+      order_items: orderItems as any // Casting to satisfy Json type
     });
 
     if (error) {
       toast.error("Failed to complete sale");
+      console.error(error);
     } else {
-      toast.success("Sale Completed! ✅");
+      toast.success(`Sale Completed! Invoice ${invoiceNumber} Generated.`);
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");
-      setActiveTab("whatsapp"); // Switch back to view it
+      setActiveTab("whatsapp");
     }
   };
+
+  const totals = calculateCartTotals();
 
   const filteredOrders = orders.filter(order =>
     filter === "all" ? true : order.status === filter
@@ -250,7 +359,6 @@ const Orders = () => {
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
-          {/* Existing Order List UI ... */}
           <div className="flex gap-2 flex-wrap mb-4">
             {[
               { value: "all", label: "All" },
@@ -292,7 +400,6 @@ const Orders = () => {
                           </div>
                           <Badge variant={order.status === 'pending' ? 'secondary' : order.status === 'approved' ? 'default' : 'destructive'}>{order.status}</Badge>
                         </div>
-                        {/* Order Items */}
                         {order.order_items && Array.isArray(order.order_items) && (
                           <div className="flex gap-2 flex-wrap">
                             {(order.order_items as any[]).map((item, idx) => (
@@ -315,7 +422,6 @@ const Orders = () => {
 
         <TabsContent value="pos">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: Product Entry */}
             <Card className="lg:col-span-2 border-primary/20 bg-card/50 backdrop-blur">
               <CardHeader>
                 <CardTitle>Billing Counter</CardTitle>
@@ -330,6 +436,7 @@ const Orders = () => {
                     onKeyDown={e => e.key === 'Enter' && handleAddItem()}
                     className="text-lg py-6"
                   />
+                  <VoiceInput onTranscript={handleVoiceInput} />
                   <Button size="lg" onClick={handleAddItem} className="h-full">
                     <Plus className="w-5 h-5" />
                   </Button>
@@ -340,9 +447,11 @@ const Orders = () => {
                     <div key={item.id} className="p-4 rounded-lg border bg-background/50 flex items-center justify-between group animate-in slide-in-from-left-2">
                       <div>
                         <h4 className="font-medium">{item.name}</h4>
-                        <p className="text-sm text-muted-foreground">₹{item.price} x {item.quantity}</p>
+                        <div className="flex gap-2 text-sm text-muted-foreground mt-1">
+                          <span>{formatCurrency(item.price)} x {item.quantity}</span>
+                          <span className="text-xs border px-1 rounded bg-muted/50">GST: {item.sgst_rate + item.cgst_rate + item.igst_rate}%</span>
+                        </div>
 
-                        {/* PROFIT NUDGE UI */}
                         {item.substitute && (
                           <div
                             className="mt-2 flex items-center gap-2 p-2 bg-green-500/10 text-green-600 rounded-md border border-green-500/20 cursor-pointer hover:bg-green-500/20 transition-colors"
@@ -357,7 +466,7 @@ const Orders = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-4">
-                        <p className="font-bold">₹{item.price * item.quantity}</p>
+                        <p className="font-bold">{formatCurrency(item.price * item.quantity)}</p>
                         <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive">
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -374,7 +483,6 @@ const Orders = () => {
               </CardContent>
             </Card>
 
-            {/* Right: Checkout */}
             <Card className="h-fit">
               <CardHeader className="bg-muted/50">
                 <CardTitle>Checkout</CardTitle>
@@ -390,19 +498,26 @@ const Orders = () => {
                 </div>
 
                 <div className="pt-4 border-t space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span>₹{calculateTotal()}</span>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotal (Pre-Tax)</span>
+                    <span>{formatCurrency(totals.subtotal)}</span>
                   </div>
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Total</span>
-                    <span>₹{calculateTotal()}</span>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Total GST</span>
+                    <span>{formatCurrency(totals.totalTax)}</span>
                   </div>
+                  <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                    <span>Grand Total</span>
+                    <span>{formatCurrency(totals.totalPayable)}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center pt-2">
+                    {cart.length} items • GST Compliant Invoice
+                  </p>
                 </div>
               </CardContent>
               <CardFooter>
                 <Button className="w-full h-12 text-lg" disabled={cart.length === 0} onClick={completeSale}>
-                  Complete Sale
+                  Complete & Invoice
                 </Button>
               </CardFooter>
             </Card>
