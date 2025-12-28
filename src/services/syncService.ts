@@ -56,27 +56,27 @@ class SyncService {
         const { data: profile } = await supabase
             .from('profiles')
             .select('shop_id')
-            .eq('id', user.user.id)
-            .single();
+            .eq('user_id', user.user.id)
+            .maybeSingle();
 
         if (!profile?.shop_id) return;
 
         for (const med of pending) {
             try {
-                // Map to Snake Case for Supabase
+                // Map to Snake Case for Supabase inventory table
                 const payload = {
                     shop_id: profile.shop_id,
-                    name: med.name,
+                    medicine_name: med.name,
                     generic_name: med.genericName,
                     batch_number: med.batchNumber,
                     expiry_date: med.expiryDate.toISOString(),
                     quantity: med.quantity,
-                    mrp: med.mrp,
-                    min_stock_level: med.minStockLevel,
+                    unit_price: med.mrp,
+                    reorder_level: med.minStockLevel,
                 };
 
                 const { data, error } = await supabase
-                    .from('medicines')
+                    .from('inventory')
                     .insert(payload)
                     .select()
                     .single();
@@ -106,8 +106,8 @@ class SyncService {
         const { data: profile } = await supabase
             .from('profiles')
             .select('shop_id')
-            .eq('id', user.user.id)
-            .single();
+            .eq('user_id', user.user.id)
+            .maybeSingle();
 
         if (!profile?.shop_id) {
             console.error("No shop_id found for user, cannot sync orders");

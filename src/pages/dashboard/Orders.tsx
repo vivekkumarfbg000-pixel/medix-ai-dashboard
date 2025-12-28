@@ -31,8 +31,6 @@ interface Order {
   order_items: unknown;
   status: string;
   total_amount: number | null;
-  tax_total: number | null;
-  invoice_number: string | null;
   source: string;
   created_at: string;
 }
@@ -157,12 +155,11 @@ const Orders = () => {
 
     // 1. Try Local Inventory First (for accurate price & tax)
     const { data: localItem } = await supabase
-      .from("medicines")
-      // @ts-ignore
+      .from("inventory")
       .select("*")
-      .ilike('name', `%${query}%`)
+      .ilike('medicine_name', `%${query}%`)
       .limit(1)
-      .single();
+      .maybeSingle();
 
     let name = query;
     let price = 0;
@@ -173,18 +170,13 @@ const Orders = () => {
 
     let foundSub = null;
 
-    if (localItem && localItem.quantity && localItem.quantity > 0) {
-      name = localItem.name;
-      // @ts-ignore
-      price = localItem.mrp || localItem.unit_price || 0;
-      // @ts-ignore
-      hsn_code = localItem.hsn_code || "3004";
-      // @ts-ignore
-      sgst_rate = localItem.sgst_rate || 0;
-      // @ts-ignore
-      cgst_rate = localItem.cgst_rate || 0;
-      // @ts-ignore
-      igst_rate = localItem.igst_rate || 0;
+    if (localItem && localItem.quantity > 0) {
+      name = localItem.medicine_name;
+      price = localItem.unit_price || 0;
+      hsn_code = "3004"; // Default HSN for medicines
+      sgst_rate = 6; // Default 12% GST split
+      cgst_rate = 6;
+      igst_rate = 0;
       toast.success(`Found in Inventory: ${name}`);
     } else {
       // 2. Fallback to Global Knowledge Base
