@@ -213,23 +213,18 @@ const Inventory = () => {
     // Update `Inventory.tsx` to use `medicines` table.
     // Map fields correctly.
 
-    const { error } = await supabase.from("medicines").insert({
+    const { error } = await supabase.from("inventory").insert({
       shop_id: profile.shop_id,
-      name: newItem.medicine_name,
+      medicine_name: newItem.medicine_name,
       generic_name: newItem.generic_name || null,
       batch_number: newItem.batch_number || null,
       quantity: newItem.quantity,
-      mrp: newItem.unit_price, // Mapping unit_price -> mrp
-      min_stock_level: 10,
+      unit_price: newItem.unit_price,
+      cost_price: newItem.unit_price * 0.7, // Estimate cost price
+      reorder_level: 10,
       expiry_date: newItem.expiry_date || null,
       manufacturer: newItem.manufacturer || null,
-      hsn_code: newItem.hsn_code || null,
-      sgst_rate: sgst,
-      cgst_rate: cgst,
-      igst_rate: 0,
-      schedule_h1: complianceResult.is_h1 || false,
-      salt_composition: newItem.salt_composition || null,
-      sync_status: 'pending'
+      category: newItem.category || null,
     });
 
     if (error) {
