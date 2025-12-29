@@ -1,5 +1,5 @@
+
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Pill } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
@@ -8,6 +8,9 @@ import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { QuickActions } from "@/components/dashboard/widgets/QuickActions";
 import { PulseWidget } from "@/components/dashboard/widgets/PulseWidget";
 import { SafetyWidget } from "@/components/dashboard/widgets/SafetyWidget";
+import { RefillAlertsWidget } from "@/components/dashboard/widgets/RefillAlertsWidget";
+import { BusinessReportWidget } from "@/components/dashboard/widgets/BusinessReportWidget";
+import { SystemHealthWidget } from "@/components/dashboard/widgets/SystemHealthWidget";
 
 const Overview = () => {
   const [loading, setLoading] = useState(true);
@@ -46,9 +49,8 @@ const Overview = () => {
         </Button>
       </div>
 
-      {/* COMMAND CENTER GRID (3-COLUMN LAYOUT) */}
+      {/* ROW 1: CORE OPS (3-COLUMN LAYOUT) */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-stretch">
-
         {/* LEFT COLUMN: QUICK ACTIONS (25%) */}
         <div className="lg:col-span-1 h-full min-h-[400px]">
           <QuickActions />
@@ -65,6 +67,24 @@ const Overview = () => {
         </div>
       </div>
 
+      {/* ROW 2: INTELLIGENCE LAYER (Phase 15 - Unified Front) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[300px]">
+        {/* REFILL ALERTS */}
+        <div className="h-full">
+          <RefillAlertsWidget />
+        </div>
+
+        {/* BUSINESS REPORT (AI) */}
+        <div className="h-full">
+          <BusinessReportWidget />
+        </div>
+
+        {/* SYSTEM HEALTH */}
+        <div className="h-full">
+          <SystemHealthWidget />
+        </div>
+      </div>
+
       {/* Activity Feed & Detailed Metrics */}
       <div className="mt-8">
         <h2 className="text-xl font-bold mb-4 text-foreground/80">Recent Activity</h2>
@@ -75,4 +95,3 @@ const Overview = () => {
 };
 
 export default Overview;
-

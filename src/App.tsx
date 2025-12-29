@@ -25,6 +25,7 @@ const Forecasting = lazy(() => import("./pages/dashboard/Forecasting"));
 const Alerts = lazy(() => import("./pages/dashboard/Alerts"));
 const Settings = lazy(() => import("./pages/dashboard/Settings"));
 const Marketplace = lazy(() => import("./pages/dashboard/Marketplace"));
+const Prescriptions = lazy(() => import("./pages/dashboard/Prescriptions"));
 
 const queryClient = new QueryClient();
 
@@ -79,6 +80,7 @@ const App = () => {
                 <Route path="forecasting" element={<Forecasting />} />
                 <Route path="alerts" element={<Alerts />} />
                 <Route path="marketplace" element={<Marketplace />} />
+                <Route path="prescriptions" element={<Prescriptions />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
               <Route path="*" element={<NotFound />} />

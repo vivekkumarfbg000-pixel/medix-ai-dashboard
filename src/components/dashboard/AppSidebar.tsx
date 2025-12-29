@@ -39,6 +39,7 @@ const mainNavItems = [
   { title: "Compliance", url: "/dashboard/compliance", icon: ShieldAlert },
   { title: "Marketplace", url: "/dashboard/marketplace", icon: Store },
   { title: "Orders", url: "/dashboard/orders", icon: MessageSquare },
+  { title: "Digital Parchas", url: "/dashboard/prescriptions", icon: FileText },
 ];
 
 const aiNavItems = [

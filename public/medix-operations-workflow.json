@@ -1,0 +1,832 @@
+{
+    "name": "Medix Shop Operator Workflow (Mobile Backend - Gemini Edition)",
+    "nodes": [
+        {
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": "id-1",
+                            "name": "googleGeminiApiKey",
+                            "value": "<__PLACEHOLDER_VALUE__Google Gemini API Key__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-2",
+                            "name": "speechToTextApiUrl",
+                            "value": "<__PLACEHOLDER_VALUE__Google Speech-to-Text V2 URL__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-3",
+                            "name": "shopId",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Shop ID__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-4",
+                            "name": "supabaseUrl",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Project URL__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-5",
+                            "name": "supabaseKey",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Anon Key__>",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "includeOtherFields": true,
+                "options": {}
+            },
+            "id": "config-node-ops",
+            "name": "Ops Configuration",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                220,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "/operations/:action",
+                "options": {}
+            },
+            "id": "ops-webhook",
+            "name": "Operations Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                0,
+                400
+            ],
+            "webhookId": "medix-ops-webhook"
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "values": [
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.params.action }}",
+                                        "rightValue": "scan-medicine",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "scan_medicine"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.params.action }}",
+                                        "rightValue": "scan-diary",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "scan_diary"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.params.action }}",
+                                        "rightValue": "voice-bill",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "voice_bill"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.params.action }}",
+                                        "rightValue": "scan-parcha",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "equals"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "scan_parcha"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "ops-router",
+            "name": "Ops Router",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3.1,
+            "position": [
+                450,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('Ops Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract medicine details from this image. Return valid JSON only: { \\\"medicine_name\\\": string, \\\"batch_number\\\": string, \\\"expiry_date\\\": string (YYYY-MM-DD), \\\"mrp\\\": number }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-scan-medicine",
+            "name": "Gemini 1.5 Flash (Medicine)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                700,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+            },
+            "id": "parse-gemini-medicine",
+            "name": "Parse Gemini JSON",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                950,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('Ops Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract items from this diary page. Return valid JSON Array only: [{ \\\"item_name\\\": string, \\\"quantity\\\": number, \\\"price\\\": number }].\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-scan-diary",
+            "name": "Gemini 1.5 Flash (Diary)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                700,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('Ops Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract prescription info. Return valid JSON only: { \\\"doctor_name\\\": string, \\\"patient_name\\\": string, \\\"medicines\\\": [ { \\\"name\\\": string, \\\"dosage\\\": string } ], \\\"visit_date\\\": string }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-scan-parcha",
+            "name": "Gemini 1.5 Flash (Parcha)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                700,
+                800
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $('Ops Configuration').first().json.speechToTextApiUrl }}",
+                "authentication": "predefinedCredentialType",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "multipart/form-data"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "contentType": "binaryData",
+                "inputDataFieldName": "file",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "whisper-audio",
+            "name": "Whisper STT (Keep for Quality)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                700,
+                600
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('Ops Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Structure this voice order. Return JSON: { \\\"items\\\": [{ \\\"name\\\": string, \\\"qty\\\": number }] }.\\nOrder Text: \" + $json.text\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-extract-voice",
+            "name": "Gemini 1.5 Flash (Voice)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                950,
+                600
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+            },
+            "id": "parse-gemini-diary",
+            "name": "Parse Gemini JSON (Diary)",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                950,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+            },
+            "id": "parse-gemini-parcha",
+            "name": "Parse Gemini JSON (Parcha)",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                950,
+                800
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+            },
+            "id": "parse-gemini-voice",
+            "name": "Parse Gemini JSON (Voice)",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1100,
+                600
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "inventory_staging",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('Ops Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "medicine_name",
+                            "value": "={{ $json.medicine_name }}"
+                        },
+                        {
+                            "fieldId": "batch_number",
+                            "value": "={{ $json.batch_number }}"
+                        },
+                        {
+                            "fieldId": "expiry_date",
+                            "value": "={{ $json.expiry_date }}"
+                        },
+                        {
+                            "fieldId": "quantity",
+                            "value": "100"
+                        },
+                        {
+                            "fieldId": "unit_price",
+                            "value": "={{ $json.mrp }}"
+                        },
+                        {
+                            "fieldId": "source",
+                            "value": "scan"
+                        },
+                        {
+                            "fieldId": "status",
+                            "value": "pending"
+                        }
+                    ]
+                }
+            },
+            "id": "supabase-save-staging",
+            "name": "Save to Staging (Draft)",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1200,
+                200
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "model": "tts-1-hd",
+                "input": "={{ \"Draft saved. Extracted \" + $('Parse Gemini JSON').item.json.medicine_name + \". Quantity 100. Price \" + $('Parse Gemini JSON').item.json.mrp + \". Correct?\" }}",
+                "voice": "onyx",
+                "options": {}
+            },
+            "id": "openai-tts-feedback",
+            "name": "Audio Feedback (TTS)",
+            "type": "@n8n/n8n-nodes-langchain.openAiTextToSpeech",
+            "typeVersion": 1,
+            "position": [
+                1450,
+                200
+            ],
+            "credentials": {
+                "openAiApi": {
+                    "id": "BCPs6ab6MvAnNw1u",
+                    "name": "OpenAi account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "model": "tts-1-hd",
+                "input": "={{ \"Parcha saved for \" + $('Parse Gemini JSON (Parcha)').item.json.patient_name + \". Correct?\" }}",
+                "voice": "onyx",
+                "options": {}
+            },
+            "id": "openai-tts-feedback-parcha",
+            "name": "Audio Feedback (Parcha)",
+            "type": "@n8n/n8n-nodes-langchain.openAiTextToSpeech",
+            "typeVersion": 1,
+            "position": [
+                1450,
+                800
+            ],
+            "credentials": {
+                "openAiApi": {
+                    "id": "BCPs6ab6MvAnNw1u",
+                    "name": "OpenAi account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "tableId": "orders",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('Ops Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "order_items",
+                            "value": "={{ JSON.stringify($json.items) }}"
+                        },
+                        {
+                            "fieldId": "customer_phone",
+                            "value": "={{ $json.customer_phone || 'Walk-in' }}"
+                        },
+                        {
+                            "fieldId": "source",
+                            "value": "voice_billing"
+                        }
+                    ]
+                }
+            },
+            "id": "supabase-insert-voice-order",
+            "name": "Record Voice Order",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                600
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "tableId": "prescriptions",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('Ops Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "medicines",
+                            "value": "={{ JSON.stringify($json.medicines) }}"
+                        },
+                        {
+                            "fieldId": "customer_phone",
+                            "value": "={{ $json.body.customer_phone }}"
+                        },
+                        {
+                            "fieldId": "customer_name",
+                            "value": "={{ $json.patient_name }}"
+                        },
+                        {
+                            "fieldId": "doctor_name",
+                            "value": "={{ $json.doctor_name }}"
+                        },
+                        {
+                            "fieldId": "visit_date",
+                            "value": "={{ $json.visit_date }}"
+                        },
+                        {
+                            "fieldId": "raw_text",
+                            "value": "Parcha Scan"
+                        }
+                    ]
+                }
+            },
+            "id": "supabase-insert-parcha",
+            "name": "Record Parcha",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                800
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "content": "📱 GEMINI EDITION\n\n1. Single Node: Gemini 1.5 Flash handles Vision + Extraction.\n2. Faster & Cheaper than Vision+GPT.\n3. Requires: Google Gemini API Key.",
+                "height": 450,
+                "width": 600
+            },
+            "type": "n8n-nodes-base.stickyNote",
+            "position": [
+                0,
+                100
+            ],
+            "typeVersion": 1,
+            "id": "ops-guide-note",
+            "name": "Ops Guide"
+        },
+        {
+            "parameters": {},
+            "id": "error-trigger-ops",
+            "name": "Global Error Trigger",
+            "type": "n8n-nodes-base.errorTrigger",
+            "typeVersion": 1,
+            "position": [
+                200,
+                1000
+            ]
+        },
+        {
+            "parameters": {
+                "content": "🚨 SYSTEM ALERT\n\nOps Workflow Failed!\nAction: Log & Alert Owner."
+            },
+            "id": "action-error-ops",
+            "name": "System Shield (Log)",
+            "type": "n8n-nodes-base.stickyNote",
+            "typeVersion": 1,
+            "position": [
+                500,
+                1000
+            ]
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "Operations Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Ops Configuration",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Ops Configuration": {
+            "main": [
+                [
+                    {
+                        "node": "Ops Router",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Ops Router": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Medicine)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Diary)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Whisper STT (Keep for Quality)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Parcha)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Medicine)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini JSON",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Gemini JSON": {
+            "main": [
+                [
+                    {
+                        "node": "Save to Staging (Draft)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Save to Staging (Draft)": {
+            "main": [
+                [
+                    {
+                        "node": "Audio Feedback (TTS)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Diary)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini JSON (Diary)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Whisper STT (Keep for Quality)": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Voice)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Voice)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini JSON (Voice)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Gemini JSON (Voice)": {
+            "main": [
+                [
+                    {
+                        "node": "Record Voice Order",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Parcha)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini JSON (Parcha)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Gemini JSON (Parcha)": {
+            "main": [
+                [
+                    {
+                        "node": "Record Parcha",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Record Parcha": {
+            "main": [
+                [
+                    {
+                        "node": "Audio Feedback (Parcha)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Global Error Trigger": {
+            "main": [
+                [
+                    {
+                        // Lead to Log
+                    }
+                ]
+            ]
+        }
+    }
+}
