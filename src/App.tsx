@@ -26,6 +26,8 @@ const Alerts = lazy(() => import("./pages/dashboard/Alerts"));
 const Settings = lazy(() => import("./pages/dashboard/Settings"));
 const Marketplace = lazy(() => import("./pages/dashboard/Marketplace"));
 const Prescriptions = lazy(() => import("./pages/dashboard/Prescriptions"));
+const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
+const AuditLogs = lazy(() => import("./pages/dashboard/AuditLogs"));
 
 const queryClient = new QueryClient();
 
@@ -81,14 +83,16 @@ const App = () => {
                 <Route path="alerts" element={<Alerts />} />
                 <Route path="marketplace" element={<Marketplace />} />
                 <Route path="prescriptions" element={<Prescriptions />} />
+                <Route path="analytics" element={<Analytics />} />
+                <Route path="audit-logs" element={<AuditLogs />} />
                 <Route path="settings" element={<Settings />} />
-              </Route>
+              </Route >
               <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+            </Routes >
+          </Suspense >
+        </BrowserRouter >
+      </TooltipProvider >
+    </QueryClientProvider >
   );
 };
 

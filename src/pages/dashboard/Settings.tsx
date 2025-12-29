@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Settings as SettingsIcon, Store, Bell, Shield, Save } from "lucide-react";
+import { Settings as SettingsIcon, Store, Bell, Shield, Save, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface ShopData {
   id: string;
@@ -19,6 +20,13 @@ const Settings = () => {
   const [shop, setShop] = useState<ShopData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  
+  // Password change state
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const [notifications, setNotifications] = useState({
     expiryAlerts: true,
@@ -36,8 +44,8 @@ const Settings = () => {
         const { data: profile } = await supabase
           .from("profiles")
           .select("shop_id")
-          .eq('id', user.id)
-          .single();
+          .eq('user_id', user.id)
+          .maybeSingle();
 
         if (profile?.shop_id) {
           const { data: shopData, error } = await supabase
@@ -91,6 +99,36 @@ const Settings = () => {
     if (shop) {
       setShop({ ...shop, [field]: value });
     }
+  };
+
+  const handleChangePassword = async () => {
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setChangingPassword(true);
+    
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) {
+      console.error("Password change error:", error);
+      toast.error(`Failed to change password: ${error.message}`);
+    } else {
+      toast.success("Password changed successfully");
+      setPasswordDialogOpen(false);
+      setNewPassword("");
+      setConfirmPassword("");
+    }
+    
+    setChangingPassword(false);
   };
 
   if (loading) {
@@ -249,7 +287,66 @@ const Settings = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button variant="outline">Change Password</Button>
+          <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">Change Password</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Change Password</DialogTitle>
+                <DialogDescription>
+                  Enter your new password below. Password must be at least 6 characters.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="new-password"
+                      type={showPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm Password</Label>
+                  <Input
+                    id="confirm-password"
+                    type={showPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                  />
+                </div>
+                <Button 
+                  onClick={handleChangePassword} 
+                  disabled={changingPassword || !newPassword || !confirmPassword}
+                  className="w-full"
+                >
+                  {changingPassword ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Changing...
+                    </>
+                  ) : (
+                    "Update Password"
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
           <p className="text-sm text-muted-foreground">
             We recommend using a strong, unique password for your account.
           </p>
