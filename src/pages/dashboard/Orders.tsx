@@ -15,10 +15,12 @@ import {
   Trash2,
   TrendingUp,
   ArrowRight,
-  FileText
+  FileText,
+  Share2
 } from "lucide-react";
 import { format } from "date-fns";
 import { drugService } from "@/services/drugService";
+import { Link } from "react-router-dom";
 import VoiceInput from "@/components/common/VoiceInput";
 import { calculateTax, formatCurrency } from "@/utils/taxCalculator";
 import { InvoiceTemplate } from "@/components/common/InvoiceTemplate";
@@ -33,6 +35,7 @@ interface Order {
   total_amount: number | null;
   source: string;
   created_at: string;
+  invoice_number?: string;
 }
 
 interface CartItem {
@@ -64,6 +67,35 @@ const Orders = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+
+  // --- WHATSAPP HELPER ---
+  const handleWhatsAppShare = (order: Order) => {
+    if (!order.customer_phone) {
+      toast.error("No phone number for this customer");
+      return;
+    }
+
+    const items = (Array.isArray(order.order_items) ? order.order_items : []) as any[];
+    const itemsList = items.map((item, idx) =>
+      `${idx + 1}. ${item.name} x${item.qty || 1} = ₹${item.price * (item.qty || 1)}`
+    ).join('%0A'); // %0A is newline
+
+    const text = `🧾 *Invoice #${order.invoice_number || 'NA'}*%0A` +
+      `🏪 *Medix Pharmacy*%0A` +
+      `----------------%0A` +
+      itemsList +
+      `%0A----------------%0A` +
+      `💰 *Total: ₹${order.total_amount}*%0A` +
+      `✅ Status: ${order.status.toUpperCase()}%0A%0A` +
+      `Thank you for your visit! 🙏`;
+
+    // Remove non-digit chars from phone
+    const cleanPhone = order.customer_phone.replace(/\D/g, '');
+    const finalPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+
+    const url = `https://wa.me/${finalPhone}?text=${text}`;
+    window.open(url, '_blank');
+  };
 
   const handlePrintInvoice = async (order: Order) => {
     // Fetch shop details for the invoice header
@@ -341,13 +373,16 @@ const Orders = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+        <TabsList className="grid w-full grid-cols-2 lg:w-[600px]">
           <TabsTrigger value="whatsapp" className="gap-2">
             <MessageSquare className="w-4 h-4" /> WhatsApp ({pendingCount})
           </TabsTrigger>
           <TabsTrigger value="pos" className="gap-2">
             <ShoppingCart className="w-4 h-4" /> New Sale (POS)
           </TabsTrigger>
+          <Link to="/lite-pos" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm bg-purple-100 text-purple-700 hover:bg-purple-200 ml-2">
+            ⚡ Lite Mode
+          </Link>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
@@ -400,9 +435,17 @@ const Orders = () => {
                           </div>
                         )}
                       </div>
-                      <div className="text-right">
+                      <div className="text-right flex flex-col items-end gap-2">
                         <p className="text-xl font-bold">₹{order.total_amount?.toLocaleString() || '-'}</p>
                         <p className="text-xs text-muted-foreground">{format(new Date(order.created_at), 'PP p')}</p>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => handlePrintInvoice(order)}>
+                            <FileText className="w-4 h-4 mr-1" /> Print
+                          </Button>
+                          <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleWhatsAppShare(order)}>
+                            <Share2 className="w-4 h-4 mr-1" /> Share
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </CardContent>

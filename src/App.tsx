@@ -24,10 +24,12 @@ const AIInsights = lazy(() => import("./pages/dashboard/AIInsights"));
 const Forecasting = lazy(() => import("./pages/dashboard/Forecasting"));
 const Alerts = lazy(() => import("./pages/dashboard/Alerts"));
 const Settings = lazy(() => import("./pages/dashboard/Settings"));
+const LitePOS = lazy(() => import("./pages/dashboard/LitePOS"));
 const Marketplace = lazy(() => import("./pages/dashboard/Marketplace"));
 const Prescriptions = lazy(() => import("./pages/dashboard/Prescriptions"));
 const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
 const AuditLogs = lazy(() => import("./pages/dashboard/AuditLogs"));
+const Customers = lazy(() => import("./pages/dashboard/Customers"));
 
 const queryClient = new QueryClient();
 
@@ -71,6 +73,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Navigate to="/auth" replace />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/lite-pos" element={<LitePOS />} />
               <Route path="/dashboard" element={<DashboardLayout />}>
                 <Route index element={<Overview />} />
                 <Route path="inventory" element={<Inventory />} />
@@ -84,6 +87,7 @@ const App = () => {
                 <Route path="marketplace" element={<Marketplace />} />
                 <Route path="prescriptions" element={<Prescriptions />} />
                 <Route path="analytics" element={<Analytics />} />
+                <Route path="customers" element={<Customers />} />
                 <Route path="audit-logs" element={<AuditLogs />} />
                 <Route path="settings" element={<Settings />} />
               </Route >

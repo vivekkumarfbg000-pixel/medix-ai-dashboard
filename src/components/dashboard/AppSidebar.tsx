@@ -11,7 +11,8 @@ import {
   LayoutDashboard,
   Activity,
   ShieldAlert,
-  Store
+  Store,
+  Users
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,6 +40,7 @@ const mainNavItems = [
   { title: "Compliance", url: "/dashboard/compliance", icon: ShieldAlert },
   { title: "Marketplace", url: "/dashboard/marketplace", icon: Store },
   { title: "Orders", url: "/dashboard/orders", icon: MessageSquare },
+  { title: "Smart Khata", url: "/dashboard/customers", icon: Users },
   { title: "Digital Parchas", url: "/dashboard/prescriptions", icon: FileText },
 ];
 

@@ -68,11 +68,12 @@ export const aiService = {
             // Mapping: 'prescription' -> 'scan-parcha', others to default or different ops
             const action = type === 'prescription' ? 'scan-parcha' : 'scan-report';
 
-            // Note: Ops workflow usually expects params in URL :action, so we append /scan-parcha
-            const response = await fetch(`${N8N_OPS_BASE}/${action}`, {
+            // FIXED: Send to base URL, put action in BODY
+            const response = await fetch(`${N8N_OPS_BASE}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                    action: action, // <--- Routing Key
                     fileUrl: urlData.signedUrl,
                     image_base64: null,
                     userId: (await supabase.auth.getUser()).data.user?.id
@@ -170,7 +171,8 @@ export const aiService = {
             formData.append('file', audioBlob);
             formData.append('action', 'voice-bill');
 
-            const response = await fetch(`${N8N_OPS_BASE}/voice-bill`, {
+            // FIXED: Send to base URL (action is in formData)
+            const response = await fetch(`${N8N_OPS_BASE}`, {
                 method: "POST",
                 body: formData,
             });
