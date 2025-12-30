@@ -157,7 +157,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
             variant={isListening ? "destructive" : "secondary"}
             size="icon"
             onClick={toggleListening}
-            className={`rounded-full transition-all duration-300 ${isListening ? 'animate-pulse scale-110 shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'hover:bg-primary/20'} ${className}`}
+            className={`voice-input-mic rounded-full transition-all duration-300 ${isListening ? 'animate-pulse scale-110 shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'hover:bg-primary/20'} ${className}`}
             title="Munim-ji Voice Search"
         >
             {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}

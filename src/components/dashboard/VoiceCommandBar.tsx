@@ -3,6 +3,7 @@ import { Mic, MicOff, Loader2, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { aiService } from "@/services/aiService";
 
 interface VoiceCommandBarProps {
   onTranscriptionComplete: (transcription: string, parsedItems: ParsedItem[]) => void;
@@ -102,19 +103,27 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
 
         try {
-          // For now, simulate transcription (n8n webhook will be added later)
-          // In production, this would call the n8n webhook
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          // Call Real AI Service
+          const response = await aiService.processVoiceBill(audioBlob);
 
-          // Simulated transcription result
-          const mockTranscription = "2 Crocin, 1 Paracetamol, contact 9876543210";
-          const parsedItems = parseTranscription(mockTranscription);
+          if (response) {
+            // Prefer n8n parsed items, fallback to local parsing if only text is returned
+            const transcription = response.transcription || response.text || "";
+            const items = response.items || parseTranscription(transcription);
 
-          onTranscriptionComplete(mockTranscription, parsedItems);
-          toast.success("Voice command processed!");
+            if (!transcription) {
+              throw new Error("No transcription received");
+            }
+
+            onTranscriptionComplete(transcription, items);
+            toast.success("Voice command processed!");
+          } else {
+            throw new Error("Empty response from AI");
+          }
+
         } catch (error) {
           console.error("Transcription error:", error);
-          toast.error("Failed to process voice command");
+          toast.error("Failed to process voice command. Please try again.");
         } finally {
           setIsProcessing(false);
         }

@@ -33,10 +33,7 @@ export const aiService = {
         } catch (error) {
             console.warn("AI Service Error:", error);
             // Fallback Response (Mock)
-            return {
-                reply: "I am currently running in **Offline Mode**. My connection to the Medical Brain (n8n) is interpreted. Please check your internet or server configuration.\n\n*Simulated Answer*: Please consult a doctor for '" + message + "'.",
-                sources: ["System Alert"]
-            };
+            throw new Error("AI Service Offline. Please check internet.");
         }
     },
 
@@ -104,8 +101,8 @@ export const aiService = {
             const data = await response.json();
             return data.interactions || [];
         } catch (e) {
-            console.warn("Using offline interaction logic");
-            return []; // Return empty or offline fallback
+            console.warn("Interaction Check Failed");
+            throw new Error("Could not verify interactions (Offline)");
         }
     },
 
@@ -140,7 +137,7 @@ export const aiService = {
             return await response.json();
         } catch (e) {
             // Offline Facade
-            return { is_banned: false, reason: "Offline Check Mode", is_h1: false };
+            throw new Error("Compliance Check Failed (Offline)");
         }
     },
 
