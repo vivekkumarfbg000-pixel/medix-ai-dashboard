@@ -1,0 +1,615 @@
+{
+    "name": "Medix AI Integrated Agent (Standard Nodes)",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "chat",
+                "responseMode": "lastNode",
+                "options": {}
+            },
+            "id": "dashboard-webhook",
+            "name": "Dashboard Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                -200,
+                660
+            ],
+            "webhookId": "medix-chat-webhook"
+        },
+        {
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": "id-1",
+                            "name": "googleGeminiApiKey",
+                            "value": "<__PLACEHOLDER_VALUE__Google Gemini API Key__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-2",
+                            "name": "speechToTextApiUrl",
+                            "value": "<__PLACEHOLDER_VALUE__Speech-to-Text API URL__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-3",
+                            "name": "searchApiUrl",
+                            "value": "<__PLACEHOLDER_VALUE__Medical Search API__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-4",
+                            "name": "shopId",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Shop ID__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-5",
+                            "name": "supabaseUrl",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Project URL__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-6",
+                            "name": "supabaseKey",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Anon Key__>",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "includeOtherFields": true,
+                "options": {}
+            },
+            "id": "config-node-agent",
+            "name": "Agent Configuration",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                220,
+                860
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": false,
+                        "leftValue": "",
+                        "typeValidation": "loose"
+                    },
+                    "conditions": [
+                        {
+                            "id": "id-1",
+                            "leftValue": "={{ $json.body.image ? 'image' : 'text' }}",
+                            "rightValue": "image",
+                            "operator": {
+                                "type": "string",
+                                "operation": "equals"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "id": "check-msg-type",
+            "name": "Check Message Type",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.3,
+            "position": [
+                450,
+                860
+            ]
+        },
+        {
+            "parameters": {
+                "url": "={{ $json.body.fileUrl }}",
+                "authentication": "none",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "file",
+                            "outputPropertyName": "data"
+                        }
+                    }
+                }
+            },
+            "id": "download-image",
+            "name": "Download Image",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                700,
+                860
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('Agent Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract prescription text and medicine names from this image. Return valid JSON only: { \\\"full_text\\\": string, \\\"medicines\\\": [ string ], \\\"patient_name\\\": string }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $binary.data.data\n        }\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-ocr",
+            "name": "Gemini 1.5 Flash (Vision)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                900,
+                860
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+            },
+            "id": "parse-gemini-ocr",
+            "name": "Parse Gemini OCR",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1100,
+                860
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "prescriptions",
+                "limit": 5,
+                "filters": {
+                    "conditions": [
+                        {
+                            "key": "customer_phone",
+                            "value": "={{ $json.body.userId || 'guest' }}",
+                            "operator": "eq"
+                        }
+                    ]
+                }
+            },
+            "id": "supabase-get-history",
+            "name": "Get Patient History",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1100,
+                660
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "={{ $json.full_text || $('Dashboard Webhook').item.json.body.query }}",
+                "hasOutputParser": false,
+                "options": {
+                    "systemMessage": "You are 'Bharat Medix', a Smart Pharmacy Agent.\n\n### CONTEXT:\n- Customer ID: {{ $('Dashboard Webhook').item.json.body.userId }}\n- Previous Prescriptions: {{ JSON.stringify($('Get Patient History').all()) }}\n\n### GOALS:\n1. **Analyze Prescriptions**: If user sent an image, I have extracted the text: {{ $json.full_text }}. Use it to suggest medicines.\n2. **Smart Forecasts**: If user asks \"Do you have Dolo?\", use the `Check Inventory` tool.\n3. **Refill Checks**: If user asks \"When is my next dose?\", look at their history.\n4. **Profit & Safety**: Always upsell (e.g., Gas tablet with Painkiller) and check interactions.\n\n### TOOLS:\n- Use `check_inventory` to see live stock.\n- Use `manage_ledger` for Khata.\n- Use `medical_search` for drug info.\n\nSpeak in Hinglish/Hindi as needed. Be brief and helpful."
+                }
+            },
+            "id": "agent-core",
+            "name": "Medix Gemini Agent",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                1400,
+                860
+            ]
+        },
+        {
+            "parameters": {
+                "model": "gemini-1.5-flash",
+                "options": {}
+            },
+            "id": "gemini-chat-model",
+            "name": "Google Gemini Chat Model",
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1,
+            "position": [
+                1400,
+                1080
+            ],
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "GOOGLE_GEMINI_CREDENTIAL_ID",
+                    "name": "Google Gemini Api"
+                }
+            }
+        },
+        {
+            "parameters": {},
+            "id": "memory-buffer",
+            "name": "Conversation Memory",
+            "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+            "typeVersion": 1.3,
+            "position": [
+                1550,
+                1080
+            ]
+        },
+        {
+            "parameters": {
+                "url": "={{ $('Agent Configuration').first().json.supabaseUrl }}/rest/v1/inventory",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "medicine_name",
+                            "value": "ilike.*{{ $fromAI('medicine', 'Medicine Name') }}*"
+                        },
+                        {
+                            "name": "shop_id",
+                            "value": "eq.{{ $('Agent Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "name": "select",
+                            "value": "medicine_name,quantity,unit_price,expiry_date"
+                        }
+                    ]
+                },
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "={{ $('Agent Configuration').first().json.supabaseKey }}"
+                        },
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer {{ $('Agent Configuration').first().json.supabaseKey }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "tool-inventory",
+            "name": "Check Inventory",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                1850,
+                1000
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $('Agent Configuration').first().json.supabaseUrl }}/rest/v1/ledger_entries",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"shop_id\": $('Agent Configuration').first().json.shopId,\n  \"amount\": $fromAI(\"amount\", \"Amount (+ for debt, - for pay)\", \"number\"),\n  \"transaction_type\": $fromAI(\"type\", \"purchase or payment\", \"string\"),\n  \"description\": $fromAI(\"desc\", \"Description\", \"string\")\n} }}",
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "={{ $('Agent Configuration').first().json.supabaseKey }}"
+                        },
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer {{ $('Agent Configuration').first().json.supabaseKey }}"
+                        },
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        },
+                        {
+                            "name": "Prefer",
+                            "value": "return=minimal"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "tool-ledger",
+            "name": "Manage Ledger",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                1950,
+                1000
+            ]
+        },
+        {
+            "parameters": {
+                "url": "={{ $('Agent Configuration').first().json.supabaseUrl }}/rest/v1/restock_predictions",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "medicine_name",
+                            "value": "ilike.*{{ $fromAI('medicine', 'Medicine Name') }}*"
+                        },
+                        {
+                            "name": "shop_id",
+                            "value": "eq.{{ $('Agent Configuration').first().json.shopId }}"
+                        }
+                    ]
+                },
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "={{ $('Agent Configuration').first().json.supabaseKey }}"
+                        },
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer {{ $('Agent Configuration').first().json.supabaseKey }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "tool-forecast",
+            "name": "Get Restock Forecast",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                2050,
+                1000
+            ]
+        },
+        {
+            "parameters": {},
+            "id": "error-trigger-agent",
+            "name": "Global Error Trigger",
+            "type": "n8n-nodes-base.errorTrigger",
+            "typeVersion": 1,
+            "position": [
+                200,
+                1200
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "retry_queue",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('Agent Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "workflow_name",
+                            "value": "integrated-agent"
+                        },
+                        {
+                            "fieldId": "node_name",
+                            "value": "={{ $json.execution.lastNodeExecuted }}"
+                        },
+                        {
+                            "fieldId": "error_message",
+                            "value": "={{ $json.execution.error.message }}"
+                        },
+                        {
+                            "fieldId": "status",
+                            "value": "pending"
+                        }
+                    ]
+                }
+            },
+            "id": "save-error-db-agent",
+            "name": "Save to Retry Queue",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                500,
+                1200
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "content": "🤖 GEMINI AGENT (STANDARD HTTP NODE VERSION)\n\n1. Replaced Custom Tool Nodes with Standard HTTP Nodes\n2. Removed Output Parser\n3. Ready for standard Cloud Import",
+                "height": 300,
+                "width": 600
+            },
+            "type": "n8n-nodes-base.stickyNote",
+            "position": [
+                0,
+                660
+            ],
+            "typeVersion": 1,
+            "id": "agent-guide-note",
+            "name": "Agent Guide"
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "Dashboard Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Agent Configuration",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agent Configuration": {
+            "main": [
+                [
+                    {
+                        "node": "Check Message Type",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Get Patient History",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Check Message Type": {
+            "main": [
+                [
+                    {
+                        "node": "Download Image",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Download Image": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Vision)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Vision)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini OCR",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Gemini OCR": {
+            "main": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Patient History": {
+            "main": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Google Gemini Chat Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Conversation Memory": {
+            "ai_memory": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "ai_memory",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Check Inventory": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Manage Ledger": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Restock Forecast": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Medix Gemini Agent": {
+            "main": [
+                []
+            ]
+        },
+        "Global Error Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Save to Retry Queue",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

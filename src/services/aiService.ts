@@ -2,7 +2,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
 // Configuration from Environment
-const N8N_WEBHOOK_BASE = import.meta.env.VITE_N8N_WEBHOOK_URL || "https://primary-production-4416.up.railway.app/webhook"; // Default to a placeholder or user's provided URL if known
+const N8N_WEBHOOK_BASE = import.meta.env.VITE_N8N_WEBHOOK_URL || "https://vivek2073.app.n8n.cloud/webhook";
+const N8N_OPS_BASE = import.meta.env.VITE_N8N_OPS_URL || "https://vivek2073.app.n8n.cloud/webhook/medix-ops-webhook/operations";
 
 interface ChatResponse {
     reply: string;
@@ -57,19 +58,25 @@ export const aiService = {
             if (uploadError) throw uploadError;
 
             // 2. Get Public/Signed URL (Signed is better for privacy, but n8n needs access)
-            // For MVP with RLS, if n8n has a service role or if we use signed URL:
             const { data: urlData } = await supabase.storage
                 .from('clinical-uploads')
                 .createSignedUrl(filePath, 300); // 5 mins access
 
             if (!urlData?.signedUrl) throw new Error("Failed to generate access URL");
 
-            // 3. Trigger n8n Webhook
-            const webhookEndpoint = type === 'prescription' ? '/analyze-prescription' : '/analyze-report';
-            const response = await fetch(`${N8N_WEBHOOK_BASE}${webhookEndpoint}`, {
+            // 3. Trigger n8n Ops Webhook
+            // Mapping: 'prescription' -> 'scan-parcha', others to default or different ops
+            const action = type === 'prescription' ? 'scan-parcha' : 'scan-report';
+
+            // Note: Ops workflow usually expects params in URL :action, so we append /scan-parcha
+            const response = await fetch(`${N8N_OPS_BASE}/${action}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ fileUrl: urlData.signedUrl, userId: (await supabase.auth.getUser()).data.user?.id }),
+                body: JSON.stringify({
+                    fileUrl: urlData.signedUrl,
+                    image_base64: null,
+                    userId: (await supabase.auth.getUser()).data.user?.id
+                }),
             });
 
             if (!response.ok) throw new Error("Analysis Engine Failed");
@@ -106,7 +113,7 @@ export const aiService = {
      */
     async getMarketData(drugName: string): Promise<any> {
         try {
-            const response = await fetch(`${N8N_WEBHOOK_BASE}/market-intel`, {
+            const response = await fetch(`${N8N_WEBHOOK_BASE}/market`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ drugName }),
@@ -147,6 +154,28 @@ export const aiService = {
                 body: JSON.stringify({ salesHistory }),
             });
             if (!response.ok) throw new Error("Forecasting Engine Failed");
+            return await response.json();
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
+    },
+
+    /**
+     * New: Voice Billing Integration
+     */
+    async processVoiceBill(audioBlob: Blob): Promise<any> {
+        try {
+            const formData = new FormData();
+            formData.append('file', audioBlob);
+            formData.append('action', 'voice-bill');
+
+            const response = await fetch(`${N8N_OPS_BASE}/voice-bill`, {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!response.ok) throw new Error("Voice Billing Agent Failed");
             return await response.json();
         } catch (e) {
             console.error(e);
