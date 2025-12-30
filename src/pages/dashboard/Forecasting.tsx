@@ -40,9 +40,41 @@ interface ExpiryRisk {
   recommendation: string;
 }
 
+import { supabase } from "@/integrations/supabase/client";
+import { useUserShops } from "@/hooks/useUserShops";
+
 const Forecasting = () => {
+  const { currentShop } = useUserShops();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("demand");
+  const [stockoutRisks, setStockoutRisks] = useState<StockoutRisk[]>([]);
+
+  // Fetch Warnings from DB
+  useEffect(() => {
+    if (!currentShop?.id) return;
+    fetchPredictions();
+  }, [currentShop?.id]);
+
+  const fetchPredictions = async () => {
+    const { data } = await supabase
+      .from('restock_predictions')
+      .select('*')
+      .order('predicted_quantity', { ascending: false });
+
+    if (data) {
+      // Transform DB data to UI format
+      const risks = data.map((item: any) => ({
+        medicine: item.medicine_name,
+        currentStock: item.current_stock,
+        avgDailySales: item.avg_daily_sales || 5, // Fallback if 0
+        burnRate: item.current_stock / (item.avg_daily_sales || 1),
+        safetyStock: 50, // Default constant
+        reorderQty: item.predicted_quantity,
+        criticality: (item.current_stock / (item.avg_daily_sales || 1)) < 3 ? "high" : "medium"
+      }));
+      setStockoutRisks(risks as StockoutRisk[]);
+    }
+  };
 
   // --- MOCK DATA ---
   const demandForecastData = [
@@ -56,12 +88,7 @@ const Forecasting = () => {
     { month: "Aug", sales: null, forecast: 550 }, // Future (Seasonal Spike)
   ];
 
-  const stockoutRisks: StockoutRisk[] = [
-    { medicine: "Metformin 500mg", currentStock: 45, avgDailySales: 12, burnRate: 3.75, safetyStock: 100, reorderQty: 200, criticality: "high" },
-    { medicine: "Amoxicillin 625mg", currentStock: 15, avgDailySales: 5, burnRate: 3, safetyStock: 50, reorderQty: 100, criticality: "high" },
-    { medicine: "Telmisartan 40mg", currentStock: 220, avgDailySales: 18, burnRate: 12, safetyStock: 150, reorderQty: 0, criticality: "low" }, // Healthy
-    { medicine: "Pantoprazole 40mg", currentStock: 80, avgDailySales: 10, burnRate: 8, safetyStock: 100, reorderQty: 150, criticality: "medium" },
-  ];
+  // const stockoutRisks: StockoutRisk[] = ... (Replaced by State)
 
   const expiryRisks: ExpiryRisk[] = [
     { medicine: "Ceftriaxone Inj", batch: "XJ99", expiryDate: "2024-06-15", qty: 50, value: 2500, daysToExpiry: 20, recommendation: "Discount 50%" },
@@ -75,14 +102,48 @@ const Forecasting = () => {
   ];
 
   // --- HANDLERS ---
-  const runAIAnalysis = () => {
+  const runAIAnalysis = async () => {
+    if (!currentShop?.id) return;
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+
+    try {
+      // SIMULATION: Analyze Real Inventory
+      const { data: inventory } = await supabase
+        .from('inventory')
+        .select('*')
+        .lt('quantity', 50); // Find items < 50 units
+
+      if (inventory) {
+        // Clear old predictions
+        await supabase.from('restock_predictions').delete().eq('shop_id', currentShop.id);
+
+        // Generate new ones
+        const predictions = inventory.map(item => ({
+          shop_id: currentShop.id,
+          medicine_name: item.medicine_name,
+          current_stock: item.quantity,
+          avg_daily_sales: Math.floor(Math.random() * 10) + 2, // Mock Sales Data
+          predicted_quantity: 100 - item.quantity, // Simple Rule
+          confidence_score: 0.85,
+          reason: "Low Stock Alert (AI Scan)"
+        }));
+
+        if (predictions.length > 0) {
+          await supabase.from('restock_predictions').insert(predictions);
+        }
+      }
+
+      await fetchPredictions();
       toast.success("AI Analysis Complete", {
-        description: "Updated demand forecasts and risk assessments."
+        description: `Identified ${inventory?.length || 0} items at risk.`
       });
-    }, 2000);
+
+    } catch (e) {
+      console.error(e);
+      toast.error("Analysis Failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const addToReorder = (item: StockoutRisk) => {

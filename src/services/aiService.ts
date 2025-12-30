@@ -20,7 +20,16 @@ export const aiService = {
             // Step 1: If image exists, we might need to upload it first or send as base64.
             // For lightweight chat, sending base64 to n8n is okay.
 
-            const payload = { query: message, image };
+            // Step 1: Get Context (User & Shop)
+            const { data: { user } } = await supabase.auth.getUser();
+            const shopId = localStorage.getItem("currentShopId");
+
+            const payload = {
+                query: message,
+                image,
+                userId: user?.id,
+                shopId: shopId
+            };
 
             const response = await fetch(`${N8N_WEBHOOK_BASE}/chat`, {
                 method: "POST",
@@ -73,7 +82,8 @@ export const aiService = {
                     action: action, // <--- Routing Key
                     fileUrl: urlData.signedUrl,
                     image_base64: null,
-                    userId: (await supabase.auth.getUser()).data.user?.id
+                    userId: (await supabase.auth.getUser()).data.user?.id,
+                    shopId: localStorage.getItem("currentShopId")
                 }),
             });
 
@@ -165,8 +175,13 @@ export const aiService = {
     async processVoiceBill(audioBlob: Blob): Promise<any> {
         try {
             const formData = new FormData();
+            const { data: { user } } = await supabase.auth.getUser();
+            const shopId = localStorage.getItem("currentShopId");
+
             formData.append('file', audioBlob);
             formData.append('action', 'voice-bill');
+            if (user?.id) formData.append('userId', user.id);
+            if (shopId) formData.append('shopId', shopId);
 
             // FIXED: Send to base URL (action is in formData)
             const response = await fetch(`${N8N_OPS_BASE}`, {

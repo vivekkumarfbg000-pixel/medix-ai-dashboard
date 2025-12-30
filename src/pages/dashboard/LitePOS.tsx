@@ -7,7 +7,10 @@ import { db, OfflineInventory } from "@/db/db";
 import { toast } from "sonner";
 import { ShoppingCart, RefreshCw, Mic, Trash2, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
-import VoiceInput from "@/components/common/VoiceInput";
+import { VoiceCommandBar, ParsedItem } from "@/components/dashboard/VoiceCommandBar";
+import { supabase } from "@/integrations/supabase/client";
+import { useUserShops } from "@/hooks/useUserShops";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const LitePOS = () => {
     const [cart, setCart] = useState<{ item: OfflineInventory; qty: number }[]>([]);
@@ -23,13 +26,13 @@ const LitePOS = () => {
         [search]
     );
 
-    const addToCart = (product: OfflineInventory) => {
+    const addToCart = (product: OfflineInventory, qty: number = 1) => {
         setCart((prev) => {
             const existing = prev.find((c) => c.item.id === product.id);
             if (existing) {
-                return prev.map((c) => c.item.id === product.id ? { ...c, qty: c.qty + 1 } : c);
+                return prev.map((c) => c.item.id === product.id ? { ...c, qty: c.qty + qty } : c);
             }
-            return [...prev, { item: product, qty: 1 }];
+            return [...prev, { item: product, qty: qty }];
         });
         toast.success(`Added ${product.medicine_name}`);
     };
@@ -40,18 +43,33 @@ const LitePOS = () => {
 
     const calculateTotal = () => cart.reduce((acc, curr) => acc + (curr.item.unit_price * curr.qty), 0);
 
-    const handleVoiceData = (text: string) => {
-        setSearch(text);
-        // Simple logic: if text matches exactly one item, auto-add
-        db.inventory.where("medicine_name").equalsIgnoreCase(text).first().then(item => {
-            if (item) {
-                addToCart(item);
-                setSearch("");
-                toast.success(`Voice added: ${item.medicine_name}`);
-            } else {
-                toast.info(`Searching for "${text}"...`);
+    const handleVoiceCommand = async (transcription: string, items: ParsedItem[]) => {
+        setSearch(transcription);
+        toast.info(`AI Processed: ${transcription}`);
+
+        // Process each parsed item (Name + Quantity)
+        for (const item of items) {
+            // Fuzzy Find Best Match in Local DB
+            // 1. Try Exact Match
+            let bestMatch = await db.inventory.where("medicine_name").equalsIgnoreCase(item.name).first();
+
+            // 2. If not found, try StartsWith
+            if (!bestMatch) {
+                const candidates = await db.inventory.where("medicine_name").startsWithIgnoreCase(item.name).toArray();
+                if (candidates.length > 0) bestMatch = candidates[0];
             }
-        });
+
+            // 3. If found, add to cart
+            if (bestMatch) {
+                // Determine qty (default to 1)
+                const qtyToAdd = item.quantity || 1;
+                addToCart(bestMatch, qtyToAdd);
+                toast.success(`Voice Added: ${qtyToAdd}x ${bestMatch.medicine_name}`);
+            } else {
+                toast.warning(`Could not find "${item.name}" in inventory.`);
+            }
+        }
+        setSearch("");
     };
 
     // Mobile Shortcuts: Volume Keys & Haptics
@@ -125,6 +143,58 @@ const LitePOS = () => {
         }
     };
 
+    // --- CHECKOUT LOGIC ---
+    const { currentShop } = useUserShops();
+    const { canModify } = useUserRole(currentShop?.id);
+    const [isCheckingOut, setIsCheckingOut] = useState(false);
+
+    const handleCheckout = async () => {
+        if (!currentShop?.id) {
+            toast.error("No shop selected!");
+            return;
+        }
+        if (cart.length === 0) return;
+
+        setIsCheckingOut(true);
+        const invoiceNumber = `LITE-${Date.now().toString().slice(-6)}`;
+        const total = calculateTotal();
+
+        // Prepare items for DB
+        const orderItems = cart.map(c => ({
+            name: c.item.medicine_name,
+            qty: c.qty,
+            price: c.item.unit_price,
+            inventory_id: c.item.id
+        }));
+
+        try {
+            // 1. Create Order in Supabase
+            const { error } = await supabase.from('orders').insert({
+                shop_id: currentShop.id,
+                customer_name: "Walk-in (Lite)",
+                total_amount: total,
+                status: 'approved',
+                source: 'lite_pos',
+                invoice_number: invoiceNumber,
+                order_items: orderItems as any
+            });
+
+            if (error) throw error;
+
+            // 2. (Optional) Sync to local Dexie for offline history? (Skipping for now to prioritize online)
+
+            toast.success(`Order ${invoiceNumber} Saved!`, {
+                description: `₹${total} Collected`
+            });
+            setCart([]); // Clear Cart
+        } catch (err: any) {
+            toast.error("Checkout Failed", { description: err.message });
+            console.error(err);
+        } finally {
+            setIsCheckingOut(false);
+        }
+    };
+
     return (
         <div className="h-screen flex flex-col bg-slate-50 relative">
             {/* Header */}
@@ -132,7 +202,10 @@ const LitePOS = () => {
                 <Link to="/dashboard" className="flex items-center gap-2 font-bold text-lg">
                     <ArrowLeft /> Back
                 </Link>
-                <h1 className="text-xl font-bold">Munim-ji Lite ⚡</h1>
+                <div className="flex flex-col items-center">
+                    <h1 className="text-xl font-bold">Munim-ji Lite ⚡</h1>
+                    <span className="text-xs opacity-80">{currentShop?.name || "No Shop"}</span>
+                </div>
                 <div className="flex items-center gap-2">
                     <span className="bg-white/20 px-3 py-1 rounded-full text-sm">
                         {navigator.onLine ? "🟢 Online" : "🔴 Offline Mode"}
@@ -152,8 +225,10 @@ const LitePOS = () => {
                             onChange={(e) => setSearch(e.target.value)}
                         />
                         <div id="voice-wrapper" className="hidden md:block">
-                            <VoiceInput onTranscript={handleVoiceData} className="h-12 w-12" />
-                            <button id="voice-input-btn" className="hidden" onClick={() => (document.querySelector('.voice-input-mic') as HTMLElement)?.click()}></button>
+                            <VoiceCommandBar
+                                compact={true}
+                                onTranscriptionComplete={handleVoiceCommand}
+                            />
                         </div>
                     </div>
 
@@ -216,8 +291,13 @@ const LitePOS = () => {
                             <span>Total</span>
                             <span>₹{calculateTotal()}</span>
                         </div>
-                        <Button size="lg" className="w-full h-14 text-xl font-bold bg-green-600 hover:bg-green-700 active:scale-95 transition-transform" onClick={() => withHaptic(() => { })}>
-                            Checkout & Cash (₹)
+                        <Button
+                            size="lg"
+                            className="w-full h-14 text-xl font-bold bg-green-600 hover:bg-green-700 active:scale-95 transition-transform"
+                            onClick={() => withHaptic(handleCheckout)}
+                            disabled={isCheckingOut || cart.length === 0}
+                        >
+                            {isCheckingOut ? "Saving..." : "Checkout & Cash (₹)"}
                         </Button>
                     </div>
                 </div>
@@ -225,8 +305,11 @@ const LitePOS = () => {
 
             {/* Mobile Floating Action Button (FAB) for Voice */}
             <div className="md:hidden fixed bottom-6 right-6 z-50">
-                <div className="shadow-xl rounded-full scale-125">
-                    <VoiceInput onTranscript={handleVoiceData} className="w-14 h-14" />
+                <div className="bg-primary/90 text-white rounded-full p-2 shadow-2xl">
+                    <VoiceCommandBar
+                        compact={true}
+                        onTranscriptionComplete={handleVoiceCommand}
+                    />
                 </div>
             </div>
         </div>

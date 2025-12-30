@@ -80,14 +80,17 @@ const Orders = () => {
       `${idx + 1}. ${item.name} x${item.qty || 1} = ₹${item.price * (item.qty || 1)}`
     ).join('%0A'); // %0A is newline
 
-    const text = `🧾 *Invoice #${order.invoice_number || 'NA'}*%0A` +
-      `🏪 *Medix Pharmacy*%0A` +
-      `----------------%0A` +
+    const text = `🧾 *INVOICE #${order.invoice_number || 'NA'}*%0A` +
+      `🏪 *Medix Pharmacy & Diagnostics*%0A` +
+      `📍 Date: ${new Date(order.created_at).toLocaleDateString()}%0A` +
+      `--------------------------------%0A` +
       itemsList +
-      `%0A----------------%0A` +
-      `💰 *Total: ₹${order.total_amount}*%0A` +
-      `✅ Status: ${order.status.toUpperCase()}%0A%0A` +
-      `Thank you for your visit! 🙏`;
+      `%0A--------------------------------%0A` +
+      `💰 *GRAND TOTAL: ₹${order.total_amount}*%0A` +
+      `✅ Payment: ${order.status === 'pending_payment' ? 'PENDING (Udhaar)' : 'PAID'}%0A` +
+      `--------------------------------%0A` +
+      `Thank you for your trust! 🙏%0A` +
+      `_Powered by PharmaAssist AI_`;
 
     // Remove non-digit chars from phone
     const cleanPhone = order.customer_phone.replace(/\D/g, '');
@@ -235,6 +238,31 @@ const Orders = () => {
       }
     }
 
+    // --- SAFETY CHECK: DRUG INTERACTIONS ---
+    const currentDrugs = cart.map(c => c.name);
+    // Combine current cart + new item (cleaned name)
+    const checkList = [...currentDrugs, name];
+
+    if (checkList.length >= 2) {
+      try {
+        const interactions = await drugService.checkInteractions(checkList);
+        if (interactions && interactions.length > 0) {
+          const warningMsg = interactions.map(i => `${i.drug1} + ${i.drug2} (${i.severity})`).join('\n');
+          toast.warning("⚠️ DRUG INTERACTION DETECTED", {
+            description: warningMsg,
+            duration: 6000,
+            action: {
+              label: "View Details",
+              onClick: () => console.log(interactions)
+            }
+          });
+        }
+      } catch (error) {
+        console.warn("Interaction check failed silently:", error);
+        // Continue allowing add to cart
+      }
+    }
+
     const newItem: CartItem = {
       id: Date.now().toString(),
       name: name,
@@ -307,8 +335,24 @@ const Orders = () => {
     };
   };
 
-  const completeSale = async () => {
+  const completeSale = async (isUdhaar: boolean = false) => {
     if (cart.length === 0) return;
+
+    // Validate Customer for Pay Later
+    let customerId = null;
+    if (isUdhaar) {
+      if (!customerPhone) {
+        toast.error("Phone number required for Credit/Udhaar!");
+        return;
+      }
+      // Find customer
+      const { data: cust } = await supabase.from('customers').select('id').eq('shop_id', (await supabase.from('profiles').select('shop_id').single()).data?.shop_id).eq('phone', customerPhone).single();
+      if (!cust) {
+        toast.error("Customer not found. Please register them in 'Customers' tab first.");
+        return;
+      }
+      customerId = cust.id;
+    }
 
     const { data: profile } = await supabase.from('profiles').select('shop_id').single();
     if (!profile) return;
@@ -328,6 +372,9 @@ const Orders = () => {
       };
     });
 
+    const status = isUdhaar ? 'pending_payment' : 'approved';
+
+    // 1. Create Order
     const { error } = await supabase.from('orders').insert({
       shop_id: profile.shop_id,
       customer_name: customerName || "Walk-in Customer",
@@ -335,16 +382,31 @@ const Orders = () => {
       total_amount: totals.totalPayable,
       tax_total: totals.totalTax,
       invoice_number: invoiceNumber,
-      status: 'approved',
+      status: status,
       source: 'manual_pos',
-      order_items: orderItems as any // Casting to satisfy Json type
+      order_items: orderItems as any
     });
 
     if (error) {
       toast.error("Failed to complete sale");
       console.error(error);
     } else {
-      toast.success(`Sale Completed! Invoice ${invoiceNumber} Generated.`);
+      // 2. If Udhaar, Add to Ledger
+      if (isUdhaar && customerId) {
+        const { error: ledgerError } = await supabase.from('ledger_entries').insert({
+          shop_id: profile.shop_id,
+          customer_id: customerId,
+          amount: totals.totalPayable, // Positive = Debt
+          transaction_type: 'purchase',
+          description: `Invoice ${invoiceNumber}`
+        });
+        if (ledgerError) {
+          console.error("Ledger Error", ledgerError);
+          toast.error("Order saved but Ledger update failed.");
+        }
+      }
+
+      toast.success(isUdhaar ? `Credit Added! Invoice ${invoiceNumber}` : `Sale Completed! Invoice ${invoiceNumber}`);
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");
@@ -551,9 +613,14 @@ const Orders = () => {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button className="w-full h-12 text-lg" disabled={cart.length === 0} onClick={completeSale}>
-                  Complete & Invoice
-                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button variant="outline" className="w-full h-12 text-lg border-orange-200 text-orange-700 hover:bg-orange-50" disabled={cart.length === 0} onClick={() => completeSale(true)}>
+                    📒 Pay Later
+                  </Button>
+                  <Button className="w-full h-12 text-lg" disabled={cart.length === 0} onClick={() => completeSale(false)}>
+                    💵 Pay Now
+                  </Button>
+                </div>
               </CardFooter>
             </Card>
           </div>

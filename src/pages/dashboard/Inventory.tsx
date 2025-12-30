@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useUserShops } from "@/hooks/useUserShops";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,7 +58,8 @@ const Inventory = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const { canModify } = useUserRole("SHOP_ID_PLACEHOLDER");
+  const { currentShop } = useUserShops();
+  const { canModify } = useUserRole(currentShop?.id);
   const [activeTab, setActiveTab] = useState("stock");
 
   const [newItem, setNewItem] = useState({
