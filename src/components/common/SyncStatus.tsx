@@ -1,19 +1,28 @@
 import { useEffect, useState } from "react";
-import { syncService } from "@/services/syncService";
 import { Cloud, CloudOff, RefreshCw } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const SyncStatus = () => {
     const [status, setStatus] = useState<'idle' | 'syncing' | 'error'>('idle');
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
 
     useEffect(() => {
-        try {
-            const unsubscribe = syncService.subscribe(setStatus);
-            return unsubscribe;
-        } catch (error) {
-            console.error("SyncStatus subscription failed:", error);
+        const handleOnline = () => {
+            setIsOnline(true);
+            setStatus('idle');
+        };
+        const handleOffline = () => {
+            setIsOnline(false);
             setStatus('error');
-        }
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
     }, []);
 
     return (

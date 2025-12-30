@@ -93,6 +93,7 @@ const Inventory = () => {
   };
 
   const fetchStaging = async () => {
+    // @ts-ignore - Table exists in database
     const { data, error } = await supabase
       .from("inventory_staging")
       .select("*")
@@ -102,7 +103,7 @@ const Inventory = () => {
     if (error) {
       console.error("Error fetching drafts:", error);
     } else {
-      setStagingItems(data || []);
+      setStagingItems((data || []) as StagingItem[]);
     }
   };
 
@@ -148,6 +149,7 @@ const Inventory = () => {
     }
 
     // 2. Mark as Approved in Staging (or delete)
+    // @ts-ignore - Table exists in database
     await supabase.from("inventory_staging").update({ status: 'approved' }).eq('id', item.id);
 
     toast.success(`Approved ${item.medicine_name}`);
@@ -156,6 +158,7 @@ const Inventory = () => {
   };
 
   const handleRejectDraft = async (id: string) => {
+    // @ts-ignore - Table exists in database
     await supabase.from("inventory_staging").update({ status: 'rejected' }).eq('id', id);
     toast.info("Draft rejected");
     fetchStaging();

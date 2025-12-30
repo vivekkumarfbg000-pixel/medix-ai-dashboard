@@ -27,7 +27,7 @@ const Customers = () => {
 
     const fetchCustomers = async () => {
         setLoading(true);
-        // @ts-ignore
+        // @ts-ignore - Table exists in database
         const { data, error } = await supabase
             .from("customers")
             .select("*")
@@ -36,8 +36,7 @@ const Customers = () => {
         if (error) {
             console.warn(error);
         } else {
-            // @ts-ignore
-            setCustomers(data || []);
+            setCustomers((data || []) as Customer[]);
         }
         setLoading(false);
     };
@@ -54,7 +53,7 @@ const Customers = () => {
 
         const { data: profile } = await supabase.from('profiles').select('shop_id').single();
 
-        // @ts-ignore
+        // @ts-ignore - Table exists in database
         const { error } = await supabase.from("customers").insert({
             shop_id: profile?.shop_id,
             name: newCustomer.name,

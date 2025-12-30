@@ -61,6 +61,53 @@ export type Database = {
           },
         ]
       }
+      customers: {
+        Row: {
+          address: string | null
+          created_at: string
+          credit_balance: number | null
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          shop_id: string
+          total_spent: number | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          credit_balance?: number | null
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          shop_id: string
+          total_spent?: number | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          credit_balance?: number | null
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          shop_id?: string
+          total_spent?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diary_scans: {
         Row: {
           confirmed: boolean | null
@@ -158,16 +205,110 @@ export type Database = {
           },
         ]
       }
+      inventory_staging: {
+        Row: {
+          batch_number: string | null
+          created_at: string
+          expiry_date: string | null
+          id: string
+          medicine_name: string
+          quantity: number | null
+          shop_id: string
+          source: string | null
+          status: string | null
+          unit_price: number | null
+        }
+        Insert: {
+          batch_number?: string | null
+          created_at?: string
+          expiry_date?: string | null
+          id?: string
+          medicine_name: string
+          quantity?: number | null
+          shop_id: string
+          source?: string | null
+          status?: string | null
+          unit_price?: number | null
+        }
+        Update: {
+          batch_number?: string | null
+          created_at?: string
+          expiry_date?: string | null
+          id?: string
+          medicine_name?: string
+          quantity?: number | null
+          shop_id?: string
+          source?: string | null
+          status?: string | null
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_staging_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ledger_entries: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string
+          description: string | null
+          id: string
+          shop_id: string
+          transaction_type: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_id: string
+          description?: string | null
+          id?: string
+          shop_id: string
+          transaction_type: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string
+          description?: string | null
+          id?: string
+          shop_id?: string
+          transaction_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_entries_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_entries_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           created_at: string
           customer_name: string
           customer_phone: string | null
           id: string
+          invoice_number: string | null
           order_items: Json
           shop_id: string
           source: string | null
           status: string
+          tax_total: number | null
           total_amount: number | null
           updated_at: string
         }
@@ -176,10 +317,12 @@ export type Database = {
           customer_name: string
           customer_phone?: string | null
           id?: string
+          invoice_number?: string | null
           order_items?: Json
           shop_id: string
           source?: string | null
           status?: string
+          tax_total?: number | null
           total_amount?: number | null
           updated_at?: string
         }
@@ -188,10 +331,12 @@ export type Database = {
           customer_name?: string
           customer_phone?: string | null
           id?: string
+          invoice_number?: string | null
           order_items?: Json
           shop_id?: string
           source?: string | null
           status?: string
+          tax_total?: number | null
           total_amount?: number | null
           updated_at?: string
         }
@@ -246,6 +391,47 @@ export type Database = {
           },
         ]
       }
+      prescriptions: {
+        Row: {
+          created_at: string
+          customer_name: string | null
+          doctor_name: string | null
+          id: string
+          image_url: string | null
+          medicines: Json | null
+          shop_id: string
+          visit_date: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_name?: string | null
+          doctor_name?: string | null
+          id?: string
+          image_url?: string | null
+          medicines?: Json | null
+          shop_id: string
+          visit_date?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_name?: string | null
+          doctor_name?: string | null
+          id?: string
+          image_url?: string | null
+          medicines?: Json | null
+          shop_id?: string
+          visit_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prescriptions_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -277,6 +463,94 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "profiles_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restock_predictions: {
+        Row: {
+          avg_daily_sales: number | null
+          confidence_score: number | null
+          created_at: string
+          current_stock: number | null
+          id: string
+          medicine_name: string
+          predicted_quantity: number
+          reason: string | null
+          shop_id: string
+        }
+        Insert: {
+          avg_daily_sales?: number | null
+          confidence_score?: number | null
+          created_at?: string
+          current_stock?: number | null
+          id?: string
+          medicine_name: string
+          predicted_quantity: number
+          reason?: string | null
+          shop_id: string
+        }
+        Update: {
+          avg_daily_sales?: number | null
+          confidence_score?: number | null
+          created_at?: string
+          current_stock?: number | null
+          id?: string
+          medicine_name?: string
+          predicted_quantity?: number
+          reason?: string | null
+          shop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restock_predictions_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      retry_queue: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          operation: string
+          payload: Json | null
+          retry_count: number | null
+          shop_id: string
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          operation: string
+          payload?: Json | null
+          retry_count?: number | null
+          shop_id: string
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          operation?: string
+          payload?: Json | null
+          retry_count?: number | null
+          shop_id?: string
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retry_queue_shop_id_fkey"
             columns: ["shop_id"]
             isOneToOne: false
             referencedRelation: "shops"
