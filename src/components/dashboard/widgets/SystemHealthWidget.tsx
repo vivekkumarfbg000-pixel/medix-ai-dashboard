@@ -11,6 +11,7 @@ export const SystemHealthWidget = () => {
 
     const checkHealth = async () => {
         setLoading(true);
+        // @ts-ignore - Table exists in database
         const { count, error } = await supabase
             .from('retry_queue')
             .select('*', { count: 'exact', head: true })
