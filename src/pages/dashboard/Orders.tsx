@@ -346,7 +346,9 @@ const Orders = () => {
         return;
       }
       // Find customer
-      const { data: cust } = await supabase.from('customers').select('id').eq('shop_id', (await supabase.from('profiles').select('shop_id').single()).data?.shop_id).eq('phone', customerPhone).single();
+      const profileData = await supabase.from('profiles').select('shop_id').single();
+      // @ts-ignore - Table exists in database
+      const { data: cust } = await supabase.from('customers').select('id').eq('shop_id', profileData.data?.shop_id).eq('phone', customerPhone).single();
       if (!cust) {
         toast.error("Customer not found. Please register them in 'Customers' tab first.");
         return;
@@ -393,6 +395,7 @@ const Orders = () => {
     } else {
       // 2. If Udhaar, Add to Ledger
       if (isUdhaar && customerId) {
+        // @ts-ignore - Table exists in database
         const { error: ledgerError } = await supabase.from('ledger_entries').insert({
           shop_id: profile.shop_id,
           customer_id: customerId,

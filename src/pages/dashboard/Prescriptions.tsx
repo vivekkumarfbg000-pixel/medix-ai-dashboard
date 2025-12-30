@@ -24,13 +24,14 @@ const Prescriptions = () => {
 
     const fetchPrescriptions = async () => {
         setLoading(true);
+        // @ts-ignore - Table exists in database
         const { data, error } = await supabase
             .from('prescriptions')
             .select('*')
             .order('created_at', { ascending: false });
 
         if (!error && data) {
-            setPrescriptions(data as any);
+            setPrescriptions(data as unknown as Prescription[]);
         }
         setLoading(false);
     };

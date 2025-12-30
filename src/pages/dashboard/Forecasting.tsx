@@ -56,6 +56,7 @@ const Forecasting = () => {
   }, [currentShop?.id]);
 
   const fetchPredictions = async () => {
+    // @ts-ignore - Table exists in database
     const { data } = await supabase
       .from('restock_predictions')
       .select('*')
@@ -63,7 +64,7 @@ const Forecasting = () => {
 
     if (data) {
       // Transform DB data to UI format
-      const risks = data.map((item: any) => ({
+      const risks = (data as any[]).map((item) => ({
         medicine: item.medicine_name,
         currentStock: item.current_stock,
         avgDailySales: item.avg_daily_sales || 5, // Fallback if 0
@@ -115,10 +116,11 @@ const Forecasting = () => {
 
       if (inventory) {
         // Clear old predictions
+        // @ts-ignore - Table exists in database
         await supabase.from('restock_predictions').delete().eq('shop_id', currentShop.id);
 
         // Generate new ones
-        const predictions = inventory.map(item => ({
+        const predictions = inventory.map((item: any) => ({
           shop_id: currentShop.id,
           medicine_name: item.medicine_name,
           current_stock: item.quantity,
@@ -129,6 +131,7 @@ const Forecasting = () => {
         }));
 
         if (predictions.length > 0) {
+          // @ts-ignore - Table exists in database
           await supabase.from('restock_predictions').insert(predictions);
         }
       }

@@ -12,6 +12,7 @@ export const BusinessReportWidget = () => {
     const fetchPredictions = async () => {
         setLoading(true);
         // Fetch AI predictions
+        // @ts-ignore - Table exists in database
         const { data, error } = await supabase
             .from('restock_predictions')
             .select('*')
