@@ -118,21 +118,9 @@ const DiaryScan = () => {
         throw new Error("Invalid response structure");
       }
     } catch (error) {
-      console.warn("AI Service unavailable, using demo data:", error);
-      toast.warning("AI Service Offline. Running in Demo Mode.");
-
-      // Mock Result Fallback
-      const mockResults: ExtractedItem[] = [
-        { id: 1, sequence: 1, medication_name: "Monaditue", strength: "-", dosage_frequency: "1 x 1", duration: "-", notes: "" },
-        { id: 2, sequence: 2, medication_name: "Rapiclav", strength: "625 mg", dosage_frequency: "1 x 3", duration: "5 days", notes: "Antibiotic" },
-        { id: 3, sequence: 3, medication_name: "Azibact", strength: "500 mg", dosage_frequency: "1 x 1", duration: "5 days", notes: "Antibiotic" },
-        { id: 4, sequence: 4, medication_name: "Amoxikind DX", strength: "-", dosage_frequency: "2 tsp x 3", duration: "-", notes: "Syrup" },
-        { id: 5, sequence: 5, medication_name: "Tryptiline Plus", strength: "-", dosage_frequency: "1 x 1", duration: "-", notes: "Night", lasa_alert: true },
-        { id: 6, sequence: 6, medication_name: "Dilzem SR", strength: "90 mg", dosage_frequency: "1 x 1", duration: "-", notes: "" },
-        { id: 7, sequence: 7, medication_name: "Mainox D3", strength: "-", dosage_frequency: "1 Cap Weekly", duration: "4 weeks", notes: "Vitamin D" },
-        { id: 8, sequence: 8, medication_name: "Ossotone CT", strength: "-", dosage_frequency: "1 + 1", duration: "30 days", notes: "Calcium" },
-      ];
-      setExtractedItems(mockResults);
+      console.error("AI Service Error:", error);
+      toast.error("AI Analysis Failed. Please check your connection or try again.");
+      setExtractedItems([]); // Clear any previous items
     }
 
     setIsProcessing(false);

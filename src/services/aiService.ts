@@ -46,13 +46,8 @@ export const aiService = {
             if (!response.ok) throw new Error(`AI Agent Unreachable: ${response.status}`);
             return await response.json();
         } catch (error) {
-            console.warn("AI Service Error (Chat):", error);
-
-            // --- DEMO MODE FALLBACK ---
-            return {
-                reply: "I'm currently in Dashboard Demo Mode. I can't access live medical databases right now, but typically I would search PubMed and CDSCO for that query.\n\nFor example, if you asked about 'Azithromycin', I'd tell you it is a macrolide antibiotic used for respiratory infections, and warn about cardiac risks.",
-                sources: ["Demo Mode Placeholder", "Simulation Data"]
-            };
+            console.error("AI Service Error (Chat):", error);
+            throw error; // Let UI handle the error
         }
     },
 
@@ -102,19 +97,7 @@ export const aiService = {
 
         } catch (error) {
             console.error("Document Analysis Failed:", error);
-
-            // FIXED: Fallback Structure matches DiaryScan.tsx "ExtractedItem" format
-            if (type === 'prescription') {
-                return {
-                    items: [
-                        { id: 1, sequence: 1, medication_name: "Azithral 500", strength: "500mg", dosage_frequency: "1-0-0", duration: "3 Days", notes: "After food", lasa_alert: false },
-                        { id: 2, sequence: 2, medication_name: "Dolo 650", strength: "650mg", dosage_frequency: "SOS", duration: "-", notes: "For fever", lasa_alert: false },
-                        { id: 3, sequence: 3, medication_name: "Pantop 40", strength: "40mg", dosage_frequency: "1-0-0", duration: "5 Days", notes: "Before food", lasa_alert: true }
-                    ]
-                };
-            } else {
-                return { result: "Hemoglobin: 12.5 g/dL (Normal)", warning: "None" };
-            }
+            throw error; // Fail loudly so user knows upload/scan failed
         }
     },
 
@@ -162,17 +145,8 @@ export const aiService = {
             const data = await response.json();
             return data.interactions || [];
         } catch (e) {
-            console.warn("Interaction Check Failed (Offline Mode)");
-            // Mock Interaction for Demo
-            if (drugs.some(d => d.toLowerCase().includes('aspirin')) && drugs.some(d => d.toLowerCase().includes('warfarin'))) {
-                return [{
-                    drug1: "Aspirin",
-                    drug2: "Warfarin",
-                    severity: "Major",
-                    description: "Increased risk of bleeding. Monitor INR closely."
-                }];
-            }
-            return [];
+            console.error("Interaction Check Failed", e);
+            throw e;
         }
     },
 
@@ -190,8 +164,8 @@ export const aiService = {
             if (!response.ok) throw new Error("Market Intel Failed");
             return await response.json();
         } catch (e) {
-            console.warn("Market Intel unavailable (using fallback)");
-            return null; // returning null triggers local fallback in drugService
+            console.error("Market Intel unavailable", e);
+            throw e;
         }
     },
 
@@ -208,9 +182,8 @@ export const aiService = {
             if (!response.ok) throw new Error("Compliance Check Failed");
             return await response.json();
         } catch (e) {
-            // Offline Facade
-            console.warn("Compliance Check Offline. Returning safe default.");
-            return { is_banned: false, is_h1: false, warning_level: "SAFE" };
+            console.error("Compliance Check Failed", e);
+            throw e;
         }
     },
 
@@ -228,8 +201,8 @@ export const aiService = {
             if (!response.ok) throw new Error("Forecasting Engine Failed");
             return await response.json();
         } catch (e) {
-            console.error(e);
-            return { forecast: "Trend stable (Demo Data)", recommended_stock: 50 };
+            console.error("Forecasting Engine Failed", e);
+            throw e;
         }
     },
 
@@ -257,13 +230,7 @@ export const aiService = {
             return await response.json();
         } catch (e) {
             console.error("Voice Bill Failed", e);
-            return {
-                items: [
-                    { drug: "Azithral 500", quantity: 10, price: 120 },
-                    { drug: "Dolo 650", quantity: 15, price: 30 }
-                ],
-                confidence: 0.85
-            };
+            throw e;
         }
     }
 };

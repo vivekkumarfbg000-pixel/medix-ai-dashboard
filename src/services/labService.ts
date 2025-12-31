@@ -1,27 +1,4 @@
 
-export interface LabTestResult {
-    parameter: string;
-    value: number;
-    unit: string;
-    normalRange: string;
-    status: "Normal" | "Low" | "High";
-    riskLevel: "None" | "Moderate" | "Critical";
-    color: string;
-}
-
-export interface LabAnalysisReport {
-    patientName?: string;
-    reportDate?: string;
-    results: LabTestResult[];
-    summary: string;
-    diseasePossibility: string[];
-    recommendations: {
-        prevention: string[];
-        diet: string[];
-        nextSteps: string[];
-    };
-}
-
 import { aiService } from "./aiService";
 
 export interface LabTestResult {
