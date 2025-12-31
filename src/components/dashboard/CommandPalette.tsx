@@ -43,7 +43,9 @@ const navigationCommands = [
 const actionCommands = [
   { id: "add-medicine", label: "Add New Medicine", icon: Plus, path: "/dashboard/inventory", action: "add-medicine" },
   { id: "add-order", label: "Create New Order", icon: Plus, path: "/dashboard/orders", action: "add-order" },
-  { id: "scan-diary", label: "Scan Diary Entry", icon: FileText, path: "/dashboard/diary-scan" },
+  { id: "scan-diary", label: "Scan Prescription (Parcha)", icon: FileText, path: "/dashboard/diary-scan" },
+  { id: "scan-invoice", label: "Scan Medicine Invoice", icon: FileText, path: "/dashboard/inventory?tab=drafts", action: "scan-invoice" },
+  { id: "scan-lab", label: "Scan Lab Report", icon: FileText, path: "/dashboard/lab-analyzer", action: "scan-lab" },
   { id: "check-interactions", label: "Check Drug Interactions", icon: Pill, path: "/dashboard/ai-insights" },
 ];
 
@@ -82,7 +84,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
       <CommandInput placeholder="Type a command or search..." />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
-        
+
         <CommandGroup heading="Navigation">
           {navigationCommands.map((cmd) => (
             <CommandItem

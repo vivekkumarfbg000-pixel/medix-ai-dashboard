@@ -1,1188 +1,616 @@
 {
-  "name": "Medix AI Dashboard Integrated Workflow",
-  "nodes": [
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "id-1",
-              "name": "googleVisionApiUrl",
-              "value": "<__PLACEHOLDER_VALUE__Google Vision API URL__>",
-              "type": "string"
+    "name": "Medix AI Integrated Agent (Standard Nodes)",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "chat",
+                "responseMode": "lastNode",
+                "options": {}
             },
-            {
-              "id": "id-2",
-              "name": "speechToTextApiUrl",
-              "value": "<__PLACEHOLDER_VALUE__Speech-to-Text API URL__>",
-              "type": "string"
-            },
-            {
-              "id": "id-3",
-              "name": "drugInteractionApiUrl",
-              "value": "<__PLACEHOLDER_VALUE__Drug Interaction API URL (e.g., DrugBank or OpenFDA)__>",
-              "type": "string"
-            },
-            {
-              "id": "id-4",
-              "name": "medicalKnowledgeUrl",
-              "value": "<__PLACEHOLDER_VALUE__Medical Knowledge Base URL or file path__>",
-              "type": "string"
-            }
-          ]
+            "id": "dashboard-webhook",
+            "name": "Dashboard Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                -200,
+                660
+            ],
+            "webhookId": "medix-chat-webhook"
         },
-        "includeOtherFields": true,
-        "options": {}
-      },
-      "id": "d946a88c-e789-4061-b038-b91f7304cff9",
-      "name": "Workflow Configuration",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        224,
-        864
-      ]
-    },
-    {
-      "parameters": {
-        "updates": [
-          "messages"
-        ],
-        "options": {}
-      },
-      "id": "a4b3f7b4-7093-4c7b-83b4-4f53a258deff",
-      "name": "WhatsApp Trigger",
-      "type": "n8n-nodes-base.whatsAppTrigger",
-      "typeVersion": 1,
-      "position": [
-        -200,
-        864
-      ],
-      "webhookId": "31edf09a-837b-4c13-81e5-4d6355175075"
-    },
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "/:action",
-        "options": {}
-      },
-      "id": "af084852-7c37-4f9e-9d22-1d5d1c5c9e2b",
-      "name": "API Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [
-        -200,
-        600
-      ],
-      "webhookId": "medix-api-webhook"
-    },
-    {
-      "parameters": {
-        "rules": {
-          "values": [
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict"
+        {
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": "id-1",
+                            "name": "googleGeminiApiKey",
+                            "value": "<__PLACEHOLDER_VALUE__Google Gemini API Key__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-2",
+                            "name": "speechToTextApiUrl",
+                            "value": "<__PLACEHOLDER_VALUE__Speech-to-Text API URL__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-3",
+                            "name": "searchApiUrl",
+                            "value": "<__PLACEHOLDER_VALUE__Medical Search API__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-4",
+                            "name": "shopId",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Shop ID__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-5",
+                            "name": "supabaseUrl",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Project URL__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-6",
+                            "name": "supabaseKey",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Anon Key__>",
+                            "type": "string"
+                        }
+                    ]
                 },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.params.action }}",
-                    "rightValue": "chat",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "chat"
+                "includeOtherFields": true,
+                "options": {}
             },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict"
+            "id": "config-node-agent",
+            "name": "Agent Configuration",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                220,
+                860
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": false,
+                        "leftValue": "",
+                        "typeValidation": "loose"
+                    },
+                    "conditions": [
+                        {
+                            "id": "id-1",
+                            "leftValue": "={{ $json.body.image ? 'image' : 'text' }}",
+                            "rightValue": "image",
+                            "operator": {
+                                "type": "string",
+                                "operation": "equals"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
                 },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.params.action }}",
-                    "rightValue": "analyze-prescription",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "analyze"
+                "options": {}
             },
-             {
-              "conditions": {
+            "id": "check-msg-type",
+            "name": "Check Message Type",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.3,
+            "position": [
+                450,
+                860
+            ]
+        },
+        {
+            "parameters": {
+                "url": "={{ $json.body.fileUrl }}",
+                "authentication": "none",
                 "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict"
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.params.action }}",
-                    "rightValue": "analyze-report",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
+                    "response": {
+                        "response": {
+                            "responseFormat": "file",
+                            "outputPropertyName": "data"
+                        }
                     }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "analyze_report"
+                }
             },
-            {
-              "conditions": {
+            "id": "download-image",
+            "name": "Download Image",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                700,
+                860
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('Agent Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract prescription text and medicine names from this image. Return valid JSON only: { \\\"full_text\\\": string, \\\"medicines\\\": [ string ], \\\"patient_name\\\": string }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $binary.data.data\n        }\n      }\n    ]\n  }]\n} }}",
                 "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict"
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.params.action }}",
-                    "rightValue": "interactions",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
                     }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "interactions"
+                }
             },
-            {
-              "conditions": {
+            "id": "gemini-ocr",
+            "name": "Gemini 1.5 Flash (Vision)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                900,
+                860
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+            },
+            "id": "parse-gemini-ocr",
+            "name": "Parse Gemini OCR",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1100,
+                860
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "prescriptions",
+                "limit": 5,
+                "filters": {
+                    "conditions": [
+                        {
+                            "key": "customer_phone",
+                            "value": "={{ $json.body.userId || 'guest' }}",
+                            "operator": "eq"
+                        }
+                    ]
+                }
+            },
+            "id": "supabase-get-history",
+            "name": "Get Patient History",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1100,
+                660
+            ],
+            "alwaysOutputData": true,
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "={{ $json.full_text || $('Dashboard Webhook').item.json.body.query }}",
+                "hasOutputParser": false,
                 "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict"
+                    "systemMessage": "You are 'Bharat Medix', a Smart Pharmacy Agent.\n\n### CONTEXT:\n- Customer ID: {{ $('Dashboard Webhook').item.json.body.userId }}\n- Previous Prescriptions: {{ JSON.stringify($('Get Patient History').all()) }}\n\n### GOALS:\n1. **Analyze Prescriptions**: If user sent an image, I have extracted the text: {{ $json.full_text }}. Use it to suggest medicines.\n2. **Smart Forecasts**: If user asks \"Do you have Dolo?\", use the `Check Inventory` tool.\n3. **Refill Checks**: If user asks \"When is my next dose?\", look at their history.\n4. **Profit & Safety**: Always upsell (e.g., Gas tablet with Painkiller) and check interactions.\n\n### TOOLS:\n- Use `check_inventory` to see live stock.\n- Use `manage_ledger` for Khata.\n- Use `medical_search` for drug info.\n\nSpeak in Hinglish/Hindi as needed. Be brief and helpful."
+                }
+            },
+            "id": "agent-core",
+            "name": "Medix Gemini Agent",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                1400,
+                860
+            ]
+        },
+        {
+            "parameters": {
+                "model": "gemini-1.5-flash",
+                "options": {}
+            },
+            "id": "gemini-chat-model",
+            "name": "Google Gemini Chat Model",
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1,
+            "position": [
+                1400,
+                1080
+            ],
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "GOOGLE_GEMINI_CREDENTIAL_ID",
+                    "name": "Google Gemini Api"
+                }
+            }
+        },
+        {
+            "parameters": {},
+            "id": "memory-buffer",
+            "name": "Conversation Memory",
+            "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+            "typeVersion": 1.3,
+            "position": [
+                1550,
+                1080
+            ]
+        },
+        {
+            "parameters": {
+                "url": "={{ $('Agent Configuration').first().json.supabaseUrl }}/rest/v1/inventory",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "medicine_name",
+                            "value": "ilike.*{{ $fromAI('medicine', 'Medicine Name') }}*"
+                        },
+                        {
+                            "name": "shop_id",
+                            "value": "eq.{{ $('Agent Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "name": "select",
+                            "value": "medicine_name,quantity,unit_price,expiry_date"
+                        }
+                    ]
                 },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.params.action }}",
-                    "rightValue": "forecast",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "forecast"
-            },
-             {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict"
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "={{ $('Agent Configuration').first().json.supabaseKey }}"
+                        },
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer {{ $('Agent Configuration').first().json.supabaseKey }}"
+                        }
+                    ]
                 },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.params.action }}",
-                    "rightValue": "market-intel",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "market-intel"
+                "options": {}
             },
-             {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict"
+            "id": "tool-inventory",
+            "name": "Check Inventory",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                1850,
+                1000
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $('Agent Configuration').first().json.supabaseUrl }}/rest/v1/ledger_entries",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"shop_id\": $('Agent Configuration').first().json.shopId,\n  \"amount\": $fromAI(\"amount\", \"Amount (+ for debt, - for pay)\", \"number\"),\n  \"transaction_type\": $fromAI(\"type\", \"purchase or payment\", \"string\"),\n  \"description\": $fromAI(\"desc\", \"Description\", \"string\")\n} }}",
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "={{ $('Agent Configuration').first().json.supabaseKey }}"
+                        },
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer {{ $('Agent Configuration').first().json.supabaseKey }}"
+                        },
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        },
+                        {
+                            "name": "Prefer",
+                            "value": "return=minimal"
+                        }
+                    ]
                 },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.params.action }}",
-                    "rightValue": "compliance-check",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
+                "options": {}
+            },
+            "id": "tool-ledger",
+            "name": "Manage Ledger",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                1950,
+                1000
+            ]
+        },
+        {
+            "parameters": {
+                "url": "={{ $('Agent Configuration').first().json.supabaseUrl }}/rest/v1/restock_predictions",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "medicine_name",
+                            "value": "ilike.*{{ $fromAI('medicine', 'Medicine Name') }}*"
+                        },
+                        {
+                            "name": "shop_id",
+                            "value": "eq.{{ $('Agent Configuration').first().json.shopId }}"
+                        }
+                    ]
+                },
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "apikey",
+                            "value": "={{ $('Agent Configuration').first().json.supabaseKey }}"
+                        },
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer {{ $('Agent Configuration').first().json.supabaseKey }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "tool-forecast",
+            "name": "Get Restock Forecast",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                2050,
+                1000
+            ]
+        },
+        {
+            "parameters": {},
+            "id": "error-trigger-agent",
+            "name": "Global Error Trigger",
+            "type": "n8n-nodes-base.errorTrigger",
+            "typeVersion": 1,
+            "position": [
+                200,
+                1200
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "retry_queue",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('Agent Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "workflow_name",
+                            "value": "integrated-agent"
+                        },
+                        {
+                            "fieldId": "node_name",
+                            "value": "={{ $json.execution.lastNodeExecuted }}"
+                        },
+                        {
+                            "fieldId": "error_message",
+                            "value": "={{ $json.execution.error.message }}"
+                        },
+                        {
+                            "fieldId": "status",
+                            "value": "pending"
+                        }
+                    ]
+                }
+            },
+            "id": "save-error-db-agent",
+            "name": "Save to Retry Queue",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                500,
+                1200
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "content": "🤖 GEMINI AGENT (STANDARD HTTP NODE VERSION)\n\n1. Replaced Custom Tool Nodes with Standard HTTP Nodes\n2. Removed Output Parser\n3. Ready for standard Cloud Import",
+                "height": 300,
+                "width": 600
+            },
+            "type": "n8n-nodes-base.stickyNote",
+            "position": [
+                0,
+                660
+            ],
+            "typeVersion": 1,
+            "id": "agent-guide-note",
+            "name": "Agent Guide"
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "Dashboard Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Agent Configuration",
+                        "type": "main",
+                        "index": 0
                     }
-                  }
+                ]
+            ]
+        },
+        "Agent Configuration": {
+            "main": [
+                [
+                    {
+                        "node": "Check Message Type",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Get Patient History",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Check Message Type": {
+            "main": [
+                [
+                    {
+                        "node": "Download Image",
+                        "type": "main",
+                        "index": 0
+                    }
                 ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "compliance"
-            }
-          ]
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
         },
-        "options": {}
-      },
-      "id": "8d89e023-1d44-4f88-8a21-9d1d1c5c9e2c",
-      "name": "API Router",
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3.1,
-      "position": [
-        20,
-        600
-      ]
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "id-1",
-              "name": "chatInput",
-              "value": "={{ $json.body.query }}",
-              "type": "string"
-            }
-          ]
+        "Download Image": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Vision)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
         },
-        "options": {}
-      },
-      "id": "a1b2c3d4-e5f6-4789-a012-34567890abcdef",
-      "name": "Prepare Chat",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        450,
-        500
-      ]
-    },
-    {
-       "parameters": {
-        "url": "={{ $json.body.fileUrl }}",
-        "authentication": "none",
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "file",
-              "outputPropertyName": "data"
-            }
-          }
-        }
-      },
-      "id": "b2c3d4e5-f6a7-4890-b123-45678901abcd",
-      "name": "Download Document",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        450,
-        700
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": false,
-            "leftValue": "",
-            "typeValidation": "loose"
-          },
-          "conditions": [
-            {
-              "id": "id-1",
-              "leftValue": "={{ $('WhatsApp Trigger').item.json.messageType }}",
-              "rightValue": "image",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
+        "Gemini 1.5 Flash (Vision)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini OCR",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
         },
-        "options": {}
-      },
-      "id": "616de747-d233-41cc-bf14-462bb29a7325",
-      "name": "Check Message Type",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        448,
-        864
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $('Workflow Configuration').first().json.speechToTextApiUrl }}",
-        "authentication": "predefinedCredentialType",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "audio/ogg"
-            }
-          ]
+        "Parse Gemini OCR": {
+            "main": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
         },
-        "sendBody": true,
-        "contentType": "binaryData",
-        "inputDataFieldName": "data",
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "json"
-            }
-          }
-        }
-      },
-      "id": "9216691e-60ec-4a7e-a03c-910833ab2352",
-      "name": "Speech-to-Text API",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        896,
-        672
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $('Workflow Configuration').first().json.googleVisionApiUrl }}",
-        "authentication": "predefinedCredentialType",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
+        "Get Patient History": {
+            "main": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
         },
-        "sendBody": true,
-        "specifyBody": "json",
-         "jsonBody": "={{ {\n  \"requests\": [\n    {\n      \"image\": {\n        \"content\": $('Download Document').item ? $binary.data.data : $('WhatsApp Trigger').first().json.mediaData\n      },\n      \"features\": [\n        {\n          \"type\": \"DOCUMENT_TEXT_DETECTION\"\n        }\n      ]\n    }\n  ]\n} }}",
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "json"
-            }
-          }
-        }
-      },
-      "id": "8820f9e8-7ac8-4cbd-93fc-f761dac5797d",
-      "name": "OCR API (Google Vision)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        672,
-        864
-      ]
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "id-1",
-              "name": "medicineName",
-              "value": "={{ $('OCR API (Google Vision)').item.json.medicineName }}",
-              "type": "string"
-            },
-            {
-              "id": "id-2",
-              "name": "dosage",
-              "value": "={{ $('OCR API (Google Vision)').item.json.dosage }}",
-              "type": "string"
-            },
-            {
-              "id": "id-3",
-              "name": "patientName",
-              "value": "={{ $('OCR API (Google Vision)').item.json.patientName }}",
-              "type": "string"
-            },
-            {
-              "id": "id-4",
-              "name": "prescriptionText",
-              "value": "={{ $('OCR API (Google Vision)').item.json.fullText }}",
-              "type": "string"
-            }
-          ]
+        "Google Gemini Chat Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
         },
-        "includeOtherFields": true,
-        "options": {}
-      },
-      "id": "8e6bee80-7dcf-4e15-bfec-cd849df2147e",
-      "name": "Prepare Prescription Data",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        896,
-        864
-      ]
-    },
-    {
-      "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.chatInput || $json.transcribedText || $json.prescriptionText || \"Process the customer request\" }}",
-        "hasOutputParser": true,
-        "options": {
-          "systemMessage": "You are an intelligent pharmacy assistant with expertise in medications, prescriptions, and healthcare.\n\nYour capabilities:\n1. Process medicine orders from text, voice, or prescription images\n2. Check drug interactions and provide safety warnings\n3. Recommend alternatives (generics, preventive care) based on customer history\n4. Answer medical FAQs using the knowledge base\n5. Detect suspicious orders and flag for review\n6. Generate personalized messages and dosage information\n7. Respond to customers via WhatsApp\n\nAlways:\n- Verify drug interactions before confirming orders\n- Check for fraud patterns (bulk controlled substances)\n- Provide clear dosage instructions\n- Use the WhatsApp Response Tool to send messages back to customers\n- Extract structured order data in the required format\n- Be helpful, accurate, and prioritize patient safety"
-        }
-      },
-      "id": "f0fcf945-d4fd-4358-a140-c71f10827362",
-      "name": "Main Pharmacy Assistant Agent",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 3,
-      "position": [
-        1560,
-        864
-      ]
-    },
-    {
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "list",
-          "value": "gpt-4.1-mini"
+        "Conversation Memory": {
+            "ai_memory": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "ai_memory",
+                        "index": 0
+                    }
+                ]
+            ]
         },
-        "builtInTools": {},
-        "options": {}
-      },
-      "id": "e9bd88f2-a676-4889-8c11-0bec61ed1d97",
-      "name": "OpenAI Chat Model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.3,
-      "position": [
-        1120,
-        1088
-      ],
-      "credentials": {
-        "openAiApi": {
-          "id": "BCPs6ab6MvAnNw1u",
-          "name": "OpenAi account"
-        }
-      }
-    },
-    {
-      "parameters": {},
-      "id": "4c2f303c-e16a-4762-ad37-b80e648dc1fa",
-      "name": "Conversation Memory",
-      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
-      "typeVersion": 1.3,
-      "position": [
-        1248,
-        1088
-      ]
-    },
-    {
-      "parameters": {
-        "schemaType": "manual",
-        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"customerName\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Full name of the customer\"\n\t\t},\n\t\t\"customerPhone\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Phone number of the customer\"\n\t\t},\n\t\t\"medicines\": {\n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": {\n\t\t\t\t\"type\": \"object\",\n\t\t\t\t\"properties\": {\n\t\t\t\t\t\"name\": {\n\t\t\t\t\t\t\"type\": \"string\",\n\t\t\t\t\t\t\"description\": \"Name of the medicine\"\n\t\t\t\t\t},\n\t\t\t\t\t\"dosage\": {\n\t\t\t\t\t\t\"type\": \"string\",\n\t\t\t\t\t\t\"description\": \"Dosage of the medicine\"\n\t\t\t\t\t},\n\t\t\t\t\t\"quantity\": {\n\t\t\t\t\t\t\"type\": \"number\",\n\t\t\t\t\t\t\"description\": \"Quantity of the medicine\"\n\t\t\t\t\t}\n\t\t\t\t},\n\t\t\t\t\"required\": [\"name\", \"dosage\", \"quantity\"]\n\t\t\t},\n\t\t\t\"description\": \"List of medicines in the order\"\n\t\t},\n\t\t\"totalAmount\": {\n\t\t\t\"type\": \"number\",\n\t\t\t\"description\": \"Total amount for the order\"\n\t\t},\n\t\t\"deliveryAddress\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Delivery address for the order\"\n\t\t},\n\t\t\"orderDate\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Date of the order\"\n\t\t},\n\t\t\"specialInstructions\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Any special instructions for the order\"\n\t\t}\n\t},\n\t\"required\": [\"customerName\", \"customerPhone\", \"medicines\", \"totalAmount\", \"deliveryAddress\", \"orderDate\"]\n}"
-      },
-      "id": "7f715589-7f0b-437e-a8c8-ddd2524c8e7b",
-      "name": "Order Data Parser",
-      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
-      "typeVersion": 1.3,
-      "position": [
-        2304,
-        1088
-      ]
-    },
-    {
-      "parameters": {
-        "toolDescription": "Check for drug interactions and contraindications using DrugBank or OpenFDA API. Provide medicine names as comma-separated list.",
-        "url": "={{ $('Workflow Configuration').first().json.drugInteractionApiUrl }}",
-        "authentication": "predefinedCredentialType",
-        "options": {}
-      },
-      "id": "666eec11-5695-45e3-baad-8cfcafaab4f8",
-      "name": "Drug Interaction Checker Tool",
-      "type": "n8n-nodes-base.httpRequestTool",
-      "typeVersion": 4.3,
-      "position": [
-        1376,
-        1088
-      ]
-    },
-    {
-      "parameters": {
-        "description": "Analyze order patterns to detect potential fraud such as bulk purchases of controlled substances. Returns risk score and flags.",
-        "jsCode": "// Fraud Detection Logic..."
-      },
-      "id": "36189c76-a705-4317-ae7b-5bc8c9c3938b",
-      "name": "Fraud Detection Tool",
-      "type": "@n8n/n8n-nodes-langchain.toolCode",
-      "typeVersion": 1.3,
-      "position": [
-        1504,
-        1088
-      ]
-    },
-     {
-      "parameters": {
-        "jsCode": "const salesHistory = $json.body.salesHistory || [];\nif (!salesHistory.length) return { error: \"No sales history provided\" };\n\n// Simple Linear Regression for Forecast\nconst n = salesHistory.length;\nlet sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;\n\nsalesHistory.forEach((val, i) => {\n  sumX += i;\n  sumY += val;\n  sumXY += i * val;\n  sumX2 += i * i;\n});\n\nconst slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);\nconst intercept = (sumY - slope * sumX) / n;\n\n// Forecast next month\nconst nextMonthIndex = n;\nconst forecast = Math.round(intercept + slope * nextMonthIndex);\n\nreturn {\n  forecast: forecast,\n  trend: slope > 0 ? \"Increasing\" : \"Decreasing\",\n  confidence: \"Medium\"\n};"
-      },
-      "id": "d4e5f6a7-b890-4c12-d345-678901abcdef",
-      "name": "Demand Forecast Service",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        500,
-        1300
-      ]
-    },
-     {
-      "parameters": {
-        "jsCode": "const drugName = $json.body.drugName || \"\";\n// Mock Market Data\nreturn {\n  drug: drugName,\n  averagePrice: 150,\n  lowestPrice: 120,\n  substitutes: [\n    { name: \"Generic \" + drugName, price: 50, savings: \"66%\" }\n  ]\n};"
-      },
-      "id": "e5f6a7b8-c901-4d23-e456-789012abcdef",
-      "name": "Market Intel Service",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        500,
-        1500
-      ]
-    },
-     {
-      "parameters": {
-        "jsCode": "const drugName = $json.body.drugName || \"\";\n// Mock Compliance Check\nconst banned = [\"nimesulide\", \"cisapride\"];\nconst isBanned = banned.some(d => drugName.toLowerCase().includes(d));\n\nreturn {\n  drug: drugName,\n  is_banned: isBanned,\n  reason: isBanned ? \"Restricted by CDSCO\" : \"Compliant\"\n};"
-      },
-      "id": "f6a7b8c9-d012-4e34-f567-890123abcdef",
-      "name": "Compliance Service",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        500,
-        1700
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "send",
-        "recipientPhoneNumber": "={{ $fromAI('recipientPhone', 'Customer phone number with country code', 'string') }}",
-        "textBody": "={{ $fromAI('message', 'Message to send to customer', 'string') }}",
-        "additionalFields": {}
-      },
-      "id": "8ff32678-0446-4045-a91a-9e8d657269ab",
-      "name": "WhatsApp Response Tool",
-      "type": "n8n-nodes-base.whatsAppTool",
-      "typeVersion": 1.1,
-      "position": [
-        1632,
-        1088
-      ],
-      "webhookId": "45ede920-3ee4-4cd7-ae99-dcb395b1256d"
-    },
-    {
-      "parameters": {
-        "mode": "insert",
-        "memoryKey": {
-          "__rl": true,
-          "mode": "list",
-          "value": "vector_store_key"
-        }
-      },
-      "id": "7d724c96-090a-4069-90ee-cca0360e60ff",
-      "name": "Medical Knowledge Base (Insert)",
-      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
-      "typeVersion": 1.3,
-      "position": [
-        480,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "retrieve-as-tool",
-        "memoryKey": {
-          "__rl": true,
-          "mode": "list",
-          "value": "vector_store_key"
-        }
-      },
-      "id": "6d8a0696-9a38-4895-8b86-a17c38c15c9f",
-      "name": "Medical Knowledge Base (Retrieve)",
-      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
-      "typeVersion": 1.3,
-      "position": [
-        1760,
-        1088
-      ]
-    },
-    {
-      "parameters": {
-        "options": {}
-      },
-      "id": "aa608d31-8b50-4e85-8f7c-0c6a87e5d714",
-      "name": "Embeddings OpenAI (Insert)",
-      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
-      "typeVersion": 1.2,
-      "position": [
-        448,
-        224
-      ],
-      "credentials": {
-        "openAiApi": {
-          "id": "BCPs6ab6MvAnNw1u",
-          "name": "OpenAi account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "options": {}
-      },
-      "id": "048aabaf-03d0-4004-96d2-4fa4bd59a348",
-      "name": "Embeddings OpenAI (Retrieve)",
-      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
-      "typeVersion": 1.2,
-      "position": [
-        1840,
-        1296
-      ],
-      "credentials": {
-        "openAiApi": {
-          "id": "BCPs6ab6MvAnNw1u",
-          "name": "OpenAi account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsonMode": "expressionData",
-        "jsonData": "={{ $json }}",
-        "textSplittingMode": "custom",
-        "options": {}
-      },
-      "id": "7ec1ba66-09f8-4fe4-b67f-b59cf4327e1f",
-      "name": "Document Loader",
-      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
-      "typeVersion": 1.1,
-      "position": [
-        576,
-        224
-      ]
-    },
-    {
-      "parameters": {
-        "options": {}
-      },
-      "id": "6d7c04a5-386c-4df3-8210-6cf28b264dfb",
-      "name": "Text Splitter",
-      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
-      "typeVersion": 1,
-      "position": [
-        656,
-        432
-      ]
-    },
-    {
-      "parameters": {
-        "url": "={{ $('Workflow Configuration').first().json.medicalKnowledgeUrl }}",
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "json"
-            }
-          }
-        }
-      },
-      "id": "e9ae4eba-fdb5-4264-b0a6-cf1318df8f59",
-      "name": "Load Medical Knowledge",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        224,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "<__PLACEHOLDER_VALUE__Google Sheets Document ID for Orders__>"
+        "Check Inventory": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
         },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "Orders"
+        "Manage Ledger": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
         },
-        "options": {}
-      },
-      "id": "f531a13b-6add-43ae-9973-4b5e8c3c2f9c",
-      "name": "Store Order Data",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
-      "position": [
-        2512,
-        864
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "4Qzcrv4QOIbc7cKn",
-          "name": "Google Sheets account"
+        "Get Restock Forecast": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "Medix Gemini Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Medix Gemini Agent": {
+            "main": [
+                []
+            ]
+        },
+        "Global Error Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Save to Retry Queue",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
         }
-      }
-    },
-    {
-      "parameters": {
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "<__PLACEHOLDER_VALUE__Google Sheets Document ID for Customer History__>"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "CustomerHistory"
-        },
-        "filtersUI": {
-          "values": [
-            {
-              "lookupValue": "={{ $json.from }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "19ab2e79-7e54-4f6b-9401-98a688c7abd5",
-      "name": "Get Customer History",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
-      "position": [
-        0,
-        432
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "4Qzcrv4QOIbc7cKn",
-          "name": "Google Sheets account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "description": "Analyze customer purchase history...",
-        "jsCode": "// Analyze customer purchase history..."
-      },
-      "id": "a5fd6884-89b7-4848-9217-7a3519595c92",
-      "name": "Personalized Recommendation Tool",
-      "type": "@n8n/n8n-nodes-langchain.toolCode",
-      "typeVersion": 1.3,
-      "position": [
-        2048,
-        1088
-      ]
-    },
-    {
-      "parameters": {
-        "description": "Predict inventory needs...",
-        "jsCode": "// Demand Forecasting Tool..."
-      },
-      "id": "47dcab3c-03db-4ef8-b0fc-c6d01464a873",
-      "name": "Demand Forecasting Tool",
-      "type": "@n8n/n8n-nodes-langchain.toolCode",
-      "typeVersion": 1.3,
-      "position": [
-        2176,
-        1088
-      ]
-    },
-    {
-      "parameters": {},
-      "id": "040e2b44-aac8-4ccf-bf63-1a5b27ba4283",
-      "name": "Manual Trigger - Load Knowledge Base",
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
-      "position": [
-        0,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "content": "⚙️ Integrated Workflow\n\nHandles WhatsApp + Dashboard API requests.\n\nAPI Endpoints (POST to /webhook/:action):\n- /chat: Conversational AI\n- /analyze-prescription: OCR\n- /market-intel: Price data\n- /compliance-check: Regulatory check\n- /forecast: Demand prediction\n\nPlease update <__PLACEHOLDER__> values in the Workflow Configuration node.",
-        "height": 640,
-        "width": 1712
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "position": [
-        288,
-        1696
-      ],
-      "typeVersion": 1,
-      "id": "406e5cc0-8d09-40ca-9f1c-aa6329906410",
-      "name": "Sticky Note"
     }
-  ],
-  "pinData": {},
-  "connections": {
-    "WhatsApp Trigger": {
-      "main": [
-        [
-          {
-            "node": "Workflow Configuration",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "API Webhook": {
-      "main": [
-        [
-          {
-            "node": "API Router",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "API Router": {
-      "main": [
-        [
-          {
-            "node": "Prepare Chat",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-             "node": "Download Document",
-             "type": "main",
-             "index": 0
-          }
-        ],
-        [
-          {
-             "node": "Download Document",
-             "type": "main",
-             "index": 0
-          }
-        ],
-        [
-          {
-             "node": "Drug Interaction Checker Tool",
-             "type": "main",
-             "index": 0
-          }
-        ],
-        [
-          {
-             "node": "Demand Forecast Service",
-             "type": "main",
-             "index": 0
-          }
-        ],
-        [
-          {
-             "node": "Market Intel Service",
-             "type": "main",
-             "index": 0
-          }
-        ],
-        [
-          {
-             "node": "Compliance Service",
-             "type": "main",
-             "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare Chat": {
-      "main": [
-        [
-          {
-            "node": "Main Pharmacy Assistant Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Download Document": {
-      "main": [
-        [
-           {
-            "node": "OCR API (Google Vision)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Workflow Configuration": {
-      "main": [
-        [
-          {
-            "node": "Check Message Type",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Check Message Type": {
-      "main": [
-        [
-          {
-            "node": "Speech-to-Text API",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Main Pharmacy Assistant Agent",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "OCR API (Google Vision)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Speech-to-Text API": {
-      "main": [
-        [
-          {
-            "node": "Main Pharmacy Assistant Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OCR API (Google Vision)": {
-      "main": [
-        [
-          {
-            "node": "Prepare Prescription Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare Prescription Data": {
-      "main": [
-        [
-          {
-            "node": "Main Pharmacy Assistant Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OpenAI Chat Model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Main Pharmacy Assistant Agent",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Conversation Memory": {
-      "ai_memory": [
-        [
-          {
-            "node": "Main Pharmacy Assistant Agent",
-            "type": "ai_memory",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Order Data Parser": {
-      "ai_outputParser": [
-        [
-          {
-            "node": "Main Pharmacy Assistant Agent",
-            "type": "ai_outputParser",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Drug Interaction Checker Tool": {
-      "ai_tool": [
-        [
-          {
-            "node": "Main Pharmacy Assistant Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Fraud Detection Tool": {
-      "ai_tool": [
-        [
-          {
-            "node": "Main Pharmacy Assistant Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "WhatsApp Response Tool": {
-      "ai_tool": [
-        [
-          {
-            "node": "Main Pharmacy Assistant Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Medical Knowledge Base (Retrieve)": {
-      "ai_tool": [
-        [
-          {
-            "node": "Main Pharmacy Assistant Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Personalized Recommendation Tool": {
-      "ai_tool": [
-        [
-          {
-            "node": "Main Pharmacy Assistant Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Demand Forecasting Tool": {
-      "ai_tool": [
-        [
-          {
-            "node": "Main Pharmacy Assistant Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Load Medical Knowledge": {
-      "main": [
-        [
-          {
-            "node": "Medical Knowledge Base (Insert)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Embeddings OpenAI (Insert)": {
-      "ai_embedding": [
-        [
-          {
-            "node": "Medical Knowledge Base (Insert)",
-            "type": "ai_embedding",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Document Loader": {
-      "ai_document": [
-        [
-          {
-            "node": "Medical Knowledge Base (Insert)",
-            "type": "ai_document",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Text Splitter": {
-      "ai_textSplitter": [
-        [
-          {
-            "node": "Document Loader",
-            "type": "ai_textSplitter",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Embeddings OpenAI (Retrieve)": {
-      "ai_embedding": [
-        [
-          {
-            "node": "Medical Knowledge Base (Retrieve)",
-            "type": "ai_embedding",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Main Pharmacy Assistant Agent": {
-      "main": [
-        [
-          {
-            "node": "Store Order Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Manual Trigger - Load Knowledge Base": {
-      "main": [
-        [
-          {
-            "node": "Load Medical Knowledge",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
-  },
-  "active": false,
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "versionId": "dd076c20-2a1c-4296-83e1-c38da78c8f23",
-  "meta": {
-    "instanceId": "21ee18d01bf5f8fc601ac1f33587cb725872993b878380cd39688fcb8a80a47b"
-  },
-  "id": "Re3eg5OHN1ahkAF3",
-  "tags": []
 }

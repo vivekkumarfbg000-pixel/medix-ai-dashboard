@@ -111,16 +111,35 @@ const DiaryScan = () => {
 
       const result = await aiService.analyzeDocument(selectedFile, 'prescription');
 
+      let items = [];
       if (result && result.items) {
-        setExtractedItems(result.items);
+        items = result.items;
+      } else if (Array.isArray(result) && result[0]?.medicines) {
+        // Handle N8N Supabase Response
+        items = typeof result[0].medicines === 'string'
+          ? JSON.parse(result[0].medicines)
+          : result[0].medicines;
+      } else if (result && result.medicines) {
+        items = result.medicines;
+      }
+
+      if (items && items.length > 0) {
+        // Ensure IDs exist for the UI grid
+        const mappedItems = items.map((item: any, index: number) => ({
+          ...item,
+          id: item.id || index + 1,
+          sequence: item.sequence || index + 1
+        }));
+        setExtractedItems(mappedItems);
         toast.success("AI Analysis Complete!");
       } else {
-        throw new Error("Invalid response structure");
+        console.error("Invalid Response:", result);
+        throw new Error("Invalid response structure - No medicines found");
       }
     } catch (error) {
       console.error("AI Service Error:", error);
       toast.error("AI Analysis Failed. Please check your connection or try again.");
-      setExtractedItems([]); // Clear any previous items
+      setExtractedItems([]);
     }
 
     setIsProcessing(false);

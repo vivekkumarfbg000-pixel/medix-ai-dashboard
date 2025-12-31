@@ -1,0 +1,919 @@
+{
+    "name": "Medix Shop Operator Workflow (Gemini Only)",
+    "nodes": [
+        {
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": "id-1",
+                            "name": "googleGeminiApiKey",
+                            "value": "<__PLACEHOLDER_VALUE__Google Gemini API Key__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-2",
+                            "name": "speechToTextApiUrl",
+                            "value": "<__PLACEHOLDER_VALUE__Speech-to-Text V2 URL__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-3",
+                            "name": "shopId",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Shop ID__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-4",
+                            "name": "supabaseUrl",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Project URL__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-5",
+                            "name": "supabaseKey",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Anon Key__>",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "includeOtherFields": true,
+                "options": {}
+            },
+            "id": "config-node-ops",
+            "name": "Ops Configuration",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                220,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "operations",
+                "options": {}
+            },
+            "id": "ops-webhook",
+            "name": "Operations Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                0,
+                400
+            ],
+            "webhookId": "medix-ops-webhook"
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "values": [
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": false,
+                                    "leftValue": "",
+                                    "typeValidation": "loose"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.body.action }}",
+                                        "rightValue": "scan-medicine",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "contains"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "scan_medicine"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": false,
+                                    "leftValue": "",
+                                    "typeValidation": "loose"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.body.action }}",
+                                        "rightValue": "scan-diary",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "contains"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "scan_diary"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": false,
+                                    "leftValue": "",
+                                    "typeValidation": "loose"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.body.action }}",
+                                        "rightValue": "voice-bill",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "contains"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "voice_bill"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": false,
+                                    "leftValue": "",
+                                    "typeValidation": "loose"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.body.action }}",
+                                        "rightValue": "scan-parcha",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "contains"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "scan_parcha"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": false,
+                                    "leftValue": "",
+                                    "typeValidation": "loose"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.body.action }}",
+                                        "rightValue": "scan-report",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "contains"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "scan_report"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "ops-router",
+            "name": "Ops Router",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3.1,
+            "position": [
+                450,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('Ops Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract ALL medicine details from this image/invoice. Return a valid JSON Array of objects: [{ \\\"medicine_name\\\": string, \\\"batch_number\\\": string, \\\"expiry_date\\\": string (YYYY-MM-DD), \\\"mrp\\\": number, \\\"quantity\\\": number }]. Ensure you capture as many items as possible (up to 50+).\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-scan-medicine",
+            "name": "Gemini 1.5 Flash (Medicine)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                700,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response & Fan-Out Array\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nconst parsed = JSON.parse(cleaned);\n\n// Determine if it is an array or single object\nconst items = Array.isArray(parsed) ? parsed : [parsed];\n\n// Return in N8N Item format for iteration\nreturn items.map(item => ({ json: item }));"
+            },
+            "id": "parse-gemini-medicine",
+            "name": "Parse Gemini JSON",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                950,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('Ops Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract items. Return valid JSON Array only: [{ \\\"item_name\\\": string, \\\"quantity\\\": number, \\\"price\\\": number }].\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-scan-diary",
+            "name": "Gemini 1.5 Flash (Diary)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                700,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('Ops Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract prescription info. Return valid JSON only: { \\\"doctor_name\\\": string, \\\"patient_name\\\": string, \\\"medicines\\\": [ { \\\"medication_name\\\": string, \\\"strength\\\": string, \\\"dosage_frequency\\\": string, \\\"duration\\\": string, \\\"notes\\\": string } ], \\\"visit_date\\\": string }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-scan-parcha",
+            "name": "Gemini 1.5 Flash (Parcha)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                700,
+                800
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('Ops Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Listen to this medical order audio. Extract items into JSON: { \\\"items\\\": [{ \\\"name\\\": string, \\\"qty\\\": number }] }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"audio/mp3\",\n          \"data\": $json.body.data\n        }\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-extract-voice",
+            "name": "Gemini 1.5 Flash (Voice)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                950,
+                600
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+            },
+            "id": "parse-gemini-diary",
+            "name": "Parse Gemini JSON (Diary)",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                950,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+            },
+            "id": "parse-gemini-parcha",
+            "name": "Parse Gemini JSON (Parcha)",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                950,
+                800
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+            },
+            "id": "parse-gemini-voice",
+            "name": "Parse Gemini JSON (Voice)",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1100,
+                600
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "inventory_staging",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('Ops Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "medicine_name",
+                            "value": "={{ $json.medicine_name }}"
+                        },
+                        {
+                            "fieldId": "batch_number",
+                            "value": "={{ $json.batch_number }}"
+                        },
+                        {
+                            "fieldId": "expiry_date",
+                            "value": "={{ $json.expiry_date }}"
+                        },
+                        {
+                            "fieldId": "quantity",
+                            "value": "100"
+                        },
+                        {
+                            "fieldId": "unit_price",
+                            "value": "={{ $json.mrp }}"
+                        },
+                        {
+                            "fieldId": "source",
+                            "value": "scan"
+                        },
+                        {
+                            "fieldId": "status",
+                            "value": "pending"
+                        }
+                    ]
+                }
+            },
+            "id": "supabase-save-staging",
+            "name": "Save to Staging (Draft)",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1200,
+                200
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "tableId": "orders",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('Ops Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "order_items",
+                            "value": "={{ JSON.stringify($json.items) }}"
+                        },
+                        {
+                            "fieldId": "customer_phone",
+                            "value": "={{ $json.customer_phone || 'Walk-in' }}"
+                        },
+                        {
+                            "fieldId": "source",
+                            "value": "voice_billing"
+                        }
+                    ]
+                }
+            },
+            "id": "supabase-insert-voice-order",
+            "name": "Record Voice Order",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                600
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "tableId": "prescriptions",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('Ops Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "medicines",
+                            "value": "={{ JSON.stringify($json.medicines) }}"
+                        },
+                        {
+                            "fieldId": "customer_phone",
+                            "value": "={{ $json.body.customer_phone }}"
+                        },
+                        {
+                            "fieldId": "customer_name",
+                            "value": "={{ $json.patient_name }}"
+                        },
+                        {
+                            "fieldId": "doctor_name",
+                            "value": "={{ $json.doctor_name }}"
+                        },
+                        {
+                            "fieldId": "visit_date",
+                            "value": "={{ $json.visit_date }}"
+                        },
+                        {
+                            "fieldId": "raw_text",
+                            "value": "Parcha Scan"
+                        }
+                    ]
+                }
+            },
+            "id": "supabase-insert-parcha",
+            "name": "Record Parcha",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                800
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('Ops Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Analyze this medical report. Extract data into this JSON structure: { \\\"result\\\": string (summary), \\\"results\\\": [{ \\\"parameter\\\": string, \\\"value\\\": string, \\\"unit\\\": string, \\\"normalRange\\\": string, \\\"status\\\": \\\"Normal\\\"|\\\"High\\\"|\\\"Low\\\" }], \\\"disease_possibility\\\": string[], \\\"diet\\\": string[], \\\"next_steps\\\": string[] }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-scan-report",
+            "name": "Gemini 1.5 Flash (Lab)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                700,
+                1000
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+            },
+            "id": "parse-gemini-report",
+            "name": "Parse Gemini JSON (Report)",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                950,
+                1000
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "lab_reports",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('Ops Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "summary",
+                            "value": "={{ $json.result }}"
+                        },
+                        {
+                            "fieldId": "raw_analysis",
+                            "value": "={{ JSON.stringify($json) }}"
+                        },
+                        {
+                            "fieldId": "disease_possibility",
+                            "value": "={{ $json.disease_possibility }}"
+                        },
+                        {
+                            "fieldId": "diet_recommendations",
+                            "value": "={{ $json.diet }}"
+                        },
+                        {
+                            "fieldId": "next_steps",
+                            "value": "={{ $json.next_steps }}"
+                        }
+                    ]
+                }
+            },
+            "id": "save-lab-report",
+            "name": "Save Lab Report",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1150,
+                1000
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "content": "📱 GEMINI OPS (NO OPENAI)\n\n1. Handles Medicine, Diary, Parcha Scans.\n2. Handles Voice Input (Text Processing).\n3. Uses Standard HTTP Nodes.",
+                "height": 450,
+                "width": 600
+            },
+            "type": "n8n-nodes-base.stickyNote",
+            "position": [
+                0,
+                100
+            ],
+            "typeVersion": 1,
+            "id": "ops-guide-note",
+            "name": "Ops Guide"
+        },
+        {
+            "parameters": {},
+            "id": "error-trigger-ops",
+            "name": "Global Error Trigger",
+            "type": "n8n-nodes-base.errorTrigger",
+            "typeVersion": 1,
+            "position": [
+                200,
+                1000
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "retry_queue",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('Ops Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "workflow_name",
+                            "value": "ops-workflow"
+                        },
+                        {
+                            "fieldId": "node_name",
+                            "value": "={{ $json.execution.lastNodeExecuted }}"
+                        },
+                        {
+                            "fieldId": "error_message",
+                            "value": "={{ $json.execution.error.message }}"
+                        },
+                        {
+                            "fieldId": "status",
+                            "value": "pending"
+                        }
+                    ]
+                }
+            },
+            "id": "save-error-db",
+            "name": "Save to Retry Queue",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                500,
+                1000
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "content": "🚨 SYSTEM ALERT\n\nOps Workflow Failed!\nAction: Log & Alert Owner."
+            },
+            "id": "action-error-ops",
+            "name": "System Shield (Log)",
+            "type": "n8n-nodes-base.stickyNote",
+            "typeVersion": 1,
+            "position": [
+                500,
+                1000
+            ]
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "Operations Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Ops Configuration",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Ops Configuration": {
+            "main": [
+                [
+                    {
+                        "node": "Ops Router",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Ops Router": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Medicine)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Diary)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Voice)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Parcha)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Lab)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Lab)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini JSON (Report)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Medicine)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini JSON",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Gemini JSON": {
+            "main": [
+                [
+                    {
+                        "node": "Save to Staging (Draft)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Diary)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini JSON (Diary)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Voice)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini JSON (Voice)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Gemini JSON (Voice)": {
+            "main": [
+                [
+                    {
+                        "node": "Record Voice Order",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Parcha)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini JSON (Parcha)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Gemini JSON (Parcha)": {
+            "main": [
+                [
+                    {
+                        "node": "Record Parcha",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Gemini JSON (Report)": {
+            "main": [
+                [
+                    {
+                        "node": "Save Lab Report",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Global Error Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Save to Retry Queue",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

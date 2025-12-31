@@ -1,0 +1,871 @@
+{
+    "name": "Medix Background Brain (Pro - Gemini + Refills + Queue)",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "forecast",
+                "options": {}
+            },
+            "id": "webhook-forecast",
+            "name": "Webhook Forecast",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                -200,
+                300
+            ],
+            "webhookId": "medix-forecast-webhook"
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "market",
+                "options": {}
+            },
+            "id": "webhook-market",
+            "name": "Webhook Market",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                -200,
+                500
+            ],
+            "webhookId": "medix-market-webhook"
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "interactions",
+                "options": {}
+            },
+            "id": "webhook-interactions",
+            "name": "Webhook Interactions",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                -200,
+                700
+            ],
+            "webhookId": "medix-interactions-webhook"
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "compliance-check",
+                "options": {}
+            },
+            "id": "webhook-compliance",
+            "name": "Webhook Compliance",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                -200,
+                900
+            ],
+            "webhookId": "medix-compliance-webhook"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('BG Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Check for drug interactions between: \" + JSON.stringify($json.body.drugs) + \". Return valid JSON only: { \\\"interactions\\\": [{ \\\"drug1\\\": string, \\\"drug2\\\": string, \\\"severity\\\": \\\"Major\\\"|\\\"Moderate\\\"|\\\"Minor\\\", \\\"description\\\": string }] }.\"\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-interactions",
+            "name": "Gemini 1.5 Flash (Interactions)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                220,
+                700
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+            },
+            "id": "parse-interactions",
+            "name": "Parse Interactions",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                450,
+                700
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('BG Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Check compliance for drug: \" + $json.body.drugName + \". Is it banned in India? Is it Schedule H/H1? Return valid JSON only: { \\\"is_banned\\\": boolean, \\\"is_h1\\\": boolean, \\\"warning_level\\\": string }.\"\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-compliance",
+            "name": "Gemini 1.5 Flash (Compliance)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                220,
+                900
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+            },
+            "id": "parse-compliance",
+            "name": "Parse Compliance",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                450,
+                900
+            ]
+        },
+        {
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": "id-1",
+                            "name": "shopId",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Shop ID__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-2",
+                            "name": "supabaseUrl",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Project URL__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-3",
+                            "name": "supabaseKey",
+                            "value": "<__PLACEHOLDER_VALUE__Your Supabase Anon Key__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-4",
+                            "name": "ownerPhone",
+                            "value": "<__PLACEHOLDER_VALUE__Shop Owner WhatsApp__>",
+                            "type": "string"
+                        },
+                        {
+                            "id": "id-5",
+                            "name": "googleGeminiApiKey",
+                            "value": "<__PLACEHOLDER_VALUE__Google Gemini API Key__>",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "includeOtherFields": true,
+                "options": {}
+            },
+            "id": "config-node-bg",
+            "name": "BG Configuration",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                220,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "hours",
+                            "hours": 9
+                        }
+                    ]
+                }
+            },
+            "id": "cron-daily-expiry",
+            "name": "Daily Trigger (Expiry+Refill)",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1,
+            "position": [
+                0,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "months",
+                            "months": 1
+                        }
+                    ]
+                }
+            },
+            "id": "cron-monthly-forecast",
+            "name": "Monthly Trigger (Forecast+Report)",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1,
+            "position": [
+                0,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "weeks",
+                            "weeks": 1
+                        }
+                    ]
+                }
+            },
+            "id": "cron-weekly-market",
+            "name": "Weekly Trigger (Market)",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1,
+            "position": [
+                0,
+                600
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "inventory",
+                "limit": 50,
+                "filters": {
+                    "conditions": [
+                        {
+                            "key": "expiry_date",
+                            "value": "={{ $today.plus({days: 45}).toFormat('yyyy-MM-dd') }}",
+                            "operator": "lte"
+                        },
+                        {
+                            "key": "shop_id",
+                            "value": "={{ $('BG Configuration').first().json.shopId }}",
+                            "operator": "eq"
+                        }
+                    ]
+                }
+            },
+            "id": "supabase-check-expiry",
+            "name": "Find Expiring Items",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                500,
+                200
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "tableId": "orders",
+                "limit": 50,
+                "filters": {
+                    "conditions": [
+                        {
+                            "key": "refill_due_date",
+                            "value": "={{ $today.toFormat('yyyy-MM-dd') }}",
+                            "operator": "eq"
+                        },
+                        {
+                            "key": "shop_id",
+                            "value": "={{ $('BG Configuration').first().json.shopId }}",
+                            "operator": "eq"
+                        }
+                    ]
+                }
+            },
+            "id": "supabase-check-refills",
+            "name": "Find Due Refills",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                500,
+                100
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "content": "⚠️ EXPIRY ACTION\nAlert Owner: Return Items"
+            },
+            "id": "action-expiry",
+            "name": "Alert Owner (Log)",
+            "type": "n8n-nodes-base.stickyNote",
+            "typeVersion": 1,
+            "position": [
+                800,
+                250
+            ]
+        },
+        {
+            "parameters": {
+                "content": "🔄 REFILL ACTION\nAlert Customer: \"Your Meds are Over!\""
+            },
+            "id": "action-refill",
+            "name": "Alert Customer (Log)",
+            "type": "n8n-nodes-base.stickyNote",
+            "typeVersion": 1,
+            "position": [
+                800,
+                100
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "orders",
+                "limit": 100,
+                "filters": {
+                    "conditions": [
+                        {
+                            "key": "created_at",
+                            "value": "={{ $today.minus({days: 30}).toFormat('yyyy-MM-dd') }}",
+                            "operator": "gte"
+                        },
+                        {
+                            "key": "shop_id",
+                            "value": "={{ $('BG Configuration').first().json.shopId }}",
+                            "operator": "eq"
+                        }
+                    ]
+                }
+            },
+            "id": "supabase-get-sales",
+            "name": "Get Last Month Sales",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                500,
+                400
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "const orders = $input.all();\nconst salesMap = {};\nlet totalRevenue = 0;\n\n// Aggregate Sales\norders.forEach(order => {\n  totalRevenue += (order.json.total_amount || 0);\n  const items = order.json.order_items || [];\n  items.forEach(item => {\n    if (salesMap[item.name]) {\n      salesMap[item.name] += item.qty;\n    } else {\n      salesMap[item.name] = item.qty;\n    }\n  });\n});\n\n// Transform for Gemini\nconst topItems = Object.keys(salesMap).map(name => ({ \n  medicine_name: name, \n  qty: salesMap[name]\n})).sort((a,b) => b.qty - a.qty).slice(0, 5);\n\nreturn [{\n  json: {\n    total_revenue: totalRevenue,\n    top_items: topItems,\n    sales_data: Object.keys(salesMap).map(name => ({ medicine_name: name, last_month_sales: salesMap[name] }))\n  }\n}];"
+            },
+            "id": "prep-sales-data",
+            "name": "Aggregate Sales & Revenue",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                750,
+                250
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('BG Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Context: Pharmacy in Bihar, India. Date: Today. Seasonality: Consider Dengue/Monsoon/Flu.\\nInput Sales: \" + JSON.stringify($json.sales_data) + \"\\nTask: Predict restock qty for next month. Return JSON Array: [{ \\\"medicine_name\\\": string, \\\"predicted_quantity\\\": number, \\\"reason\\\": string }].\"\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-seasonality",
+            "name": "Gemini 1.5 Flash (Forecast)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                950,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "content": "📊 BUSINESS REPORT\nGenerate & Send Monthly Report via WhatsApp\n\"Revenue: ₹5L. Top Item: Dolo.\""
+            },
+            "id": "action-report",
+            "name": "Send Business Report (Log)",
+            "type": "n8n-nodes-base.stickyNote",
+            "typeVersion": 1,
+            "position": [
+                950,
+                250
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nfunction cleanGemini(text) {\n  return JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());\n}\n\nconst items = $input.all();\nconst responseText = items[0].json.candidates[0].content.parts[0].text;\nreturn cleanGemini(responseText);"
+            },
+            "id": "parse-gemini-forecast",
+            "name": "Parse Gemini Forecast",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1100,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "restock_predictions",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('BG Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "medicine_name",
+                            "value": "={{ $json.medicine_name }}"
+                        },
+                        {
+                            "fieldId": "predicted_quantity",
+                            "value": "={{ $json.predicted_quantity }}"
+                        },
+                        {
+                            "fieldId": "reason",
+                            "value": "={{ $json.reason }}"
+                        },
+                        {
+                            "fieldId": "confidence_score",
+                            "value": "0.9"
+                        }
+                    ]
+                }
+            },
+            "id": "supabase-save-forecast",
+            "name": "Save Predictions",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                400
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "tableId": "inventory",
+                "limit": 50,
+                "filters": {
+                    "conditions": [
+                        {
+                            "key": "shop_id",
+                            "value": "={{ $('BG Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "key": "unit_price",
+                            "value": "100",
+                            "operator": "gt"
+                        }
+                    ]
+                }
+            },
+            "id": "supabase-get-stock-market",
+            "name": "Get Stock for Market Check",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                500,
+                600
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "// SIMULATING A MARKETPLACE SEARCH\nconst items = $input.all();\nconst opportunities = [];\nitems.forEach(item => {\n  const myPrice = item.json.unit_price;\n  const currentMarketPrice = myPrice * (0.8 + Math.random() * 0.4);\n  if (currentMarketPrice < myPrice * 0.85) {\n    opportunities.push({\n      json: {\n        medicine: item.json.medicine_name,\n        my_price: myPrice,\n        market_price: Math.floor(currentMarketPrice),\n        saving: Math.floor(myPrice - currentMarketPrice)\n      }\n    });\n  }\n});\nreturn opportunities;"
+            },
+            "id": "market-simulator",
+            "name": "Market & Margin Sim",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                750,
+                600
+            ]
+        },
+        {
+            "parameters": {
+                "content": "💰 MARKET ALERT\nAlert Owner: Buy from Market"
+            },
+            "id": "action-market",
+            "name": "Alert Owner (Market)",
+            "type": "n8n-nodes-base.stickyNote",
+            "typeVersion": 1,
+            "position": [
+                1000,
+                600
+            ]
+        },
+        {
+            "parameters": {
+                "content": "⏰ BACKGROUND BRAIN (GEMINI + REFILLS + REPORTS)\n\n1. DAILY: Expiry Check -> Alert Owner | Refill Check -> Alert Customer\n2. MONTHLY: Sales Report -> Alert Owner | Forecast -> Save DB\n3. WEEKLY: Market Check -> Alert Owner\n4. ERRORS: Save to 'retry_queue' table",
+                "height": 300,
+                "width": 600
+            },
+            "type": "n8n-nodes-base.stickyNote",
+            "position": [
+                0,
+                -100
+            ],
+            "typeVersion": 1,
+            "id": "bg-guide-note",
+            "name": "BG Guide"
+        },
+        {
+            "parameters": {},
+            "id": "error-trigger",
+            "name": "Global Error Trigger",
+            "type": "n8n-nodes-base.errorTrigger",
+            "typeVersion": 1,
+            "position": [
+                200,
+                800
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "retry_queue",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('BG Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "workflow_name",
+                            "value": "background-brain"
+                        },
+                        {
+                            "fieldId": "node_name",
+                            "value": "={{ $json.execution.lastNodeExecuted }}"
+                        },
+                        {
+                            "fieldId": "error_message",
+                            "value": "={{ $json.execution.error.message }}"
+                        },
+                        {
+                            "fieldId": "status",
+                            "value": "pending"
+                        }
+                    ]
+                }
+            },
+            "id": "save-error-db",
+            "name": "Save to Retry Queue",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                500,
+                800
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "Daily Trigger (Expiry+Refill)": {
+            "main": [
+                [
+                    {
+                        "node": "BG Configuration",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Monthly Trigger (Forecast+Report)": {
+            "main": [
+                [
+                    {
+                        "node": "BG Configuration",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Weekly Trigger (Market)": {
+            "main": [
+                [
+                    {
+                        "node": "BG Configuration",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook Forecast": {
+            "main": [
+                [
+                    {
+                        "node": "BG Configuration",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook Market": {
+            "main": [
+                [
+                    {
+                        "node": "BG Configuration",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook Interactions": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Interactions)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook Compliance": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Compliance)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Interactions)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Interactions",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Compliance)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Compliance",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "BG Configuration": {
+            "main": [
+                [
+                    {
+                        "node": "Find Expiring Items",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Find Due Refills",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Get Last Month Sales",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Get Stock for Market Check",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Find Expiring Items": {
+            "main": [
+                []
+            ]
+        },
+        "Find Due Refills": {
+            "main": [
+                []
+            ]
+        },
+        "Get Last Month Sales": {
+            "main": [
+                [
+                    {
+                        "node": "Aggregate Sales & Revenue",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Aggregate Sales & Revenue": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Forecast)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Forecast)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini Forecast",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Gemini Forecast": {
+            "main": [
+                [
+                    {
+                        "node": "Save Predictions",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Stock for Market Check": {
+            "main": [
+                [
+                    {
+                        "node": "Market & Margin Sim",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Global Error Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Save to Retry Queue",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

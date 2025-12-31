@@ -55,7 +55,7 @@ export const aiService = {
      * Secure Clinical Document Upload & Analysis
      * Uploads to Supabase Storage (RLS Protected) -> Sends URL to n8n for OCR.
      */
-    async analyzeDocument(file: File, type: 'prescription' | 'lab_report'): Promise<any> {
+    async analyzeDocument(file: File, type: 'prescription' | 'lab_report' | 'invoice'): Promise<any> {
         try {
             // 1. Upload to Supabase Storage 'clinical-uploads' bucket
             const fileExt = file.name.split('.').pop();
@@ -76,8 +76,13 @@ export const aiService = {
             if (!urlData?.signedUrl) throw new Error("Failed to generate access URL");
 
             // 3. Trigger n8n Ops Webhook
-            // Mapping: 'prescription' -> 'scan-parcha', others to default or different ops
-            const action = type === 'prescription' ? 'scan-parcha' : 'scan-report';
+            // Mapping: 
+            // 'prescription' -> 'scan-parcha'
+            // 'lab_report' -> 'scan-report'
+            // 'invoice' -> 'scan-medicine'
+            let action = 'scan-report'; // default
+            if (type === 'prescription') action = 'scan-parcha';
+            if (type === 'invoice') action = 'scan-medicine';
 
             // Use OPS endpoint for file routing
             const response = await fetch(ENDPOINTS.OPS, {
@@ -211,23 +216,50 @@ export const aiService = {
      */
     async processVoiceBill(audioBlob: Blob): Promise<any> {
         try {
-            const formData = new FormData();
             const { data: { user } } = await supabase.auth.getUser();
             const shopId = localStorage.getItem("currentShopId");
 
-            formData.append('file', audioBlob);
-            formData.append('action', 'voice-bill');
-            if (user?.id) formData.append('userId', user.id);
-            if (shopId) formData.append('shopId', shopId);
+            // Convert Blob to Base64
+            const reader = new FileReader();
+            reader.readAsDataURL(audioBlob);
+            const base64Data = await new Promise<string>((resolve, reject) => {
+                reader.onloadend = () => {
+                    const result = reader.result as string;
+                    // Remove data URL prefix (e.g., "data:audio/webm;base64,")
+                    const base64 = result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+            });
 
-            // Use OPS endpoint for voice routing
+            // Send JSON Payload (matching N8N expectation)
+            const payload = {
+                action: 'voice-bill',
+                data: base64Data, // N8N expects this in $json.body.data
+                userId: user?.id,
+                shopId: shopId
+            };
+
             const response = await fetch(ENDPOINTS.OPS, {
                 method: "POST",
-                body: formData,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
             });
 
             if (!response.ok) throw new Error("Voice Billing Agent Failed");
-            return await response.json();
+
+            const result = await response.json();
+
+            // Map Supabase 'order_items' to 'items' for VoiceCommandBar
+            // Result is likely an array of inserted rows
+            if (Array.isArray(result) && result[0]?.order_items) {
+                const parsedItems = typeof result[0].order_items === 'string'
+                    ? JSON.parse(result[0].order_items)
+                    : result[0].order_items;
+                return { items: parsedItems, transcription: "Voice Order Processed" }; // Mock transcription
+            }
+
+            return result;
         } catch (e) {
             console.error("Voice Bill Failed", e);
             throw e;

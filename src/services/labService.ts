@@ -49,14 +49,20 @@ class LabService {
             // This relies on the N8N Gemini system prompt being VERY specific.
 
             // Fallback mapper if direct structure doesn't match
-            const data = response || {};
+            const data = Array.isArray(response) ? response[0] : (response || {});
+
+            // Parse raw analysis if it's a string (though Supabase JSONB usually comes as object)
+            let rawAnalysis = data.raw_analysis || {};
+            if (typeof rawAnalysis === 'string') {
+                try { rawAnalysis = JSON.parse(rawAnalysis); } catch (e) { }
+            }
 
             return {
-                summary: data.result || "Analysis Complete",
+                summary: data.summary || data.result || "Analysis Complete", // Supabase: summary, Gemini: result
                 diseasePossibility: data.disease_possibility || [],
-                results: data.results || [],
+                results: rawAnalysis.results || data.results || [], // Extract from raw_analysis
                 recommendations: {
-                    diet: data.diet || [],
+                    diet: data.diet_recommendations || data.diet || [], // Supabase: diet_recommendations
                     nextSteps: data.next_steps || [],
                     prevention: []
                 }
