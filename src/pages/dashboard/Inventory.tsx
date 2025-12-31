@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Plus, Search, Package, AlertTriangle, Filter, Sparkles, Check, X, RefreshCw } from "lucide-react";
+import { Plus, Search, Package, AlertTriangle, Filter, Sparkles, Check, X, RefreshCw, Upload } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 
 interface InventoryItem {
@@ -351,34 +351,79 @@ const Inventory = () => {
                 </div>
               </div>
 
-              {stagingItems.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground/60 border-2 border-dashed border-purple-200 rounded-lg">
-                  No pending drafts. Use "Scan Medicine" in Workflow B.
+              <div className="flex flex-col gap-4">
+                <div className="flex justify-between items-center bg-white p-4 rounded-lg border shadow-sm">
+                  <div>
+                    <h3 className="font-semibold text-lg">Upload Invoice / Medicine Strip</h3>
+                    <p className="text-sm text-muted-foreground">Upload an image to auto-detect items (Batch & Expiry).</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="file"
+                      id="inventory-upload"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+
+                        const toastId = toast.loading("Uploading to AI Vision Engine...");
+                        try {
+                          const reader = new FileReader();
+                          reader.onload = async () => {
+                            const base64 = (reader.result as string).split(',')[1];
+                            // @ts-ignore
+                            const { aiService } = await import("@/services/aiService");
+                            await aiService.triggerOp('scan-medicine', { image_base64: base64 });
+                            toast.success("Scan Complete! Drafts created.");
+                            fetchStaging();
+                          };
+                          reader.readAsDataURL(file);
+                        } catch (err) {
+                          console.error(err);
+                          toast.error("Scan Failed");
+                        } finally {
+                          toast.dismiss(toastId);
+                          // Reset input
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <Button onClick={() => document.getElementById('inventory-upload')?.click()}>
+                      <Upload className="w-4 h-4 mr-2" /> Upload Scan
+                    </Button>
+                  </div>
                 </div>
-              ) : (
-                <div className="grid gap-4">
-                  {stagingItems.map(item => (
-                    <div key={item.id} className="flex items-center justify-between p-4 bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow">
-                      <div className="space-y-1">
-                        <h4 className="font-semibold text-lg">{item.medicine_name}</h4>
-                        <div className="flex gap-4 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1"><Package className="w-3 h-3" /> Qty: {item.quantity}</span>
-                          <span>MRP: ₹{item.unit_price}</span>
-                          {item.expiry_date && <span>Exp: {item.expiry_date}</span>}
+
+                {stagingItems.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground/60 border-2 border-dashed border-purple-200 rounded-lg">
+                    No pending drafts. Upload an image above to start.
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {stagingItems.map(item => (
+                      <div key={item.id} className="flex items-center justify-between p-4 bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow">
+                        <div className="space-y-1">
+                          <h4 className="font-semibold text-lg">{item.medicine_name}</h4>
+                          <div className="flex gap-4 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1"><Package className="w-3 h-3" /> Qty: {item.quantity}</span>
+                            <span>MRP: ₹{item.unit_price}</span>
+                            {item.expiry_date && <span>Exp: {item.expiry_date}</span>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => handleRejectDraft(item.id)}>
+                            <X className="w-4 h-4 mr-1" /> Reject
+                          </Button>
+                          <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleApproveDraft(item)}>
+                            <Check className="w-4 h-4 mr-1" /> Approve
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => handleRejectDraft(item.id)}>
-                          <X className="w-4 h-4 mr-1" /> Reject
-                        </Button>
-                        <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleApproveDraft(item)}>
-                          <Check className="w-4 h-4 mr-1" /> Approve
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
