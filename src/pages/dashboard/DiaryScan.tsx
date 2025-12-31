@@ -338,8 +338,12 @@ const DiaryScan = () => {
                       const doctorName = (document.getElementById('doctor-name') as HTMLInputElement).value || "Unknown Doctor";
 
                       toast.loading("Saving Prescription...");
-                      // @ts-ignore
-                      const { error } = await import("@/integrations/supabase/client").then(m => m.supabase.from('prescriptions').insert({
+                      const { supabase } = await import("@/integrations/supabase/client");
+                      const { data: userData } = await supabase.auth.getUser();
+                      const shopId = userData.user?.user_metadata?.shop_id;
+
+                      toast.loading("Saving Prescription...");
+                      const { error } = await supabase.from('prescriptions').insert({
                         customer_name: patientName,
                         doctor_name: doctorName,
                         visit_date: new Date().toISOString(),
@@ -349,8 +353,8 @@ const DiaryScan = () => {
                           duration: item.duration,
                           notes: item.notes
                         })),
-                        shop_id: (await import("@/integrations/supabase/client").then(m => m.supabase.auth.getUser())).data.user?.user_metadata?.shop_id
-                      }));
+                        shop_id: shopId
+                      });
 
                       toast.dismiss();
 

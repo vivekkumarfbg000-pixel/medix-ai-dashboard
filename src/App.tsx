@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { DashboardLayout } from "./components/dashboard/DashboardLayout";
 import { Activity } from "lucide-react";
-import { seedDatabase } from "./services/db";
+
 
 // Initial Load
 import Auth from "./pages/Auth";
@@ -54,7 +54,6 @@ const MobileNavHandler = () => {
 
 const App = () => {
   useEffect(() => {
-    seedDatabase();
     try {
       syncService.startSync();
     } catch (e) {
