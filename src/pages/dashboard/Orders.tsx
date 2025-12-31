@@ -215,15 +215,14 @@ const Orders = () => {
       toast.success(`Found in Inventory: ${name}`);
     } else {
       // 2. Fallback to Global Knowledge Base
-      const mockPrice = Math.floor(Math.random() * 200) + 50;
-      price = mockPrice;
-      // Default Tax for unknown items (Standard 12% GST assumed for demo or 0)
-      sgst_rate = 6;
-      cgst_rate = 6;
+      // Note: We don't have a real pricing API for every drug in the world, so we set price to 0 and let user edit it, 
+      // OR we could use a standard estimated price if available in drugInfo (usually not).
 
       const drugInfo = await drugService.searchDrug(query);
       if (drugInfo) {
         name = drugInfo.name; // Use canonical name
+        price = 0; // Unknown price, user must enter
+
         if (drugInfo.substitutes && drugInfo.substitutes.length > 0) {
           const bestSub = drugInfo.substitutes.sort((a, b) => b.margin_percentage - a.margin_percentage)[0];
           if (bestSub.margin_percentage > 15) {
@@ -235,7 +234,14 @@ const Orders = () => {
             };
           }
         }
+      } else {
+        // Completely unknown item
+        price = 0;
       }
+    }
+
+    if (price === 0 && !localItem) {
+      toast.info("Item price unknown. Please edit price in cart.", { duration: 4000 });
     }
 
     // --- SAFETY CHECK: DRUG INTERACTIONS ---

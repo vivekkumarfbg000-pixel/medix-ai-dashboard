@@ -36,27 +36,21 @@ const Marketplace = () => {
     }, []);
 
     const fetchCatalogs = async () => {
-        setLoading(true);
-        // In real app, we would join catalogs with distributors
-        // For now, mocking with some real-ish data if DB is empty
-        /*
-        const { data: realData } = await supabase
+        const { data, error } = await supabase
             .from('catalogs')
             .select(`
                 *,
                 distributor:distributors(name)
             `);
-        */
 
-        // MOCK DATA for Phase 3 Demo if no backend data yet
-        const mockData: CatalogItem[] = [
-            { id: 1, drug_name: "Paracetamol 650mg", brand: "Dolo-650", price: 15.50, min_order_qty: 10, in_stock: true, distributor: { name: "MediLine Distributors" } },
-            { id: 2, drug_name: "Azithromycin 500mg", brand: "Azithral", price: 45.00, min_order_qty: 5, in_stock: true, distributor: { name: "City Pharma Agency" } },
-            { id: 3, drug_name: "Amoxicillin + Clav", brand: "Augmentin 625", price: 180.00, min_order_qty: 3, in_stock: true, distributor: { name: "MediLine Distributors" } },
-            { id: 4, drug_name: "Pantoprazole 40mg", brand: "Pan 40", price: 8.50, min_order_qty: 20, in_stock: true, distributor: { name: "Global Medico" } },
-            { id: 5, drug_name: "Metformin 500mg", brand: "Glycomet", price: 12.00, min_order_qty: 15, in_stock: true, distributor: { name: "City Pharma Agency" } },
-        ];
-        setItems(mockData);
+        if (error) {
+            console.error(error);
+            toast.error("Failed to load marketplace data");
+            setItems([]);
+        } else {
+            // @ts-ignore
+            setItems(data || []);
+        }
         setLoading(false);
     };
 
