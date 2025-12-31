@@ -6,14 +6,12 @@ const N8N_BASE = "https://vivek2073.app.n8n.cloud/webhook";
 
 // Specific Workflow Routes - Aligned with JSON Workflows
 const ENDPOINTS = {
-    CHAT: `${N8N_BASE}/chat`,                  // clinical_agent.json
-    INTERACTIONS: `${N8N_BASE}/interactions`, // interaction_check.json
-    MARKET: `${N8N_BASE}/market-intel`,       // market_intel.json
-    COMPLIANCE: `${N8N_BASE}/compliance-check`,// compliance_auditor.json
-    // Operations router not found in workflows, assuming standard pattern or using direct mapping if needed.
-    // For now, based on previous code, we'll route file/voice to a dedicated Ops hook or handle via metadata.
-    // IF the ops workflow doesn't exist, this will fallback to demo mode.
-    OPS: `${N8N_BASE}/medix-ops-webhook/operations`
+    CHAT: `${N8N_BASE}/chat`,                  // medix-integrated-workflow.json
+    INTERACTIONS: `${N8N_BASE}/interactions`, // medix-background-workflow.json (added)
+    MARKET: `${N8N_BASE}/market`,             // medix-background-workflow.json
+    COMPLIANCE: `${N8N_BASE}/compliance-check`,// medix-background-workflow.json (added)
+    // Operations actions: scan-medicine, scan-diary, voice-bill, scan-parcha
+    OPS: `${N8N_BASE}/operations`             // medix-operations-workflow.json
 };
 
 interface ChatResponse {
@@ -117,6 +115,35 @@ export const aiService = {
             } else {
                 return { result: "Hemoglobin: 12.5 g/dL (Normal)", warning: "None" };
             }
+        }
+    },
+
+    /**
+     * Generic Operation Trigger (for Lab Analyzer etc)
+     */
+    async triggerOp(action: string, payload: any): Promise<any> {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            const shopId = localStorage.getItem("currentShopId");
+
+            const finalBody = {
+                ...payload,
+                action: action,
+                userId: user?.id,
+                shopId: shopId
+            };
+
+            const response = await fetch(ENDPOINTS.OPS, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(finalBody),
+            });
+
+            if (!response.ok) throw new Error(`Ops Trigger Failed: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error("Trigger Op Failed:", error);
+            throw error;
         }
     },
 

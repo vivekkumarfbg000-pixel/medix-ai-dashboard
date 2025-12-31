@@ -433,22 +433,11 @@ class DrugService {
   async checkInteractions(drugs: string[]): Promise<InteractionResult[]> {
     if (drugs.length < 2) return [];
 
-    // Using a reliable Mock Logic for interactions as consistent free APIs are scarce without keys
-    // In production, this would be a specialized API call
-    const results: InteractionResult[] = [];
-
-    // AI-Powered Interaction Check (Real-time via n8n)
     try {
-      if (typeof aiService.checkInteractions === 'function') {
-        const results = await aiService.checkInteractions(drugs);
-        return results;
-      } else {
-        // Fallback for demo if n8n service isn't ready
-        return [];
-      }
+      // Direct call to N8N via AI Service
+      return await aiService.checkInteractions(drugs);
     } catch (err) {
       console.error("Failed to check interactions via AI", err);
-      // Fallback
       return [];
     }
   }

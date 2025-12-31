@@ -328,12 +328,54 @@ const DiaryScan = () => {
                 </Table>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-muted/20 rounded-lg">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Patient Name</label>
+                  <Input placeholder="Enter patient name (Optional)" id="patient-name" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Doctor Name</label>
+                  <Input placeholder="Enter doctor name (Optional)" id="doctor-name" />
+                </div>
+              </div>
+
               {!isConfirmed && (
                 <div className="mt-6 flex justify-end gap-3">
                   <Button variant="outline" onClick={() => setExtractedItems([])}>
                     Discard
                   </Button>
-                  <Button onClick={handleConfirm} className="bg-success hover:bg-success/90 text-white">
+                  <Button
+                    onClick={async () => {
+                      const patientName = (document.getElementById('patient-name') as HTMLInputElement).value || "Unknown Patient";
+                      const doctorName = (document.getElementById('doctor-name') as HTMLInputElement).value || "Unknown Doctor";
+
+                      toast.loading("Saving Prescription...");
+                      // @ts-ignore
+                      const { error } = await import("@/integrations/supabase/client").then(m => m.supabase.from('prescriptions').insert({
+                        customer_name: patientName,
+                        doctor_name: doctorName,
+                        visit_date: new Date().toISOString(),
+                        medicines: extractedItems.map(item => ({
+                          name: item.medication_name,
+                          dosage: `${item.strength} | ${item.dosage_frequency}`,
+                          duration: item.duration,
+                          notes: item.notes
+                        })),
+                        shop_id: (await import("@/integrations/supabase/client").then(m => m.supabase.auth.getUser())).data.user?.user_metadata?.shop_id
+                      }));
+
+                      toast.dismiss();
+
+                      if (error) {
+                        console.error(error);
+                        toast.error("Failed to save to database.");
+                      } else {
+                        setIsConfirmed(true);
+                        toast.success("Prescription Saved Successfully!");
+                      }
+                    }}
+                    className="bg-success hover:bg-success/90 text-white"
+                  >
                     <CheckCircle className="w-4 h-4 mr-2" />
                     Verify & Save to Database
                   </Button>

@@ -22,50 +22,88 @@ export interface LabAnalysisReport {
     };
 }
 
-const MOCK_SCENARIOS: Record<string, LabAnalysisReport> = {
-    "anemia": {
-        results: [
-            { parameter: "Haemoglobin", value: 9.2, unit: "g/dL", normalRange: "13.0 - 17.0", status: "Low", riskLevel: "Moderate", color: "text-amber-500" },
-            { parameter: "RBC Detection", value: 3.8, unit: "mill/mm3", normalRange: "4.5 - 5.5", status: "Low", riskLevel: "Moderate", color: "text-amber-500" },
-            { parameter: "Iron", value: 45, unit: "mcg/dL", normalRange: "60 - 170", status: "Low", riskLevel: "Moderate", color: "text-amber-500" }
-        ],
-        summary: "Report indicates distinct Iron Deficiency Anemia. Haemoglobin and Iron levels are suppressed.",
-        diseasePossibility: ["Iron Deficiency Anemia", "General Fatigue", "Poor Nutrition"],
-        recommendations: {
-            prevention: ["Avoid tea/coffee immediately after meals."],
-            diet: ["Spinach", "Red Meat", "Beetroot", "Pomegranate"],
-            nextSteps: ["Start Iron Supplements (Ferrous Ascorbate).", "Re-test in 30 days."]
-        }
-    },
-    "thyroid": {
-        results: [
-            { parameter: "TSH", value: 8.5, unit: "mIU/L", normalRange: "0.4 - 4.0", status: "High", riskLevel: "Moderate", color: "text-red-500" },
-            { parameter: "T4 (Thyroxine)", value: 4.2, unit: "ug/dL", normalRange: "4.6 - 12.0", status: "Low", riskLevel: "Moderate", color: "text-amber-500" }
-        ],
-        summary: "Elevated TSH and low T4 suggests Hypothyroidism (Underactive Thyroid).",
-        diseasePossibility: ["Hypothyroidism", "Hashimoto's Thyroiditis"],
-        recommendations: {
-            prevention: ["Avoid soy products.", "Reduce stress."],
-            diet: ["Iodized Salt", "Nuts", "Whole Grains"],
-            nextSteps: ["Consult Endocrinologist.", "Start Thyroxine medication."]
-        }
-    }
-};
+import { aiService } from "./aiService";
+
+export interface LabTestResult {
+    parameter: string;
+    value: string | number; // Gemini might return mixed types
+    unit: string;
+    normalRange: string;
+    status: "Normal" | "Low" | "High" | "Abnormal";
+    riskLevel?: "None" | "Moderate" | "Critical"; // Optional, derived from status
+    color?: string; // Optional, formatted in UI
+}
+
+export interface LabAnalysisReport {
+    patientName?: string;
+    reportDate?: string;
+    results: LabTestResult[];
+    summary: string;
+    diseasePossibility: string[];
+    recommendations: {
+        prevention: string[];
+        diet: string[];
+        nextSteps: string[];
+    };
+}
 
 class LabService {
     async analyzeReport(file: File): Promise<LabAnalysisReport> {
-        // Simulate Processing Delay
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        try {
+            // Convert File to Base64
+            const base64 = await this.fileToBase64(file);
 
-        // For Demo: Randomly pick a scenario or determine based on filename if possible (cannot read real file content in mock)
-        // defaulting to Anemia for visual impact
-        const keys = Object.keys(MOCK_SCENARIOS);
-        const randomKey = keys[Math.floor(Math.random() * keys.length)];
-        return {
-            ...MOCK_SCENARIOS[randomKey],
-            patientName: "Guest Patient",
-            reportDate: new Date().toLocaleDateString()
-        };
+            // Call N8N via aiService (which handles the endpoint mapping)
+            // We use the generic 'triggerOp' or a specific method if we add one.
+            // Since aiService.triggerOp handles JSON body, we construct the payload here.
+            // The 'action' must match the workflow conditions: 'scan-report'
+
+            const response = await aiService.triggerOp('scan-report', {
+                image_base64: base64, // N8N expects this key for vision nodes
+                filename: file.name
+            });
+
+            // The Workflow B returns: { result: string, warning: string, analysis: object }
+            // We need to map the N8N response back to our Frontend Interface (LabAnalysisReport)
+            // Assuming the Workflow returns a structure we can map, or we adjust the UI to match.
+            // For now, let's assume the Gemini node in N8N returns the exact structure or we map it.
+
+            // IF N8N returns mixed structure, we normalize it here.
+            // This relies on the N8N Gemini system prompt being VERY specific.
+
+            // Fallback mapper if direct structure doesn't match
+            const data = response || {};
+
+            return {
+                summary: data.result || "Analysis Complete",
+                diseasePossibility: data.disease_possibility || [],
+                results: data.results || [],
+                recommendations: {
+                    diet: data.diet || [],
+                    nextSteps: data.next_steps || [],
+                    prevention: []
+                }
+            };
+
+        } catch (error) {
+            console.error("Lab Analysis Failed:", error);
+            throw error;
+        }
+    }
+
+    private fileToBase64(file: File): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                const result = reader.result as string;
+                // Remove data:image/jpeg;base64, prefix if needed, but N8N usually handles it or we strip it.
+                // Standard N8N binary handling often prefers just the base64 string.
+                const base64Clean = result.split(',')[1];
+                resolve(base64Clean);
+            };
+            reader.onerror = error => reject(error);
+        });
     }
 }
 

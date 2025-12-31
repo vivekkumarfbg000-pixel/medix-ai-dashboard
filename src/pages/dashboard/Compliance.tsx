@@ -171,7 +171,29 @@ const Compliance = () => {
                             <p className="text-sm text-muted-foreground mb-4">
                                 Real-time scanning active against CDSCO Gazette Notifications.
                             </p>
-                            <Button variant="outline" className="w-full border-destructive/50 text-destructive hover:bg-destructive/10">
+                            <Button
+                                variant="outline"
+                                className="w-full border-destructive/50 text-destructive hover:bg-destructive/10"
+                                onClick={async () => {
+                                    toast.loading("Scanning Inventory against Banned List...");
+                                    try {
+                                        // Scan top 5 recently added items for demo/check
+                                        const { data: items } = await supabase.from('inventory').select('medicine_name').limit(5);
+                                        if (items) {
+                                            // @ts-ignore
+                                            const { aiService } = await import("@/services/aiService");
+                                            for (const item of items) {
+                                                await aiService.checkCompliance(item.medicine_name);
+                                            }
+                                        }
+                                        toast.dismiss();
+                                        toast.success("Scan Complete. Report Updated.");
+                                    } catch (e) {
+                                        toast.dismiss();
+                                        toast.error("Scan Failed");
+                                    }
+                                }}
+                            >
                                 Run Manual Scan
                             </Button>
                         </CardContent>
