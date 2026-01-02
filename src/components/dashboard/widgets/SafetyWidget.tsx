@@ -10,16 +10,26 @@ export const SafetyWidget = () => {
     const [drug2, setDrug2] = useState("");
     const [checkResult, setCheckResult] = useState<null | string>(null);
 
-    const handleCheck = () => {
+    const handleCheck = async () => {
         if (!drug1 || !drug2) return;
-        // Mock simple check
-        if (
-            (drug1.toLowerCase().includes("aspirin") && drug2.toLowerCase().includes("warfarin")) ||
-            (drug1.toLowerCase().includes("pain") && drug2.toLowerCase().includes("alcohol"))
-        ) {
-            setCheckResult("MAJOR_RISK");
-        } else {
-            setCheckResult("SAFE");
+        setCheckResult("ANALYZING");
+
+        try {
+            // Real AI Check
+            import("@/services/drugService").then(async (mod) => {
+                const results = await mod.drugService.checkInteractions([drug1, drug2]);
+
+                if (results.length > 0) {
+                    // Check if any major/moderate interaction exists
+                    const hasSevere = results.some(r => r.severity === "Major" || r.severity === "Moderate");
+                    setCheckResult(hasSevere ? "MAJOR_RISK" : "SAFE"); // Or show details
+                } else {
+                    setCheckResult("SAFE");
+                }
+            });
+        } catch (e) {
+            console.error(e);
+            setCheckResult("ERROR");
         }
     };
 
@@ -66,11 +76,11 @@ export const SafetyWidget = () => {
                             onChange={(e) => setDrug2(e.target.value)}
                         />
                     </div>
-                    <Button size="sm" className="w-full h-8 text-xs bg-slate-800 hover:bg-slate-700 text-white" onClick={handleCheck}>
-                        Check Safety
+                    <Button size="sm" className="w-full h-8 text-xs bg-slate-800 hover:bg-slate-700 text-white" onClick={handleCheck} disabled={checkResult === "ANALYZING"}>
+                        {checkResult === "ANALYZING" ? "Checking AI..." : "Check Safety"}
                     </Button>
 
-                    {checkResult && (
+                    {checkResult && checkResult !== "ANALYZING" && (
                         <div className={`mt-2 p-2 rounded text-xs font-bold text-center flex items-center justify-center gap-2 animate-in fade-in zoom-in ${checkResult === 'SAFE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                             }`}>
                             {checkResult === 'SAFE' ? (

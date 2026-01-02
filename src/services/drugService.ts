@@ -201,45 +201,38 @@ class DrugService {
       // 3. Query Knowledge Base (OpenFDA)
       let data = await this.queryOpenFDA(searchTerm);
 
-      // --- SIMULATION MODE FALLBACK ---
+      // --- GEMINI AI FALLBACK (REAL INTELLIGENCE) ---
       if (!data) {
-        console.warn("OpenFDA Offline. Using Simulation Data.");
-        if (cleanQuery.toLowerCase().includes("dolo") || cleanQuery.toLowerCase().includes("paracetamol")) {
-          data = {
-            openfda: {
-              generic_name: ["Paracetamol"],
-              brand_name: ["Dolo 650", "Calpol"]
-            },
-            indications_and_usage: ["Indicated for temporary relief of fever, minor aches, and pains."],
-            dosage_and_administration: ["Adults: 500-1000mg every 4-6 hours. Max 4000mg/day."],
-            contraindications: ["Hypersensitivity to paracetamol. Severe hepatic impairment."],
-            adverse_reactions: ["Rarely: Hypersensitivity, Rash, Hepatotoxicity (overdose)."]
-          };
-        } else if (cleanQuery.toLowerCase().includes("metformin")) {
-          data = {
-            openfda: { generic_name: ["Metformin Hydrochloride"], brand_name: ["Glycomet"] },
-            indications_and_usage: ["Management of Type 2 Diabetes Mellitus."],
-            dosage_and_administration: ["Start 500mg daily. Titrate to 2000mg daily in divided doses."],
-            contraindications: ["Renal failure, Metabolic acidosis."],
-            adverse_reactions: ["Nausea, Diarrhea, Metallic taste."]
-          };
-        } else if (cleanQuery.toLowerCase().includes("amoxicillin") || cleanQuery.toLowerCase().includes("augmentin")) {
-          data = {
-            openfda: { generic_name: ["Amoxicillin and Clavulanate"], brand_name: ["Augmentin"] },
-            indications_and_usage: ["Treatment of infections (Respiratory tract, Urinary tract, Skin)."],
-            dosage_and_administration: ["Adults: 625mg every 12 hours."],
-            contraindications: ["Penicillin allergy."],
-            adverse_reactions: ["Diarrhea, Nausea, Skin rash."]
-          };
-        } else {
-          // Generic Mock
-          data = {
-            openfda: { generic_name: [cleanQuery], brand_name: [cleanQuery.toUpperCase()] },
-            indications_and_usage: ["General clinical indications for " + cleanQuery + "."],
-            dosage_and_administration: ["Consult physician for standard dosage."],
-            contraindications: ["Standard contraindications apply. Check patient history."],
-            adverse_reactions: ["Nausea, Dizziness, Headache (Common)."]
-          };
+        console.warn("OpenFDA Offline or Drug Not Found. Asking Gemini AI...");
+        try {
+          const aiPrompt = `Act as a clinical pharmacist database. Provide detailed clinical information for the drug "${cleanQuery}". 
+            Return strictly valid JSON matching this interface:
+            {
+               openfda: { generic_name: string[], brand_name: string[] },
+               indications_and_usage: string[],
+               dosage_and_administration: string[],
+               contraindications: string[],
+               adverse_reactions: string[],
+               boxed_warning: string[],
+               pregnancy: string,
+               nursing_mothers: string
+            }
+            Do not include Markdown. Just JSON.`;
+
+          const aiResponse = await aiService.chatWithAgent(aiPrompt);
+          // aiService now normalizes 'reply' or 'output'.
+          // Expected response is stringified JSON in 'reply'.
+          const rawJson = aiResponse.reply;
+
+          // Clean JSON (in case of ```json wrapper)
+          const cleanJsonStr = rawJson.replace(/```json/g, '').replace(/```/g, '').trim();
+          data = JSON.parse(cleanJsonStr);
+          console.log("Gemini Clinical Data:", data);
+
+        } catch (aiErr) {
+          console.error("Gemini Fallback Failed:", aiErr);
+          // Final safety net: Empty but valid structure to prevent crash
+          return null;
         }
       }
 

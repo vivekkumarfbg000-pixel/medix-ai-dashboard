@@ -21,7 +21,7 @@ import {
 import { format } from "date-fns";
 import { drugService } from "@/services/drugService";
 import { Link } from "react-router-dom";
-import VoiceInput from "@/components/common/VoiceInput";
+import { VoiceCommandBar } from "@/components/dashboard/VoiceCommandBar";
 import { calculateTax, formatCurrency } from "@/utils/taxCalculator";
 import { InvoiceTemplate } from "@/components/common/InvoiceTemplate";
 import { createRoot } from "react-dom/client";
@@ -175,15 +175,37 @@ const Orders = () => {
 
   // --- POS FUNCTIONS ---
 
-  const handleVoiceInput = (text: string) => {
-    const cleanText = text.replace(/add/i, "").replace(/medicine/i, "").trim();
-    if (cleanText) {
-      setSearchQuery(cleanText);
-      setTimeout(() => {
-        handleAddItemWithQuery(cleanText);
-      }, 500);
-    }
+  // --- VOICE BILLING HANDLER ---
+  const handleVoiceItems = (transcription: string, items: any[]) => {
+    toast.success("Voice processed!", { description: transcription });
+
+    // Add processed items to cart
+    items.forEach(async (item) => {
+      // 1. Try to find match in inventory
+      const { data: localItem } = await supabase
+        .from("inventory")
+        .select("*")
+        .ilike('medicine_name', `%${item.name}%`)
+        .limit(1)
+        .maybeSingle();
+
+      const newItem: CartItem = {
+        id: Date.now().toString() + Math.random(),
+        name: localItem?.medicine_name || item.name,
+        price: localItem?.unit_price || 0,
+        quantity: item.quantity || 1,
+        hsn_code: "3004",
+        sgst_rate: 6,
+        cgst_rate: 6,
+        igst_rate: 0
+      };
+
+      setCart(prev => [...prev, newItem]);
+    });
   };
+
+  // Legacy text-only handler (kept if needed, but primary is now VoiceCommandBar)
+  // const handleVoiceInput = ... (removed)
 
   const handleAddItemWithQuery = async (query: string) => {
     if (!query) return;
@@ -542,7 +564,7 @@ const Orders = () => {
                     onKeyDown={e => e.key === 'Enter' && handleAddItem()}
                     className="text-lg py-6"
                   />
-                  <VoiceInput onTranscript={handleVoiceInput} />
+                  <VoiceCommandBar onTranscriptionComplete={handleVoiceItems} compact={true} />
                   <Button size="lg" onClick={handleAddItem} className="h-full">
                     <Plus className="w-5 h-5" />
                   </Button>
