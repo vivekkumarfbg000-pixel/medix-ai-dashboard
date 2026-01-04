@@ -1,18 +1,75 @@
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, AlertOctagon, Lightbulb, PackageX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
+import { useUserShops } from "@/hooks/useUserShops";
+import { format, subDays, startOfDay, isSameDay, parseISO } from "date-fns";
 
 export const PulseWidget = () => {
-    const data = [
-        { name: 'Mon', revenue: 4000 },
-        { name: 'Tue', revenue: 3000 },
-        { name: 'Wed', revenue: 2000 },
-        { name: 'Thu', revenue: 2780 },
-        { name: 'Fri', revenue: 1890 },
-        { name: 'Sat', revenue: 2390 },
-        { name: 'Today', revenue: 3490 },
-    ];
+    const { currentShop } = useUserShops();
+    const [data, setData] = useState<any[]>([]);
+    const [totalRevenueToday, setTotalRevenueToday] = useState(0);
+    const [trend, setTrend] = useState(0);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!currentShop?.id) return;
+        fetchSalesPulse();
+    }, [currentShop]);
+
+    const fetchSalesPulse = async () => {
+        setLoading(true);
+        const today = new Date();
+        const sevenDaysAgo = subDays(today, 6); // Last 7 days including today
+
+        // Fetch sales
+        const { data: sales } = await supabase
+            .from('sales')
+            .select('total_amount, sale_date')
+            .eq('shop_id', currentShop?.id)
+            .gte('sale_date', startOfDay(sevenDaysAgo).toISOString());
+
+        if (sales) {
+            // Process data for Chart (Last 7 Days)
+            const chartData = [];
+            let todayRev = 0;
+            let yesterdayRev = 0;
+
+            for (let i = 6; i >= 0; i--) {
+                const date = subDays(today, i);
+                const dateStr = format(date, 'yyyy-MM-dd');
+
+                // Sum sales for this day
+                const daySales = sales
+                    .filter(s => isSameDay(parseISO(s.sale_date), date))
+                    .reduce((sum, s) => sum + Number(s.total_amount), 0);
+
+                chartData.push({
+                    name: format(date, 'EEE'), // Mon, Tue
+                    revenue: daySales
+                });
+
+                if (i === 0) todayRev = daySales; // Today
+                if (i === 1) yesterdayRev = daySales; // Yesterday
+            }
+
+            setData(chartData);
+            setTotalRevenueToday(todayRev);
+
+            // Calculate Trend
+            if (yesterdayRev > 0) {
+                const change = ((todayRev - yesterdayRev) / yesterdayRev) * 100;
+                setTrend(Math.round(change));
+            } else if (todayRev > 0) {
+                setTrend(100);
+            } else {
+                setTrend(0);
+            }
+        }
+        setLoading(false);
+    };
 
     return (
         <div className="space-y-6 h-full flex flex-col">
@@ -23,9 +80,12 @@ export const PulseWidget = () => {
                         <CardTitle className="text-lg font-bold flex items-center gap-2">
                             <TrendingUp className="w-5 h-5 text-green-500" /> Revenue Pulse
                         </CardTitle>
-                        <Badge variant="outline" className="text-green-600 bg-green-50 border-green-200">
-                            +12% vs Yesterday
-                        </Badge>
+                        <div className="flex flex-col items-end">
+                            <Badge variant="outline" className={`${trend >= 0 ? "text-green-600 bg-green-50" : "text-red-600 bg-red-50"} border-opacity-50`}>
+                                {trend >= 0 ? "+" : ""}{trend}% vs Yesterday
+                            </Badge>
+                            <span className="text-xs text-muted-foreground mt-1">Today: ₹{totalRevenueToday.toLocaleString()}</span>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent className="h-[200px]">
@@ -41,7 +101,7 @@ export const PulseWidget = () => {
                             <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${value}`} />
                             <Tooltip
                                 contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                formatter={(value) => [`₹${value}`, 'Revenue']}
+                                formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Revenue']}
                             />
                             <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
                         </AreaChart>
@@ -60,7 +120,7 @@ export const PulseWidget = () => {
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-end gap-2">
-                            <span className="text-3xl font-bold text-red-600 dark:text-red-400">12</span>
+                            <span className="text-3xl font-bold text-red-600 dark:text-red-400">0</span>
                             <span className="text-xs text-red-600/80 dark:text-red-300/80 mb-1 font-medium">Items near zero</span>
                         </div>
                         <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1">
@@ -81,7 +141,7 @@ export const PulseWidget = () => {
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm font-medium text-foreground leading-snug">
-                            "Dengue cases rising in your area. Stock up on <span className="underline decoration-wavy decoration-[#0ea5e9]">Platelet Boosters</span> & <span className="underline decoration-wavy decoration-[#0ea5e9]">Paracetamol</span>."
+                            "Revenue trending {trend >= 0 ? 'up' : 'down'}. Check <span className="underline decoration-wavy decoration-[#0ea5e9]">Analytics</span> for detailed insights."
                         </p>
                     </CardContent>
                 </Card>

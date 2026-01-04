@@ -1,6 +1,8 @@
 
 import { useState, useEffect } from "react";
+import { useUserShops } from "@/hooks/useUserShops";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +43,7 @@ interface ExtractedItem {
 }
 
 const DiaryScan = () => {
+  const { currentShop } = useUserShops();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -354,15 +357,15 @@ const DiaryScan = () => {
                   </Button>
                   <Button
                     onClick={async () => {
+                      if (!currentShop?.id) {
+                        toast.error("Shop ID mismatch. Please refresh.");
+                        return;
+                      }
                       const patientName = (document.getElementById('patient-name') as HTMLInputElement).value || "Unknown Patient";
                       const doctorName = (document.getElementById('doctor-name') as HTMLInputElement).value || "Unknown Doctor";
 
                       toast.loading("Saving Prescription...");
-                      const { supabase } = await import("@/integrations/supabase/client");
-                      const { data: userData } = await supabase.auth.getUser();
-                      const shopId = userData.user?.user_metadata?.shop_id;
 
-                      toast.loading("Saving Prescription...");
                       const { error } = await supabase.from('prescriptions').insert({
                         customer_name: patientName,
                         doctor_name: doctorName,
@@ -373,7 +376,7 @@ const DiaryScan = () => {
                           duration: item.duration,
                           notes: item.notes
                         })),
-                        shop_id: shopId
+                        shop_id: currentShop.id
                       });
 
                       toast.dismiss();

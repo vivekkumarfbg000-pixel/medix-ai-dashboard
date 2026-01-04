@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { ENDPOINTS } from "@/services/aiService"; // Use centralized config
 
 export const SystemHealthWidget = () => {
     const [errorCount, setErrorCount] = useState(0);
@@ -62,9 +63,9 @@ export const SystemHealthWidget = () => {
         try {
             // Simple logic to route retry based on payload content
             let url = "";
-            if (job.payload?.drugs) url = "https://vivek2073.app.n8n.cloud/webhook/interactions";
-            else if (job.payload?.drugName) url = "https://vivek2073.app.n8n.cloud/webhook/compliance-check";
-            else if (job.payload?.salesHistory) url = "https://vivek2073.app.n8n.cloud/webhook/forecast";
+            if (job.payload?.drugs) url = ENDPOINTS.INTERACTIONS;
+            else if (job.payload?.drugName) url = ENDPOINTS.OPS; // Fallback or specific compliance endpoint
+            else if (job.payload?.salesHistory) url = ENDPOINTS.OPS; // Assume Ops handles forecast for now
 
             if (url) {
                 await fetch(url, {

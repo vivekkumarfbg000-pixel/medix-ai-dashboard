@@ -3,12 +3,42 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mic, ScanBarcode, MessageCircle, ArrowRight, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+import { supabase } from "@/integrations/supabase/client";
+import { useUserShops } from "@/hooks/useUserShops";
+import { useEffect, useState } from "react";
+import { formatDistanceToNow } from "date-fns";
+
 export const QuickActions = () => {
     const navigate = useNavigate();
-    const whatsappQueue = [
-        { id: 1, name: "Ramesh Gupta", items: "3 items", time: "2m ago" },
-        { id: 2, name: "Sneha Reddy", items: "1 prescription", time: "5m ago" },
-    ];
+    const { currentShop } = useUserShops();
+    const [whatsappQueue, setWhatsappQueue] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (!currentShop?.id) return;
+
+        const fetchQueue = async () => {
+            // Fetch pending orders (assuming source 'whatsapp' or just general pending orders for now)
+            const { data } = await supabase
+                .from('orders')
+                .select('*')
+                .eq('shop_id', currentShop.id)
+                .eq('status', 'pending')
+                .order('created_at', { ascending: false })
+                .limit(3);
+
+            if (data) setWhatsappQueue(data);
+        };
+
+        fetchQueue();
+
+        // Real-time subscription
+        const channel = supabase
+            .channel('quick-actions-orders')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchQueue)
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, [currentShop]);
 
     return (
         <Card className="h-full border-none shadow-none bg-transparent">
@@ -63,8 +93,10 @@ export const QuickActions = () => {
                                         <User className="w-5 h-5" />
                                     </div>
                                     <div>
-                                        <div className="font-bold text-sm text-white">{order.name}</div>
-                                        <div className="text-xs text-white opacity-90">{order.items} • {order.time}</div>
+                                        <div className="font-bold text-sm text-white">{order.customer_name || 'Unknown Helper'}</div>
+                                        <div className="text-xs text-white opacity-90">
+                                            {Array.isArray(order.order_items) ? `${order.order_items.length} items` : 'Items'} • {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
+                                        </div>
                                     </div>
                                 </div>
                                 <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:text-[#0ea5e9] hover:bg-transparent">

@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { format, differenceInDays } from "date-fns";
 import { Download, ShieldAlert, FileText, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserShops } from "@/hooks/useUserShops";
 import { toast } from "sonner";
 
 // Mock H1 Sales Data Structure (since we might not have real data yet)
@@ -20,12 +21,32 @@ interface H1Entry {
 }
 
 const Compliance = () => {
+    const { currentShop } = useUserShops();
     const [h1Register, setH1Register] = useState<H1Entry[]>([]);
     const [loading, setLoading] = useState(true);
+    const [licenseExpiry, setLicenseExpiry] = useState<string | null>(null);
 
     useEffect(() => {
+        if (!currentShop?.id) return;
         fetchH1Data();
-    }, []);
+        fetchLicense();
+    }, [currentShop]);
+
+    const fetchLicense = async () => {
+        // Fetch explicit license_expiry from shops table
+        const { data } = await supabase
+            .from('shops')
+            .select('license_expiry')
+            .eq('id', currentShop?.id)
+            .single();
+
+        if (data?.license_expiry) {
+            setLicenseExpiry(data.license_expiry);
+        } else {
+            // Fallback for demo if null (set to 1 year from now)
+            setLicenseExpiry(new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString());
+        }
+    };
 
     const fetchH1Data = async () => {
         try {
@@ -152,12 +173,22 @@ const Compliance = () => {
                         <CardContent>
                             <div className="flex justify-between items-center mb-2">
                                 <span className="text-sm text-muted-foreground">Valid Upto</span>
-                                <span className="font-bold text-foreground">31 Mar 2026</span>
+                                <span className="font-bold text-foreground">
+                                    {licenseExpiry ? format(new Date(licenseExpiry), "dd MMM yyyy") : "Loading..."}
+                                </span>
                             </div>
                             <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
-                                <div className="bg-green-500 h-full w-[85%]"></div>
+                                {licenseExpiry && (
+                                    <div
+                                        className={`h-full w-[85%] ${differenceInDays(new Date(licenseExpiry), new Date()) < 30 ? 'bg-red-500' : 'bg-green-500'}`}
+                                    ></div>
+                                )}
                             </div>
-                            <p className="text-xs text-green-600 mt-2 font-medium">Safe. Renewal in 450 days.</p>
+                            <p className="text-xs text-green-600 mt-2 font-medium">
+                                {licenseExpiry
+                                    ? `Safe. Renewal in ${differenceInDays(new Date(licenseExpiry), new Date())} days.`
+                                    : "Checking status..."}
+                            </p>
                         </CardContent>
                     </Card>
 

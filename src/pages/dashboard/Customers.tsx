@@ -7,7 +7,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Search, Plus, User, MessageCircle, Wallet } from "lucide-react";
+import { Search, Plus, User, MessageCircle, Wallet, History, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { format } from "date-fns";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useUserShops } from "@/hooks/useUserShops";
 
 interface Customer {
     id: string;
@@ -19,11 +23,18 @@ interface Customer {
 }
 
 const Customers = () => {
+    const { currentShop } = useUserShops();
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", email: "" });
+
+    // Ledger State
+    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    const [ledgerEntries, setLedgerEntries] = useState<any[]>([]);
+    const [ledgerLoading, setLedgerLoading] = useState(false);
+    const [transaction, setTransaction] = useState({ type: 'CREDIT', amount: '', description: '' });
 
     const fetchCustomers = async () => {
         setLoading(true);
@@ -42,8 +53,63 @@ const Customers = () => {
     };
 
     useEffect(() => {
-        fetchCustomers();
-    }, []);
+        if (currentShop?.id) fetchCustomers();
+    }, [currentShop]);
+
+    // Fetch Ledger History when a customer is selected
+    useEffect(() => {
+        if (selectedCustomer) fetchLedger(selectedCustomer.id);
+    }, [selectedCustomer]);
+
+    const fetchLedger = async (customerId: string) => {
+        setLedgerLoading(true);
+        const { data } = await supabase
+            .from('ledger_entries')
+            .select('*')
+            .eq('customer_id', customerId)
+            .order('created_at', { ascending: false });
+        if (data) setLedgerEntries(data);
+        setLedgerLoading(false);
+    };
+
+    const handleAddTransaction = async () => {
+        if (!selectedCustomer || !transaction.amount) return;
+        const amount = parseFloat(transaction.amount);
+        if (isNaN(amount) || amount <= 0) return toast.error("Invalid amount");
+
+        const newBalance = transaction.type === 'CREDIT'
+            ? (selectedCustomer.credit_balance || 0) + amount
+            : (selectedCustomer.credit_balance || 0) - amount;
+
+        // 1. Add Entry
+        const { error: entryError } = await supabase.from('ledger_entries').insert({
+            shop_id: currentShop?.id,
+            customer_id: selectedCustomer.id,
+            amount: amount,
+            transaction_type: transaction.type,
+            description: transaction.description || (transaction.type === 'CREDIT' ? 'Credit Given' : 'Payment Received')
+        });
+
+        if (entryError) return toast.error("Failed to log transaction");
+
+        // 2. Update Customer Balance
+        const { error: updateError } = await supabase
+            .from('customers')
+            .update({ credit_balance: newBalance })
+            .eq('id', selectedCustomer.id);
+
+        if (updateError) {
+            toast.error("Failed to update balance");
+        } else {
+            toast.success("Transaction Record Saved");
+            setTransaction({ type: 'CREDIT', amount: '', description: '' });
+            // Refresh UI
+            fetchLedger(selectedCustomer.id);
+            fetchCustomers(); // Update main list balance
+            // Update local selected state to reflect new balance immediately
+            setSelectedCustomer({ ...selectedCustomer, credit_balance: newBalance });
+        }
+    };
 
     const handleAddCustomer = async () => {
         if (!newCustomer.name || !newCustomer.phone) {
@@ -158,7 +224,7 @@ const Customers = () => {
                             {filtered.length === 0 ? (
                                 <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No customers found</TableCell></TableRow>
                             ) : filtered.map(c => (
-                                <TableRow key={c.id}>
+                                <TableRow key={c.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setSelectedCustomer(c)}>
                                     <TableCell className="font-medium flex items-center gap-2">
                                         <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"><User className="w-4 h-4" /></div>
                                         {c.name}
@@ -167,12 +233,10 @@ const Customers = () => {
                                     <TableCell className="font-bold text-red-600">
                                         {c.credit_balance > 0 ? `₹${c.credit_balance}` : <span className="text-green-600">₹0</span>}
                                     </TableCell>
-                                    <TableCell className="text-right">
-                                        {c.credit_balance > 0 && (
-                                            <Button size="sm" variant="outline" className="text-green-600 border-green-200 hover:bg-green-50" onClick={() => sendPaymentReminder(c)}>
-                                                <MessageCircle className="w-4 h-4 mr-1" /> Remind
-                                            </Button>
-                                        )}
+                                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                        <Button size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => setSelectedCustomer(c)}>
+                                            <History className="w-4 h-4 mr-1" /> View Ledger
+                                        </Button>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -180,6 +244,90 @@ const Customers = () => {
                     </Table>
                 </CardContent>
             </Card>
+
+            {/* LEDGER SHEET (Slide-over) */}
+            <Sheet open={!!selectedCustomer} onOpenChange={(open) => !open && setSelectedCustomer(null)}>
+                <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
+                    {selectedCustomer && (
+                        <div className="space-y-6">
+                            <SheetHeader>
+                                <SheetTitle className="flex items-center gap-2 text-xl">
+                                    <User className="w-5 h-5 text-primary" /> {selectedCustomer.name}
+                                </SheetTitle>
+                                <SheetDescription>
+                                    Phone: {selectedCustomer.phone}
+                                </SheetDescription>
+                            </SheetHeader>
+
+                            {/* Balance Card */}
+                            <div className={`p-6 rounded-xl border ${selectedCustomer.credit_balance > 0 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'}`}>
+                                <div className="text-sm font-medium text-muted-foreground mb-1">Current Balance Due</div>
+                                <div className={`text-3xl font-bold ${selectedCustomer.credit_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                    ₹{selectedCustomer.credit_balance}
+                                </div>
+                                {selectedCustomer.credit_balance > 0 && (
+                                    <Button size="sm" variant="outline" className="mt-4 w-full border-red-200 text-red-700 hover:bg-red-100" onClick={() => sendPaymentReminder(selectedCustomer)}>
+                                        <MessageCircle className="w-4 h-4 mr-2" /> Send WhatsApp Reminder
+                                    </Button>
+                                )}
+                            </div>
+
+                            {/* Add Transaction */}
+                            <div className="space-y-3 p-4 bg-slate-50 rounded-lg border">
+                                <h3 className="font-bold text-sm">Add New Transaction</h3>
+                                <Tabs value={transaction.type} onValueChange={(v) => setTransaction({ ...transaction, type: v })}>
+                                    <TabsList className="w-full">
+                                        <TabsTrigger value="CREDIT" className="flex-1 text-red-600 data-[state=active]:bg-red-100">Give Credit (Udhaar)</TabsTrigger>
+                                        <TabsTrigger value="PAYMENT" className="flex-1 text-green-600 data-[state=active]:bg-green-100">Receive Payment</TabsTrigger>
+                                    </TabsList>
+                                </Tabs>
+                                <div className="flex gap-2">
+                                    <Input
+                                        type="number"
+                                        placeholder="Amount (₹)"
+                                        value={transaction.amount}
+                                        onChange={(e) => setTransaction({ ...transaction, amount: e.target.value })}
+                                    />
+                                    <Input
+                                        placeholder="Description (e.g. Paracetamol)"
+                                        value={transaction.description}
+                                        onChange={(e) => setTransaction({ ...transaction, description: e.target.value })}
+                                    />
+                                </div>
+                                <Button className="w-full" onClick={handleAddTransaction}>
+                                    {transaction.type === 'CREDIT' ? 'Add to Due' : 'Accept Payment'}
+                                </Button>
+                            </div>
+
+                            {/* History */}
+                            <div>
+                                <h3 className="font-bold mb-3 flex items-center gap-2"><History className="w-4 h-4" /> Transaction History</h3>
+                                <div className="space-y-3">
+                                    {ledgerLoading ? <p className="text-center text-sm text-muted-foreground">Loading history...</p> :
+                                        ledgerEntries.length === 0 ? <p className="text-center text-sm text-muted-foreground py-4 border rounded-lg border-dashed">No transactions found.</p> :
+                                            ledgerEntries.map(entry => (
+                                                <div key={entry.id} className="flex justify-between items-center p-3 bg-white border rounded-lg shadow-sm">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`p-2 rounded-full ${entry.transaction_type === 'CREDIT' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                                            {entry.transaction_type === 'CREDIT' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownLeft className="w-4 h-4" />}
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-medium text-sm">{entry.description || (entry.transaction_type === 'CREDIT' ? 'Credit' : 'Payment')}</div>
+                                                            <div className="text-xs text-muted-foreground">{format(new Date(entry.created_at), "dd MMM, hh:mm a")}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className={`font-bold ${entry.transaction_type === 'CREDIT' ? 'text-red-600' : 'text-green-600'}`}>
+                                                        {entry.transaction_type === 'CREDIT' ? '+' : '-'}₹{entry.amount}
+                                                    </div>
+                                                </div>
+                                            ))
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }

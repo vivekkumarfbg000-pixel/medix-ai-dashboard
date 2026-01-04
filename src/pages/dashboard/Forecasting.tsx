@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { format, addMonths, parseISO, differenceInDays } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,12 +49,14 @@ const Forecasting = () => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("demand");
   const [stockoutRisks, setStockoutRisks] = useState<StockoutRisk[]>([]);
+  const [expiryRisks, setExpiryRisks] = useState<ExpiryRisk[]>([]);
   const [forecastHistory, setForecastHistory] = useState<any[]>([]); // New State for Chart
 
   // Fetch Warnings from DB
   useEffect(() => {
     if (!currentShop?.id) return;
     fetchPredictions();
+    fetchExpiryRisks();
   }, [currentShop?.id]);
 
   const fetchPredictions = async () => {
@@ -93,21 +96,40 @@ const Forecasting = () => {
     }
   };
 
+  const fetchExpiryRisks = async () => {
+    if (!currentShop?.id) return;
+
+    // Fetch items expiring in next 6 months
+    const sixMonths = addMonths(new Date(), 6).toISOString();
+
+    const { data } = await supabase
+      .from('inventory')
+      .select('*')
+      .eq('shop_id', currentShop.id)
+      .gt('quantity', 0)
+      .lt('expiry_date', sixMonths)
+      .order('expiry_date', { ascending: true });
+
+    if (data) {
+      const risks = data.map((item: any) => {
+        const days = differenceInDays(parseISO(item.expiry_date), new Date());
+        return {
+          medicine: item.medicine_name,
+          batch: item.batch_number || 'N/A',
+          expiryDate: item.expiry_date,
+          qty: item.quantity,
+          value: item.quantity * (item.unit_price || 0),
+          daysToExpiry: days,
+          recommendation: days < 30 ? "Liquidation (50% Off)" : days < 90 ? "Bundle Offer" : "Monitor"
+        };
+      });
+      setExpiryRisks(risks);
+    }
+  };
+
   // --- MOCK DATA REMOVED ---
-  // const demandForecastData = ... (Replaced by forecastHistory)
-
-  // const stockoutRisks: StockoutRisk[] = ... (Replaced by State)
-
-  const expiryRisks: ExpiryRisk[] = [
-    { medicine: "Ceftriaxone Inj", batch: "XJ99", expiryDate: "2024-06-15", qty: 50, value: 2500, daysToExpiry: 20, recommendation: "Discount 50%" },
-    { medicine: "Insulin Glargine", batch: "IN22", expiryDate: "2024-07-01", qty: 10, value: 5000, daysToExpiry: 35, recommendation: "Push to Clinics" },
-    { medicine: "Cough Syrup", batch: "CS11", expiryDate: "2024-08-10", qty: 120, value: 12000, daysToExpiry: 75, recommendation: "Bundle Offer" },
-  ];
-
-  const seasonalAlerts = [
-    { season: "Monsoon (Flu)", start: "July", impact: "High", drugs: ["Paracetamol", "Antihistamines", "Mosquito Repellents"], action: "Stock up +30%" },
-    { season: "Winter (Respiratory)", start: "Nov", impact: "Medium", drugs: ["Cough Syrups", "Antibiotics", "Inhalers"], action: "Stock up +15%" },
-  ];
+  // Expiry Risks now fetched from DB
+  const seasonalAlerts: any[] = []; // Future: Fetch from AI Analysis
 
   // --- HANDLERS ---
   const runAIAnalysis = async () => {
@@ -147,22 +169,15 @@ const Forecasting = () => {
         toast.success("AI Forecast Complete", {
         });
 
-        // 3. Save Forecast History for Chart (Simulating monthly breakdown from AI response)
-        // In a real scenario, AI logic would return this array. We'll generate a realistic one based on the prediction.
-        const newChartData = [
-          { month: "Jan", sales: 400, forecast: 410 },
-          { month: "Feb", sales: 380, forecast: 390 },
-          { month: "Mar", sales: 420, forecast: 430 },
-          { month: "Apr", sales: 450, forecast: 460 }, // Current
-          { month: "May", sales: null, forecast: 480 }, // Future
-          { month: "Jun", sales: null, forecast: 520 },
-        ];
-
-        // @ts-ignore
+        // 3. Save Forecast History 
+        // We calculate real monthly aggregates from fetched salesHistory
+        // For now, we skip mocking data.
+        /* 
         await supabase.from('forecast_history').upsert({
           shop_id: currentShop.id,
           month_data: newChartData
-        });
+        }); 
+        */
 
         await fetchPredictions();
       } else {
@@ -248,20 +263,22 @@ const Forecasting = () => {
                 <CardDescription>Upcoming Demand Spikes (Based on Regional Trends)</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {seasonalAlerts.map((season, idx) => (
+                {seasonalAlerts.length > 0 ? seasonalAlerts.map((season, idx) => (
                   <div key={idx} className="p-4 bg-muted/50 rounded-lg border flex flex-col gap-2">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-lg">{season.season}</span>
                       <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">Starts {season.start}</Badge>
                     </div>
                     <div className="flex gap-2 flex-wrap">
-                      {season.drugs.map((d, i) => <Badge key={i} variant="secondary">{d}</Badge>)}
+                      {season.drugs.map((d: any, i: number) => <Badge key={i} variant="secondary">{d}</Badge>)}
                     </div>
                     <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-purple-700">
                       <ArrowUpRight className="w-4 h-4" /> Recommendation: {season.action}
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-muted-foreground text-center py-8">No seasonal alerts generated by AI yet.</p>
+                )}
               </CardContent>
             </Card>
           </div>

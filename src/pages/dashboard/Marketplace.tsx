@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, ShoppingCart, Truck, Package, Filter, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserShops } from "@/hooks/useUserShops";
+import { format } from "date-fns";
 
 interface CatalogItem {
     id: number;
@@ -25,9 +27,11 @@ interface CartItem extends CatalogItem {
 }
 
 const Marketplace = () => {
+    const { currentShop } = useUserShops();
     const [items, setItems] = useState<CatalogItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [cart, setCart] = useState<CartItem[]>([]);
+    const [orders, setOrders] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [activeTab, setActiveTab] = useState("browse");
 
@@ -65,11 +69,57 @@ const Marketplace = () => {
         }
     };
 
+    const fetchOrders = async () => {
+        if (!currentShop?.id) return;
+        const { data, error } = await supabase
+            .from('b2b_orders')
+            .select('*')
+            .eq('shop_id', currentShop.id)
+            .order('created_at', { ascending: false });
+
+        if (data) setOrders(data);
+    };
+
+    useEffect(() => {
+        if (activeTab === "orders") fetchOrders();
+    }, [activeTab, currentShop]);
+
     const placeOrder = async () => {
-        toast.success("B2B Order Placed Successfully!");
-        // logic to insert into b2b_orders would go here
-        setCart([]);
-        setActiveTab("orders");
+        if (!currentShop?.id) {
+            toast.error("Shop ID missing. Please refresh.");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            // Group by Distributor
+            const distributors = Array.from(new Set(cart.map(c => c.distributor.name)));
+
+            for (const distName of distributors) {
+                const distItems = cart.filter(c => c.distributor.name === distName);
+                const total = distItems.reduce((a, c) => a + (c.price * c.orderQty), 0);
+
+                const { error } = await supabase.from('b2b_orders').insert({
+                    shop_id: currentShop.id,
+                    distributor_name: distName,
+                    total_amount: total,
+                    status: 'pending',
+                    items: distItems
+                });
+
+                if (error) throw error;
+            }
+
+            toast.success("B2B Order(s) Placed Successfully!");
+            setCart([]);
+            setActiveTab("orders");
+            fetchOrders();
+        } catch (e: any) {
+            console.error(e);
+            toast.error("Failed to place order: " + e.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const filteredItems = items.filter(i =>
@@ -149,11 +199,33 @@ const Marketplace = () => {
                             <CardDescription>Track your procurement status.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-center py-12 text-muted-foreground">
-                                <Package className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                                <p>No past orders found.</p>
-                                <Button variant="link" onClick={() => setActiveTab("browse")}>Start Browsing</Button>
-                            </div>
+                            {orders.length === 0 ? (
+                                <div className="text-center py-12 text-muted-foreground">
+                                    <Package className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                    <p>No past orders found.</p>
+                                    <Button variant="link" onClick={() => setActiveTab("browse")}>Start Browsing</Button>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {orders.map((order) => (
+                                        <div key={order.id} className="flex justify-between items-center p-4 border rounded-lg hover:bg-muted/50">
+                                            <div>
+                                                <p className="font-bold">{order.distributor_name}</p>
+                                                <p className="text-sm text-muted-foreground">Placed on {format(new Date(order.created_at), "dd MMM yyyy, hh:mm a")}</p>
+                                                <div className="text-xs mt-1 text-muted-foreground">
+                                                    {Array.isArray(order.items) && order.items.map((i: any) => i.brand).join(", ")}
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <Badge variant={order.status === 'pending' ? 'outline' : 'default'} className="mb-1">
+                                                    {order.status.toUpperCase()}
+                                                </Badge>
+                                                <p className="font-bold">₹{order.total_amount.toLocaleString()}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>
