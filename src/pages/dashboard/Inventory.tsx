@@ -379,9 +379,9 @@ const Inventory = () => {
                             fetchStaging();
                           };
                           reader.readAsDataURL(file);
-                        } catch (err) {
+                        } catch (err: any) {
                           console.error(err);
-                          toast.error("Scan Failed");
+                          toast.error(err.message || "Scan Failed");
                         } finally {
                           toast.dismiss(toastId);
                           // Reset input

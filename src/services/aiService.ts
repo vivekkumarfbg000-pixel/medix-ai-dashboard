@@ -38,9 +38,9 @@ const cleanN8NResponse = (text: string): any => {
         }
     }
 
-    if (parsed && parsed.error) {
+    if (parsed && (parsed.error || parsed.message === "Webhook call failed")) {
         console.error("N8N Error Details:", parsed);
-        throw new Error(parsed.error || "AI Service Error");
+        throw new Error(parsed.error || parsed.message || "AI Service Error: Webhook Failed");
     }
 
     return parsed;

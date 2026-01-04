@@ -136,9 +136,10 @@ const DiaryScan = () => {
         console.error("Invalid Response:", result);
         throw new Error("Invalid response structure - No medicines found");
       }
-    } catch (error) {
+      setExtractedItems([]);
+    } catch (error: any) {
       console.error("AI Service Error:", error);
-      toast.error("AI Analysis Failed. Please check your connection or try again.");
+      toast.error(error.message || "AI Analysis Failed. Please check your connection or try again.");
       setExtractedItems([]);
     }
 
