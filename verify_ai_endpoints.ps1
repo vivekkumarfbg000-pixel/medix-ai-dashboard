@@ -28,24 +28,24 @@ Test-Endpoint "Voice Billing (Ops)" "$baseUrl/operations" (@{
 } | ConvertTo-Json)
 
 # 2. Interactions
-Test-Endpoint "Drug Interactions" "$baseUrl/interactions" (@{ 
+Test-Endpoint "Drug Interactions" "$baseUrl/medix-interactions-v5" (@{ 
     drugs=@("Aspirin", "Warfarin"); 
     shopId=$shopId 
 } | ConvertTo-Json)
 
 # 3. Compliance
-Test-Endpoint "Compliance Check" "$baseUrl/compliance-check" (@{ 
+Test-Endpoint "Compliance Check" "$baseUrl/medix-compliance-v5" (@{ 
     drugName="Corex"; 
     shopId=$shopId 
 } | ConvertTo-Json)
 
 # 4. Forecast (Restock Predictions)
-Test-Endpoint "Sales Forecast" "$baseUrl/forecast" (@{ 
+Test-Endpoint "Sales Forecast" "$baseUrl/medix-forecast-v5" (@{ 
     shopId=$shopId 
 } | ConvertTo-Json)
 
 # 5. Market Intel
-Test-Endpoint "Market Intel" "$baseUrl/market" (@{ 
+Test-Endpoint "Market Intel" "$baseUrl/medix-market-v5" (@{ 
     shopId=$shopId 
 } | ConvertTo-Json)
 

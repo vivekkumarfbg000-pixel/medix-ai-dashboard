@@ -33,9 +33,17 @@ interface Reminder {
 }
 
 const Alerts = () => {
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Fetch persistent notifications
+  const [persistentAlerts, setPersistentAlerts] = useState<any[]>([]);
+
+  const fetchNotifications = async () => {
+    const { data } = await supabase
+      .from("notifications")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (data) setPersistentAlerts(data);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,190 +54,70 @@ const Alerts = () => {
 
       if (inventoryRes.data) setInventory(inventoryRes.data);
       if (remindersRes.data) setReminders(remindersRes.data);
+
+      await fetchNotifications(); // Fetch persistent history
       setLoading(false);
     };
 
     fetchData();
   }, []);
 
-  // Calculate alerts
-  const expiryAlerts = inventory.filter(item => {
-    if (!item.expiry_date) return false;
-    const days = differenceInDays(new Date(item.expiry_date), new Date());
-    return days <= 90 && days >= 0;
-  });
+  const markAsRead = async (id: string) => {
+    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+    fetchNotifications(); // Refresh
+  };
 
-  const expiredItems = inventory.filter(item => {
-    if (!item.expiry_date) return false;
-    return differenceInDays(new Date(item.expiry_date), new Date()) < 0;
-  });
+  // ... existing calculation logic ...
+  // Merging persistent alerts into the UI or creating a new tab
 
-  const lowStockItems = inventory.filter(item =>
-    item.quantity < (item.reorder_level || 10)
-  );
+  // existing filter logic ...
+  const historyAlerts = persistentAlerts.map(n => ({
+    type: "history",
+    title: n.title,
+    description: n.message,
+    severity: "info",
+    date: new Date(n.created_at),
+    is_read: n.is_read,
+    id: n.id
+  }));
 
-  const upcomingReminders = reminders.filter(r => {
-    const days = differenceInDays(new Date(r.reminder_date), new Date());
-    return days >= 0 && days <= 5;
-  });
+  // ... Update Return JSX ...
+  <TabsTrigger value="history" className="gap-2">
+    <Clock className="w-4 h-4" />
+    History ({persistentAlerts.length})
+  </TabsTrigger>
+        </TabsList >
 
-  const allAlerts = [
-    ...expiredItems.map(item => ({
-      type: "expired",
-      title: `${item.medicine_name} has expired`,
-      description: `Expired on ${item.expiry_date ? format(new Date(item.expiry_date), "MMM dd, yyyy") : "N/A"}`,
-      severity: "critical"
-    })),
-    ...expiryAlerts.map(item => ({
-      type: "expiry",
-      title: `${item.medicine_name} expiring soon`,
-      description: `Expires on ${item.expiry_date ? format(new Date(item.expiry_date), "MMM dd, yyyy") : "N/A"}`,
-      severity: differenceInDays(new Date(item.expiry_date!), new Date()) <= 30 ? "high" : "medium"
-    })),
-    ...lowStockItems.map(item => ({
-      type: "stock",
-      title: `Low stock: ${item.medicine_name}`,
-      description: `Only ${item.quantity} units remaining`,
-      severity: item.quantity <= 5 ? "high" : "medium"
-    })),
-    ...upcomingReminders.map(r => ({
-      type: "reminder",
-      title: `Refill reminder for ${r.patient_name}`,
-      description: `${r.medicine_name} - ${format(new Date(r.reminder_date), "MMM dd")}`,
-      severity: "info"
-    }))
-  ];
+  <TabsContent value="all">
+    <AlertsList alerts={allAlerts} loading={loading} />
+  </TabsContent>
 
-  const criticalCount = allAlerts.filter(a => a.severity === "critical" || a.severity === "high").length;
+{/* ... existing tabs ... */ }
 
-  return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Alerts & Notifications</h1>
-          <p className="text-muted-foreground mt-1">
-            Stay updated on inventory, expiry, and patient reminders
-          </p>
-        </div>
-        {criticalCount > 0 && (
-          <Badge variant="destructive" className="w-fit">
-            {criticalCount} Critical Alerts
-          </Badge>
-        )}
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className={expiredItems.length > 0 ? "border-destructive/50 bg-destructive/5" : ""}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${expiredItems.length > 0 ? "bg-destructive/20" : "bg-muted"}`}>
-                <AlertTriangle className={`w-5 h-5 ${expiredItems.length > 0 ? "text-destructive" : "text-muted-foreground"}`} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{expiredItems.length}</p>
-                <p className="text-sm text-muted-foreground">Expired</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={expiryAlerts.length > 0 ? "border-warning/50 bg-warning/5" : ""}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${expiryAlerts.length > 0 ? "bg-warning/20" : "bg-muted"}`}>
-                <Clock className={`w-5 h-5 ${expiryAlerts.length > 0 ? "text-warning" : "text-muted-foreground"}`} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{expiryAlerts.length}</p>
-                <p className="text-sm text-muted-foreground">Expiring Soon</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={lowStockItems.length > 0 ? "border-info/50 bg-info/5" : ""}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${lowStockItems.length > 0 ? "bg-info/20" : "bg-muted"}`}>
-                <Package className={`w-5 h-5 ${lowStockItems.length > 0 ? "text-info" : "text-muted-foreground"}`} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{lowStockItems.length}</p>
-                <p className="text-sm text-muted-foreground">Low Stock</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Users className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{upcomingReminders.length}</p>
-                <p className="text-sm text-muted-foreground">Refill Reminders</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Alerts Tabs */}
-      <Tabs defaultValue="all" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="all" className="gap-2">
-            <Bell className="w-4 h-4" />
-            All ({allAlerts.length})
-          </TabsTrigger>
-          <TabsTrigger value="expiry" className="gap-2">
-            <Clock className="w-4 h-4" />
-            Expiry ({expiryAlerts.length + expiredItems.length})
-          </TabsTrigger>
-          <TabsTrigger value="stock" className="gap-2">
-            <Package className="w-4 h-4" />
-            Stock ({lowStockItems.length})
-          </TabsTrigger>
-          <TabsTrigger value="reminders" className="gap-2">
-            <Users className="w-4 h-4" />
-            Reminders ({upcomingReminders.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="all">
-          <AlertsList alerts={allAlerts} loading={loading} />
-        </TabsContent>
-
-        <TabsContent value="expiry">
-          <AlertsList
-            alerts={allAlerts.filter(a => a.type === "expiry" || a.type === "expired")}
-            loading={loading}
-            emptyMessage="No expiry alerts"
-          />
-        </TabsContent>
-
-        <TabsContent value="stock">
-          <AlertsList
-            alerts={allAlerts.filter(a => a.type === "stock")}
-            loading={loading}
-            emptyMessage="All stock levels are healthy"
-          />
-        </TabsContent>
-
-        <TabsContent value="reminders">
-          <AlertsList
-            alerts={allAlerts.filter(a => a.type === "reminder")}
-            loading={loading}
-            emptyMessage="No upcoming refill reminders"
-          />
-        </TabsContent>
-      </Tabs>
-    </div>
+<TabsContent value="history">
+  <div className="space-y-3">
+    {historyAlerts.map((alert, i) => (
+      <Card key={i} className={`border-l-4 ${alert.is_read ? 'opacity-60' : 'border-primary'}`}>
+        <CardContent className="p-4 flex items-center justify-between">
+          <div>
+            <p className="font-medium">{alert.title}</p>
+            <p className="text-sm text-muted-foreground">{alert.description}</p>
+            <p className="text-xs text-muted-foreground mt-1">{format(alert.date, "PP p")}</p>
+          </div>
+          {!alert.is_read && (
+            <Button variant="outline" size="sm" onClick={() => markAsRead(alert.id)}>Mark Read</Button>
+          )}
+        </CardContent>
+      </Card>
+    ))}
+    {historyAlerts.length === 0 && <p className="text-center text-muted-foreground py-10">No history found.</p>}
+  </div>
+</TabsContent>
+      </Tabs >
+    </div >
   );
 };
+
 
 interface AlertsListProps {
   alerts: any[];

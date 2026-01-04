@@ -4,12 +4,12 @@
 
 const N8N_BASE = "https://vivek2073.app.n8n.cloud/webhook";
 const ENDPOINTS = {
-    CHAT: `${N8N_BASE}/chat`,
-    INTERACTIONS: `${N8N_BASE}/interactions`,
-    MARKET: `${N8N_BASE}/market`,
-    COMPLIANCE: `${N8N_BASE}/compliance-check`,
+    CHAT: `${N8N_BASE}/medix-chat-v5`, // Assuming chat was intended for v5 or skipped
+    INTERACTIONS: `${N8N_BASE}/medix-interactions-v5`,
+    MARKET: `${N8N_BASE}/medix-market-v5`,
+    COMPLIANCE: `${N8N_BASE}/medix-compliance-v5`,
     OPS: `${N8N_BASE}/operations`,
-    FORECAST: `${N8N_BASE}/forecast`
+    FORECAST: `${N8N_BASE}/medix-forecast-v5`
 };
 
 const MOCK_USER = { userId: "test-user-id", shopId: "test-shop-id" };
@@ -53,18 +53,21 @@ async function runTests() {
         if (!data.output && !data.reply) return "Missing 'output' or 'reply' field";
         return null;
     });
+    await new Promise(r => setTimeout(r, 5000)); // Delay to avoid 429 Rate Limits
 
     // 2. INTERACTIONS
     await testEndpoint("Interactions", ENDPOINTS.INTERACTIONS, { drugs: ["Aspirin", "Warfarin"] }, (data) => {
         if (!data.interactions || !Array.isArray(data.interactions)) return "Missing 'interactions' array";
         return null;
     });
+    await new Promise(r => setTimeout(r, 5000));
 
     // 3. COMPLIANCE
     await testEndpoint("Compliance", ENDPOINTS.COMPLIANCE, { drugName: "Corex" }, (data) => {
         if (typeof data.is_banned === 'undefined') return "Missing 'is_banned' field";
         return null;
     });
+    await new Promise(r => setTimeout(r, 5000));
 
     // 4. MARKET
     await testEndpoint("Market", ENDPOINTS.MARKET, { drugName: "Dolo 650" }, (data) => {
@@ -74,6 +77,7 @@ async function runTests() {
         if (!Array.isArray(data)) return "Expected Array of opportunities";
         return null;
     });
+    await new Promise(r => setTimeout(r, 5000));
 
     // 5. FORECAST
     await testEndpoint("Forecast", ENDPOINTS.FORECAST, {
@@ -84,6 +88,16 @@ async function runTests() {
         // The workflow saves to DB, then returns $json.
         // It likely returns the inserted row.
         if (!data) return "No data returned";
+        return null;
+    });
+    await new Promise(r => setTimeout(r, 5000));
+
+    // 6. OPERATIONS (Scan Report - Critical Path)
+    await testEndpoint("Operations (Scan Report)", ENDPOINTS.OPS, {
+        action: "scan-report",
+        image_base64: "base64_placeholder_string_for_testing" // Gemini might error on invalid base64 but should not 404
+    }, (data) => {
+        if (data.error) return "Returned error: " + JSON.stringify(data.error);
         return null;
     });
 }
