@@ -66,19 +66,9 @@ const Forecasting = () => {
       .select('*')
       .order('predicted_quantity', { ascending: false });
 
-    // Fetch Chart History
-    // @ts-ignore
-    const { data: chartData } = await supabase
-      .from('forecast_history')
-      .select('month_data')
-      .eq('shop_id', currentShop?.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (chartData && chartData.month_data) {
-      setForecastHistory(chartData.month_data);
-    }
+    // forecast_history table doesn't exist yet - using empty array as placeholder
+    // Future: Create forecast_history table for storing chart data
+    setForecastHistory([]);
 
 
     if (data) {

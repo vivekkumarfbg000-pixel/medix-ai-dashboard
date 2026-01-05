@@ -33,19 +33,9 @@ const Compliance = () => {
     }, [currentShop]);
 
     const fetchLicense = async () => {
-        // Fetch explicit license_expiry from shops table
-        const { data } = await supabase
-            .from('shops')
-            .select('license_expiry')
-            .eq('id', currentShop?.id)
-            .single();
-
-        if (data?.license_expiry) {
-            setLicenseExpiry(data.license_expiry);
-        } else {
-            // Fallback for demo if null (set to 1 year from now)
-            setLicenseExpiry(new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString());
-        }
+        // license_expiry column doesn't exist yet - using fallback for demo
+        // Future: Add license_expiry column to shops table
+        setLicenseExpiry(new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString());
     };
 
     const fetchH1Data = async () => {

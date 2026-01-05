@@ -108,6 +108,25 @@ export default function AuditLogs() {
 
   const uniqueTables = [...new Set(logs.map(log => log.table_name))];
 
+  const handleExportCSV = () => {
+    const headers = ["Timestamp", "Table", "Action", "Record ID", "User ID"];
+    const rows = filteredLogs.map(log => [
+      format(new Date(log.created_at), "yyyy-MM-dd HH:mm:ss"),
+      log.table_name,
+      log.action,
+      log.record_id,
+      log.user_id || "System"
+    ]);
+    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `audit_logs_${format(new Date(), "yyyyMMdd")}.csv`;
+    a.click();
+    toast.success("CSV exported successfully");
+  };
+
   const getActionBadge = (action: string) => {
     switch (action) {
       case "INSERT":
