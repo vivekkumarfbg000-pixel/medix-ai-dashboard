@@ -197,6 +197,38 @@ const Customers = () => {
                         <p className="text-xs text-muted-foreground">Across {customers.filter(c => c.credit_balance > 0).length} customers</p>
                     </CardContent>
                 </Card>
+
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Top Debtor</CardTitle>
+                        <ArrowUpRight className="w-4 h-4 text-red-500" />
+                    </CardHeader>
+                    <CardContent>
+                        {customers.length > 0 ? (
+                            <>
+                                <div className="text-2xl font-bold truncate">
+                                    {customers.sort((a, b) => b.credit_balance - a.credit_balance)[0]?.name || "None"}
+                                </div>
+                                <p className="text-xs text-red-600 font-medium">
+                                    Owes ₹{customers.sort((a, b) => b.credit_balance - a.credit_balance)[0]?.credit_balance?.toLocaleString() || 0}
+                                </p>
+                            </>
+                        ) : (
+                            <div className="text-2xl font-bold">--</div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Active Accounts</CardTitle>
+                        <Users className="w-4 h-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{customers.length}</div>
+                        <p className="text-xs text-muted-foreground">Total registered customers</p>
+                    </CardContent>
+                </Card>
             </div>
 
             <div className="flex items-center gap-2 bg-white p-2 rounded-lg border max-w-sm">

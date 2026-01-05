@@ -12,7 +12,8 @@ import {
   Activity,
   ShieldAlert,
   Store,
-  Users
+  Users,
+  History
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +43,7 @@ const mainNavItems = [
   { title: "Orders", url: "/dashboard/orders", icon: MessageSquare },
   { title: "Smart Khata", url: "/dashboard/customers", icon: Users },
   { title: "Digital Parchas", url: "/dashboard/prescriptions", icon: FileText },
+  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: History },
 ];
 
 const aiNavItems = [

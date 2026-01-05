@@ -1,0 +1,16 @@
+
+{{ {
+  "contents": [{
+    "parts": [
+      {
+        "text": "You are a Senior Pathologist AI. Your task is to analyze this medical lab report image with high precision.\n\n### INSTRUCTIONS:\n1. **Extraction**: Identify every test parameter, measured value, unit, and reference range visible.\n2. **Validation**: Compare the 'Value' against the 'Reference Range' to determine the status (Normal, High, Low, Critical).\n3. **Insight Generation**: \n   - Generate a professional 2-sentence summary of the overall health status.\n   - Identify potential disease possibilities based on abnormal values.\n   - Suggest specific dietary changes (foods to eat/avoid).\n   - Recommend actionable next steps (e.g., 'Retest in 3 months', 'Consult Cardiologist').\n\n### OUTPUT FORMAT:\nReturn a SINGLE valid formatted JSON object. Do not include markdown formatting.\n\n{\n  \"result\": \"string (Professional summary of the report)\",\n  \"results\": [\n    {\n      \"parameter\": \"string (Test Name, e.g., 'Total Cholesterol')\",\n      \"value\": \"string (e.g., '240')\",\n      \"unit\": \"string (e.g., 'mg/dL')\",\n      \"normalRange\": \"string (e.g., '< 200')\",\n      \"status\": \"string (Normal | High | Low | Critical)\",\n      \"color\": \"string (green | red | yellow)\"\n    }\n  ],\n  \"disease_possibility\": [\"string (e.g., 'Hyperlipidemia')\"],\n  \"diet\": [\"string (e.g., 'Avoid fried foods', 'Increase soluble fiber')\"],\n  \"next_steps\": [\"string (e.g., 'Consult General Physician')\"]\n}"
+      },
+      {
+        "inline_data": {
+          "mime_type": "image/jpeg",
+          "data": $json.body.image_base64
+        }
+      }
+    ]
+  }]
+} }}

@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Upload, FileText, CheckCircle, AlertTriangle, Send, Activity, ArrowRight, Camera } from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertTriangle, Send, Activity, ArrowRight, Camera, Utensils, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -206,19 +206,29 @@ const LabAnalyzer = () => {
                                 <CardContent className="space-y-4">
                                     <div>
                                         <h4 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
-                                            <ArrowRight className="w-4 h-4" /> Diet & Nutrition
+                                            <Utensils className="w-4 h-4" /> Diet & Nutrition
                                         </h4>
-                                        <ul className="list-disc list-inside text-sm text-green-800 space-y-1">
-                                            {report.recommendations.diet.map((item, i) => <li key={i}>{item}</li>)}
-                                        </ul>
+                                        <div className="space-y-2">
+                                            {report.recommendations.diet.map((item, i) => (
+                                                <div key={i} className="flex items-center p-2 bg-white/60 rounded-md shadow-sm border border-green-100">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 mr-2 flex-shrink-0" />
+                                                    <span className="text-sm text-green-800">{item}</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                     <div>
                                         <h4 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
-                                            <ArrowRight className="w-4 h-4" /> Next Steps
+                                            <Stethoscope className="w-4 h-4" /> Next Steps
                                         </h4>
-                                        <ul className="list-disc list-inside text-sm text-green-800 space-y-1">
-                                            {report.recommendations.nextSteps.map((item, i) => <li key={i}>{item}</li>)}
-                                        </ul>
+                                        <div className="space-y-2">
+                                            {report.recommendations.nextSteps.map((item, i) => (
+                                                <div key={i} className="flex items-center p-2 bg-white/60 rounded-md shadow-sm border border-green-100">
+                                                    <ArrowRight className="w-3 h-3 text-green-600 mr-2 flex-shrink-0" />
+                                                    <span className="text-sm text-green-800">{item}</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>

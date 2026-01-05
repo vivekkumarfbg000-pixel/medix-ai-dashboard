@@ -28,7 +28,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Search, Eye, FileText, RefreshCw, Shield, CalendarIcon, X } from "lucide-react";
+import { Search, Eye, FileText, RefreshCw, Shield, CalendarIcon, X, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { toast } from "sonner";
@@ -78,12 +78,12 @@ export default function AuditLogs() {
   }
 
   const filteredLogs = logs.filter((log) => {
-    const matchesSearch = 
+    const matchesSearch =
       log.table_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       log.record_id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesAction = actionFilter === "all" || log.action === actionFilter;
     const matchesTable = tableFilter === "all" || log.table_name === tableFilter;
-    
+
     // Date range filter
     const logDate = new Date(log.created_at);
     let matchesDateRange = true;
@@ -97,7 +97,7 @@ export default function AuditLogs() {
     } else if (endDate) {
       matchesDateRange = logDate <= endOfDay(endDate);
     }
-    
+
     return matchesSearch && matchesAction && matchesTable && matchesDateRange;
   });
 
@@ -131,10 +131,16 @@ export default function AuditLogs() {
           </h1>
           <p className="text-muted-foreground">Track all data changes for compliance</p>
         </div>
-        <Button variant="outline" onClick={fetchLogs} disabled={loading}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExportCSV}>
+            <Download className="w-4 h-4 mr-2" />
+            Export CSV
+          </Button>
+          <Button variant="outline" onClick={fetchLogs} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <Card className="medical-card">
