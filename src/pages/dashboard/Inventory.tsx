@@ -367,25 +367,32 @@ const Inventory = () => {
                         const file = e.target.files?.[0];
                         if (!file) return;
 
+                        // Clear input so same file can be selected again
+                        e.target.value = '';
+
                         const toastId = toast.loading("Uploading to AI Vision Engine...");
                         try {
-                          const reader = new FileReader();
-                          reader.onload = async () => {
-                            const base64 = (reader.result as string).split(',')[1];
-                            // @ts-ignore
-                            const { aiService } = await import("@/services/aiService");
-                            await aiService.triggerOp('scan-medicine', { image_base64: base64 });
-                            toast.success("Scan Complete! Drafts created.");
-                            fetchStaging();
-                          };
-                          reader.readAsDataURL(file);
+                          const base64 = await new Promise<string>((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              const result = reader.result as string;
+                              const b64 = result.includes(',') ? result.split(',')[1] : result;
+                              resolve(b64);
+                            };
+                            reader.onerror = (error) => reject(error);
+                            reader.readAsDataURL(file);
+                          });
+
+                          // @ts-ignore
+                          const { aiService } = await import("@/services/aiService");
+                          await aiService.triggerOp('scan-medicine', { image_base64: base64 });
+                          toast.success("Scan Complete! Drafts created.");
+                          fetchStaging();
                         } catch (err: any) {
-                          console.error(err);
-                          toast.error(err.message || "Scan Failed");
+                          console.error("Scan Error:", err);
+                          toast.error(err.message || "Scan Failed. Check N8N connection.");
                         } finally {
                           toast.dismiss(toastId);
-                          // Reset input
-                          e.target.value = '';
                         }
                       }}
                     />
