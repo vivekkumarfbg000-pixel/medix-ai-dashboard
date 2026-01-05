@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, OfflineInventory } from "@/db/db";
 import { toast } from "sonner";
-import { ShoppingCart, RefreshCw, Mic, Trash2, ArrowLeft } from "lucide-react";
+import { ShoppingCart, RefreshCw, Mic, Trash2, ArrowLeft, Download } from "lucide-react";
 import { Link } from "react-router-dom";
 import { VoiceCommandBar, ParsedItem } from "@/components/dashboard/VoiceCommandBar";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,14 +15,62 @@ import { useUserRole } from "@/hooks/useUserRole";
 const LitePOS = () => {
     const [cart, setCart] = useState<{ item: OfflineInventory; qty: number }[]>([]);
     const [search, setSearch] = useState("");
+    const [isSyncing, setIsSyncing] = useState(false);
+    const { currentShop } = useUserShops();
+
+    // Sync inventory from Supabase to local Dexie DB
+    const syncInventory = async () => {
+        if (!currentShop?.id) {
+            toast.error("No shop selected!");
+            return;
+        }
+        
+        setIsSyncing(true);
+        try {
+            const { data, error } = await supabase
+                .from('inventory')
+                .select('id, medicine_name, quantity, unit_price, batch_number, expiry_date')
+                .eq('shop_id', currentShop.id)
+                .gt('quantity', 0);
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                // Clear existing and add fresh data
+                await db.inventory.clear();
+                await db.inventory.bulkAdd(data.map(item => ({
+                    ...item,
+                    is_synced: 1
+                })));
+                toast.success(`Synced ${data.length} items!`, { description: "Inventory ready for offline use" });
+            } else {
+                toast.info("No inventory items found in your shop");
+            }
+        } catch (err: any) {
+            toast.error("Sync Failed", { description: err.message });
+            console.error(err);
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+    // Auto-sync on mount if online and shop available
+    useEffect(() => {
+        if (currentShop?.id && navigator.onLine) {
+            // Check if local DB is empty
+            db.inventory.count().then(count => {
+                if (count === 0) {
+                    syncInventory();
+                }
+            });
+        }
+    }, [currentShop?.id]);
 
     // Live Query from Local DB (Instant Search)
     const products = useLiveQuery(
-        () => db.inventory
-            .where("medicine_name")
-            .startsWithIgnoreCase(search)
-            .limit(10)
-            .toArray(),
+        () => search 
+            ? db.inventory.where("medicine_name").startsWithIgnoreCase(search).limit(12).toArray()
+            : db.inventory.limit(12).toArray(),
         [search]
     );
 
@@ -144,7 +192,6 @@ const LitePOS = () => {
     };
 
     // --- CHECKOUT LOGIC ---
-    const { currentShop } = useUserShops();
     const { canModify } = useUserRole(currentShop?.id);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
 
@@ -207,6 +254,16 @@ const LitePOS = () => {
                     <span className="text-xs text-blue-100">{currentShop?.name || "No Shop"}</span>
                 </div>
                 <div className="flex items-center gap-2">
+                    <Button 
+                        size="sm" 
+                        variant="secondary"
+                        onClick={syncInventory}
+                        disabled={isSyncing}
+                        className="bg-white/20 hover:bg-white/30 text-white border-0"
+                    >
+                        <RefreshCw className={`w-4 h-4 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
+                        {isSyncing ? 'Syncing...' : 'Sync'}
+                    </Button>
                     <span className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-medium">
                         {navigator.onLine ? "🟢 Online" : "🔴 Offline"}
                     </span>
