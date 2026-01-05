@@ -181,13 +181,6 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
                 : "Click the mic to start voice billing"}
           </span>
 
-          {/* Demo Mode Badge */}
-          {!isRecording && !isProcessing && (
-            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium hidden md:inline-block">
-              DEMO
-            </span>
-          )}
-
           {/* Audio level indicator */}
           {isRecording && (
             <div className="flex items-center gap-1">
