@@ -37,12 +37,8 @@ const Alerts = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchNotifications = async () => {
-    const { data } = await supabase
-      .from("notifications")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (data) setPersistentAlerts(data);
+    // notifications table doesn't exist - using empty array as placeholder
+    setPersistentAlerts([]);
   };
 
   useEffect(() => {
@@ -53,8 +49,8 @@ const Alerts = () => {
         supabase.from("patient_reminders").select("*").order("reminder_date")
       ]);
 
-      if (inventoryRes.data) setInventory(inventoryRes.data);
-      if (remindersRes.data) setReminders(remindersRes.data);
+      if (inventoryRes.data) setInventory(inventoryRes.data as InventoryItem[]);
+      if (remindersRes.data) setReminders(remindersRes.data as Reminder[]);
 
       await fetchNotifications();
       setLoading(false);
@@ -64,7 +60,8 @@ const Alerts = () => {
   }, []);
 
   const markAsRead = async (id: string) => {
-    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+    // notifications table doesn't exist - placeholder for future implementation
+    console.log("Mark as read:", id);
     fetchNotifications();
   };
 

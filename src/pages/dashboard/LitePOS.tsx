@@ -196,31 +196,31 @@ const LitePOS = () => {
     };
 
     return (
-        <div className="h-screen flex flex-col bg-slate-50 relative">
-            {/* Header */}
-            <div className="bg-primary p-4 flex items-center justify-between text-white shadow-md z-10">
-                <Link to="/dashboard" className="flex items-center gap-2 font-bold text-lg">
-                    <ArrowLeft /> Back
+        <div className="h-screen flex flex-col bg-background relative">
+            {/* Header - Deep Blue Gradient */}
+            <div className="bg-gradient-to-r from-blue-700 to-blue-600 p-4 flex items-center justify-between text-white shadow-lg z-10">
+                <Link to="/dashboard" className="flex items-center gap-2 font-bold text-lg hover:opacity-80 transition-opacity">
+                    <ArrowLeft className="w-5 h-5" /> Back
                 </Link>
                 <div className="flex flex-col items-center">
-                    <h1 className="text-xl font-bold">Munim-ji Lite ⚡</h1>
-                    <span className="text-xs opacity-80">{currentShop?.name || "No Shop"}</span>
+                    <h1 className="text-xl font-bold tracking-tight">Munim-ji Lite ⚡</h1>
+                    <span className="text-xs text-blue-100">{currentShop?.name || "No Shop"}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="bg-white/20 px-3 py-1 rounded-full text-sm">
-                        {navigator.onLine ? "🟢 Online" : "🔴 Offline Mode"}
+                    <span className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-medium">
+                        {navigator.onLine ? "🟢 Online" : "🔴 Offline"}
                     </span>
                 </div>
             </div>
 
             <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
                 {/* Left: Product Grid (Big Buttons) */}
-                <div className="flex-1 p-4 overflow-y-auto pb-24 md:pb-4">
+                <div className="flex-1 p-4 overflow-y-auto pb-24 md:pb-4 bg-slate-100 dark:bg-slate-900">
                     <div className="mb-4 flex gap-2">
                         <Input
                             id="lite-search-input"
                             placeholder="Search... (F4)"
-                            className="h-12 text-lg shadow-sm"
+                            className="h-12 text-lg shadow-sm bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-foreground"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
@@ -237,48 +237,48 @@ const LitePOS = () => {
                             <button
                                 key={prod.id}
                                 onClick={() => withHaptic(() => addToCart(prod))}
-                                className="h-32 bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col items-center justify-center gap-2 hover:bg-blue-50 active:scale-95 transition-all"
+                                className="h-32 bg-white dark:bg-slate-800 rounded-xl shadow-md border-2 border-slate-200 dark:border-slate-700 p-4 flex flex-col items-center justify-center gap-2 hover:border-blue-400 hover:shadow-lg active:scale-95 transition-all"
                             >
-                                <span className="font-bold text-lg text-center leading-tight line-clamp-2">{prod.medicine_name}</span>
-                                <span className="text-sm bg-green-100 text-green-700 px-2 py-1 rounded-full font-mono">₹{prod.unit_price}</span>
+                                <span className="font-bold text-base text-slate-800 dark:text-white text-center leading-tight line-clamp-2">{prod.medicine_name}</span>
+                                <span className="text-sm bg-emerald-500 text-white px-3 py-1 rounded-full font-semibold shadow-sm">₹{prod.unit_price}</span>
                             </button>
                         ))}
                         {products?.length === 0 && (
-                            <div className="col-span-full text-center py-10 text-muted-foreground">
+                            <div className="col-span-full text-center py-10 text-slate-500 dark:text-slate-400">
                                 No items found. Run "Sync" first.
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* Right: Cart */}
-                <div className="md:w-96 bg-white shadow-xl border-l flex flex-col z-20">
-                    <div className="p-4 bg-slate-100 border-b">
+                {/* Right: Cart Panel */}
+                <div className="md:w-96 bg-white dark:bg-slate-800 shadow-xl border-l border-slate-200 dark:border-slate-700 flex flex-col z-20">
+                    <div className="p-4 bg-gradient-to-r from-blue-600 to-blue-500 text-white">
                         <h2 className="font-bold text-lg flex items-center gap-2">
-                            <ShoppingCart /> Current Bill
+                            <ShoppingCart className="w-5 h-5" /> Current Bill
                         </h2>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 dark:bg-slate-900">
                         {cart.length === 0 ? (
-                            <div className="text-center py-10 text-muted-foreground">Empty Cart</div>
+                            <div className="text-center py-10 text-slate-500 dark:text-slate-400 font-medium">Empty Cart</div>
                         ) : cart.map((line) => (
                             <div
                                 key={line.item.id}
-                                className="flex justify-between items-center p-3 border rounded-lg bg-slate-50 touch-pan-y"
+                                className="flex justify-between items-center p-3 border-2 border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 touch-pan-y shadow-sm"
                                 onTouchStart={onTouchStart}
                                 onTouchMove={onTouchMove}
                                 onTouchEnd={() => onTouchEnd(line.item.id)}
                             >
-                                <div>
-                                    <div className="font-medium">{line.item.medicine_name}</div>
-                                    <div className="text-sm text-muted-foreground">
-                                        ₹{line.item.unit_price} x {line.qty}
+                                <div className="flex-1 min-w-0">
+                                    <div className="font-semibold text-slate-800 dark:text-white truncate">{line.item.medicine_name}</div>
+                                    <div className="text-sm text-slate-600 dark:text-slate-300">
+                                        ₹{line.item.unit_price} × {line.qty}
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="font-bold">₹{line.item.unit_price * line.qty}</span>
-                                    <Button variant="ghost" size="icon" onClick={() => withHaptic(() => removeFromCart(line.item.id))}>
+                                <div className="flex items-center gap-2 ml-2">
+                                    <span className="font-bold text-emerald-600 dark:text-emerald-400 text-lg">₹{line.item.unit_price * line.qty}</span>
+                                    <Button variant="ghost" size="icon" className="hover:bg-red-100 dark:hover:bg-red-900/30" onClick={() => withHaptic(() => removeFromCart(line.item.id))}>
                                         <Trash2 className="w-4 h-4 text-red-500" />
                                     </Button>
                                 </div>
@@ -286,14 +286,14 @@ const LitePOS = () => {
                         ))}
                     </div>
 
-                    <div className="p-4 border-t bg-slate-50 space-y-4">
-                        <div className="flex justify-between text-xl font-bold">
+                    <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-4">
+                        <div className="flex justify-between text-xl font-bold text-slate-800 dark:text-white">
                             <span>Total</span>
-                            <span>₹{calculateTotal()}</span>
+                            <span className="text-emerald-600 dark:text-emerald-400">₹{calculateTotal()}</span>
                         </div>
                         <Button
                             size="lg"
-                            className="w-full h-14 text-xl font-bold bg-green-600 hover:bg-green-700 active:scale-95 transition-transform"
+                            className="w-full h-14 text-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-transform shadow-lg"
                             onClick={() => withHaptic(handleCheckout)}
                             disabled={isCheckingOut || cart.length === 0}
                         >
@@ -305,7 +305,7 @@ const LitePOS = () => {
 
             {/* Mobile Floating Action Button (FAB) for Voice */}
             <div className="md:hidden fixed bottom-6 right-6 z-50">
-                <div className="bg-primary/90 text-white rounded-full p-2 shadow-2xl">
+                <div className="bg-blue-600 text-white rounded-full p-2 shadow-2xl">
                     <VoiceCommandBar
                         compact={true}
                         onTranscriptionComplete={handleVoiceCommand}
