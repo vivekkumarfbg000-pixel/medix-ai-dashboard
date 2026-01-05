@@ -3,7 +3,7 @@ const models = [
     'gemini-flash-latest'
 ];
 
-const key = "AIzaSyDI4TPL2r8IShASlqSNATT3exBsyz9yEmo"; // User provided key
+const key = process.env.GEMINI_API_KEY || "YOUR_API_KEY_HERE"; // User provided key
 
 async function run() {
     console.log("--- AUTO DIAGNOSTICS ---");

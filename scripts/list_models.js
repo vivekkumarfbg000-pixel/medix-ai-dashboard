@@ -1,4 +1,4 @@
-const key = "AIzaSyDI4TPL2r8IShASlqSNATT3exBsyz9yEmo";
+const key = process.env.GEMINI_API_KEY || "YOUR_API_KEY_HERE";
 
 async function listModels() {
     console.log("--- LISTING MODELS ---");
