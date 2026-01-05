@@ -79,6 +79,9 @@ SELECT id, 'Atorvastatin 10mg', 'Atorva-10', 75.00, 25, true FROM public.distrib
 
 
 -- 6. Seed Inventory (Lite Mode - Important Medicines)
+-- 6a. Ensure Schema Matches (Fix for missing 'mrp')
+ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS mrp DECIMAL(10,2);
+
 -- Attaches to the first shop found in the database.
 INSERT INTO public.inventory (
     shop_id, 
