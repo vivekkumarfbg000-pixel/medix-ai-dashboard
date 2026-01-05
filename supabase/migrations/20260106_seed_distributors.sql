@@ -62,13 +62,18 @@ ALTER TABLE public.catalogs ENABLE ROW LEVEL SECURITY;
 
 DO $$ 
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'distributors' AND policyname = 'Public read access') THEN
-        CREATE POLICY "Public read access" ON public.distributors FOR SELECT USING (true);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'catalogs' AND policyname = 'Public read access') THEN
-        CREATE POLICY "Public read access" ON public.catalogs FOR SELECT USING (true);
-    END IF;
+    -- DROP policies to ensure we are not stuck with old restrictive ones
+    DROP POLICY IF EXISTS "Public read access" ON public.distributors;
+    DROP POLICY IF EXISTS "Public read access" ON public.catalogs;
+
+    -- Re-create policies with full access
+    CREATE POLICY "Public read access" ON public.distributors FOR SELECT USING (true);
+    CREATE POLICY "Public read access" ON public.catalogs FOR SELECT USING (true);
 END $$;
+
+-- Grant permissions explicitly
+GRANT SELECT ON public.distributors TO anon, authenticated, service_role;
+GRANT SELECT ON public.catalogs TO anon, authenticated, service_role;
 
 
 -- 4. Seed Distributors (Placeholder Data)

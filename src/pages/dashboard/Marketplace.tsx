@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserShops } from "@/hooks/useUserShops";
 import { format } from "date-fns";
 
+
 interface CatalogItem {
     id: number;
     drug_name: string;
@@ -40,9 +41,26 @@ const Marketplace = () => {
     }, []);
 
     const fetchCatalogs = async () => {
-        // catalogs and distributors tables don't exist yet - using empty array as placeholder
-        // Future: Create catalogs and distributors tables for B2B marketplace
-        setItems([]);
+        // Debug: Try simple query first without join
+        const { data, error } = await supabase
+            .from('catalogs' as any)
+            .select(`
+                *,
+                distributor:distributors(name)
+            `);
+
+        if (error) {
+            console.error("Supabase Error:", error);
+            toast.error("Error: " + error.message);
+            setItems([]);
+        } else {
+            console.log("Fetched Data:", data);
+            if (!data || data.length === 0) {
+                toast.warning("No catalogs found in database.");
+            }
+            // @ts-ignore
+            setItems(data || []);
+        }
         setLoading(false);
     };
 
@@ -105,11 +123,17 @@ const Marketplace = () => {
         i.brand.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+
+
+
+
     return (
         <div className="space-y-6 animate-fade-in p-4">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-foreground">B2B Marketplace</h1>
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">
+                        B2B Marketplace ({items.length})
+                    </h1>
                     <p className="text-muted-foreground mt-1">Connect with trusted distributors & restock instantly.</p>
                 </div>
                 <Button variant="outline" className="gap-2">
