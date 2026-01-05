@@ -40,6 +40,17 @@ BEGIN
     ) THEN
         ALTER TABLE public.audit_logs ALTER COLUMN record_id TYPE TEXT;
     END IF;
+
+    -- Fix 2: Drop NOT NULL from shop_id if it exists (Legacy schema mismatch)
+    IF EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'audit_logs' 
+        AND column_name = 'shop_id' 
+        AND is_nullable = 'NO'
+    ) THEN
+        ALTER TABLE public.audit_logs ALTER COLUMN shop_id DROP NOT NULL;
+    END IF;
 END $$;
 
 
