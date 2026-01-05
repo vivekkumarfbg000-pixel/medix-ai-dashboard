@@ -107,6 +107,9 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
           const response = await aiService.processVoiceBill(audioBlob);
 
           if (response) {
+            // Check if it's demo mode
+            const isDemo = response.demo === true;
+
             // Prefer n8n parsed items, fallback to local parsing if only text is returned
             const transcription = response.transcription || response.text || "";
             const items = response.items || parseTranscription(transcription);
@@ -116,7 +119,14 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
             }
 
             onTranscriptionComplete(transcription, items);
-            toast.success("Voice command processed!");
+
+            if (isDemo) {
+              toast.success("Voice command processed!", {
+                description: "🎭 Demo Mode - Using mock data. Configure n8n for real voice recognition."
+              });
+            } else {
+              toast.success("Voice command processed!");
+            }
           } else {
             throw new Error("Empty response from AI");
           }
@@ -170,6 +180,13 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
                 ? "Processing your voice command..."
                 : "Click the mic to start voice billing"}
           </span>
+
+          {/* Demo Mode Badge */}
+          {!isRecording && !isProcessing && (
+            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium hidden md:inline-block">
+              DEMO
+            </span>
+          )}
 
           {/* Audio level indicator */}
           {isRecording && (
