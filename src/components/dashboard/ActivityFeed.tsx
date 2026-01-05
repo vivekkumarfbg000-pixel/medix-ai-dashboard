@@ -37,7 +37,7 @@ export const ActivityFeed = () => {
                 .limit(20);
 
             if (data) {
-                const mappedActivities: ActivityItem[] = data.map((log: AuditLog) => {
+                const mappedActivities: ActivityItem[] = data.map((log: any) => {
                     let description = "System Action";
                     let icon = Activity;
                     let type: ActivityItem["type"] = "unknown";

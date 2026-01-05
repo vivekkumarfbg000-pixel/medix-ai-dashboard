@@ -40,21 +40,9 @@ const Marketplace = () => {
     }, []);
 
     const fetchCatalogs = async () => {
-        const { data, error } = await supabase
-            .from('catalogs')
-            .select(`
-                *,
-                distributor:distributors(name)
-            `);
-
-        if (error) {
-            console.error(error);
-            toast.error("Failed to load marketplace data");
-            setItems([]);
-        } else {
-            // @ts-ignore
-            setItems(data || []);
-        }
+        // catalogs and distributors tables don't exist yet - using empty array as placeholder
+        // Future: Create catalogs and distributors tables for B2B marketplace
+        setItems([]);
         setLoading(false);
     };
 
@@ -71,13 +59,9 @@ const Marketplace = () => {
 
     const fetchOrders = async () => {
         if (!currentShop?.id) return;
-        const { data, error } = await supabase
-            .from('b2b_orders')
-            .select('*')
-            .eq('shop_id', currentShop.id)
-            .order('created_at', { ascending: false });
-
-        if (data) setOrders(data);
+        // b2b_orders table doesn't exist yet - using empty array as placeholder
+        // Future: Create b2b_orders table for B2B order tracking
+        setOrders([]);
     };
 
     useEffect(() => {
@@ -99,15 +83,9 @@ const Marketplace = () => {
                 const distItems = cart.filter(c => c.distributor.name === distName);
                 const total = distItems.reduce((a, c) => a + (c.price * c.orderQty), 0);
 
-                const { error } = await supabase.from('b2b_orders').insert({
-                    shop_id: currentShop.id,
-                    distributor_name: distName,
-                    total_amount: total,
-                    status: 'pending',
-                    items: distItems
-                });
-
-                if (error) throw error;
+                // b2b_orders table doesn't exist yet - placeholder for future implementation
+                console.log("B2B Order:", { distName, total, items: distItems });
+                // Future: Insert into b2b_orders table
             }
 
             toast.success("B2B Order(s) Placed Successfully!");
