@@ -14,17 +14,22 @@ export const SystemHealthWidget = () => {
     const [loading, setLoading] = useState(true);
 
     const checkHealth = async () => {
-        setLoading(true);
-        // @ts-ignore - Table exists in database
-        const { count, error } = await supabase
-            .from('retry_queue')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'pending');
+        try {
+            setLoading(true);
+            // @ts-ignore - Table exists in database
+            const { count, error } = await supabase
+                .from('retry_queue')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'pending');
 
-        if (!error && count !== null) {
-            setErrorCount(count);
+            if (!error && count !== null) {
+                setErrorCount(count);
+            }
+        } catch (e) {
+            console.error("Health check failed:", e);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     useEffect(() => {
