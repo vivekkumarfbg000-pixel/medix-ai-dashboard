@@ -133,9 +133,21 @@ export const aiService = {
         });
 
         if (!response.ok) throw new Error("Analysis Engine Failed");
-        const resData = await response.json();
-        console.log("[N8N Response] Analyze Document:", resData);
-        return resData;
+
+        const text = await response.text();
+        if (!text) {
+            console.warn("[N8N Response] Analyze Document: Empty Body");
+            return { result: "Analysis completed but no data returned." };
+        }
+
+        try {
+            const resData = JSON.parse(text);
+            console.log("[N8N Response] Analyze Document:", resData);
+            return resData;
+        } catch (e) {
+            console.error("Failed to parse N8N response:", text);
+            throw new Error("Invalid response from Analysis Engine");
+        }
     },
 
     /**
@@ -160,9 +172,21 @@ export const aiService = {
         });
 
         if (!response.ok) throw new Error(`Ops Trigger Failed: ${response.status}`);
-        const data = await response.json();
-        console.log("[N8N Response] TriggerOp:", data);
-        return data;
+
+        const text = await response.text();
+        if (!text) {
+            console.warn("[N8N Response] TriggerOp: Empty Body");
+            return { success: true, message: "Operation completed (No info returned)" };
+        }
+
+        try {
+            const data = JSON.parse(text);
+            console.log("[N8N Response] TriggerOp:", data);
+            return data;
+        } catch (e) {
+            console.error("Failed to parse N8N response:", text);
+            throw new Error("Invalid response from AI Agent");
+        }
     },
 
     /**
