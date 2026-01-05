@@ -25,32 +25,22 @@ EXCEPTION
     WHEN others THEN NULL; -- Ignore if constraint cannot be added (e.g., duplicates exist)
 END $$;
 
--- 1d. Fix Audit Logs schema mismatch (UUID vs TEXT)
--- The error "column record_id is of type uuid but expression is of type text" happens because
--- an old migration created it as UUID, but the new trigger converts NEW.id to text.
+-- 1d. Fix Audit Logs schema mismatch (UUID vs TEXT and Shop ID)
 DO $$ 
 BEGIN
-    -- Check if record_id is UUID (constraints usually implied by type)
-    IF EXISTS (
-        SELECT 1 
-        FROM information_schema.columns 
-        WHERE table_name = 'audit_logs' 
-        AND column_name = 'record_id' 
-        AND data_type = 'uuid'
-    ) THEN
+    -- Force record_id to TEXT (Handle UUID mismatch)
+    BEGIN
         ALTER TABLE public.audit_logs ALTER COLUMN record_id TYPE TEXT;
-    END IF;
+    EXCEPTION
+        WHEN OTHERS THEN NULL; -- Ignore if already text or incompatible
+    END;
 
-    -- Fix 2: Drop NOT NULL from shop_id if it exists (Legacy schema mismatch)
-    IF EXISTS (
-        SELECT 1 
-        FROM information_schema.columns 
-        WHERE table_name = 'audit_logs' 
-        AND column_name = 'shop_id' 
-        AND is_nullable = 'NO'
-    ) THEN
+    -- Force shop_id to be NULLABLE (Handle legacy Not-Null constraint)
+    BEGIN
         ALTER TABLE public.audit_logs ALTER COLUMN shop_id DROP NOT NULL;
-    END IF;
+    EXCEPTION
+        WHEN OTHERS THEN NULL; -- Ignore if already nullable or column missing
+    END;
 END $$;
 
 
