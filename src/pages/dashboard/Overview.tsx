@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Pill } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
+import { VoiceCommandBar, ParsedItem } from "@/components/dashboard/VoiceCommandBar";
+import { toast } from "sonner";
 
 // Widgets
 import { QuickActions } from "@/components/dashboard/widgets/QuickActions";
@@ -14,6 +16,15 @@ import { SystemHealthWidget } from "@/components/dashboard/widgets/SystemHealthW
 
 const Overview = () => {
   const [loading, setLoading] = useState(true);
+
+  // Voice command handler
+  const handleVoiceCommand = (transcription: string, items: ParsedItem[]) => {
+    toast.success("Voice command received!", {
+      description: `Captured: ${transcription}. Items will be added to quick order.`
+    });
+    // In a full implementation, this would add items to a quick order or cart
+    console.log("Voice items:", items);
+  };
 
   useEffect(() => {
     // Simulate initial data load or real fetch
@@ -43,10 +54,17 @@ const Overview = () => {
             Good Morning, Vivek. Your pharmacy is <span className="text-green-600 font-bold">98% Efficient</span> today.
           </p>
         </div>
-        <Button className="w-fit shadow-glow bg-primary hover:bg-primary/90 text-white rounded-full px-6">
-          <Pill className="w-4 h-4 mr-2" />
-          Add Manual Entry
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          {/* Voice Billing Bar */}
+          <VoiceCommandBar
+            onTranscriptionComplete={handleVoiceCommand}
+            compact={false}
+          />
+          <Button className="w-fit shadow-glow bg-primary hover:bg-primary/90 text-white rounded-full px-6">
+            <Pill className="w-4 h-4 mr-2" />
+            Add Manual Entry
+          </Button>
+        </div>
       </div>
 
       {/* ROW 1: CORE OPS (3-COLUMN LAYOUT) */}
