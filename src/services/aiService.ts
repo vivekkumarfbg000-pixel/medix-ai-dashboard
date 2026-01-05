@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 const N8N_BASE = "https://vivek2073.app.n8n.cloud/webhook";
 
 // Specific Workflow Routes
-const ENDPOINTS = {
+export const ENDPOINTS = {
     CHAT: `${N8N_BASE}/medix-chat-v2`,           // Integrates with production medix-chat workflow
     INTERACTIONS: `${N8N_BASE}/medix-interactions-v5`, // Renamed for uniqueness
     MARKET: `${N8N_BASE}/medix-market-v5`,             // Renamed for uniqueness
