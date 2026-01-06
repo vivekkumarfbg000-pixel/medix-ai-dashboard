@@ -294,39 +294,13 @@ export const aiService = {
     },
 
     /**
-     * New: Voice Billing Integration
-     * With Demo Mode Support for testing without n8n backend
+     * Voice Billing Integration
+     * Processes voice audio through N8N backend for transcription and parsing
      */
     async processVoiceBill(audioBlob: Blob): Promise<any> {
         const { data: { user } } = await supabase.auth.getUser();
         const shopId = localStorage.getItem("currentShopId");
 
-        // DEMO MODE: Use mock transcription for immediate testing
-        // Set to false when n8n workflow is configured
-        const DEMO_MODE = true;
-
-        if (DEMO_MODE) {
-            console.log("[DEMO MODE] Using mock voice transcription");
-
-            // Simulate processing delay (realistic feel)
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            // Mock response - simulating successful voice transcription
-            const mockTranscription = "2 Crocin, 1 Paracetamol, 3 Aspirin";
-            const mockItems = [
-                { name: "Crocin", quantity: 2 },
-                { name: "Paracetamol", quantity: 1 },
-                { name: "Aspirin", quantity: 3 }
-            ];
-
-            return {
-                transcription: mockTranscription,
-                items: mockItems,
-                demo: true
-            };
-        }
-
-        // PRODUCTION MODE: Use N8N backend
         // Convert Blob to Base64
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);

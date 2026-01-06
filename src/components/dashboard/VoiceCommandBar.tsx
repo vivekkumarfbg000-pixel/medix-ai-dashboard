@@ -107,9 +107,6 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
           const response = await aiService.processVoiceBill(audioBlob);
 
           if (response) {
-            // Check if it's demo mode
-            const isDemo = response.demo === true;
-
             // Prefer n8n parsed items, fallback to local parsing if only text is returned
             const transcription = response.transcription || response.text || "";
             const items = response.items || parseTranscription(transcription);
@@ -119,14 +116,9 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
             }
 
             onTranscriptionComplete(transcription, items);
-
-            if (isDemo) {
-              toast.success("Voice command processed!", {
-                description: "🎭 Demo Mode - Using mock data. Configure n8n for real voice recognition."
-              });
-            } else {
-              toast.success("Voice command processed!");
-            }
+            toast.success("Voice command processed!", {
+              description: transcription
+            });
           } else {
             throw new Error("Empty response from AI");
           }

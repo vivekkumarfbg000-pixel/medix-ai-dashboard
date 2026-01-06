@@ -66,9 +66,24 @@ const Forecasting = () => {
       .select('*')
       .order('predicted_quantity', { ascending: false });
 
-    // forecast_history table doesn't exist yet - using empty array as placeholder
-    // Future: Create forecast_history table for storing chart data
-    setForecastHistory([]);
+    const { data: history } = await supabase
+      .from('forecast_history')
+      .select('*')
+      .eq('shop_id', currentShop.id)
+      .order('forecast_date', { ascending: false })
+      .limit(12);
+
+    if (history) {
+      // Transform to chart format
+      const chartData = history.map(h => ({
+        month: format(new Date(h.forecast_date), 'MMM yy'),
+        sales: h.actual_sales || 0,
+        forecast: h.forecasted_demand || 0
+      }));
+      setForecastHistory(chartData);
+    } else {
+      setForecastHistory([]);
+    }
 
 
     if (data) {

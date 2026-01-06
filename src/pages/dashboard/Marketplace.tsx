@@ -77,9 +77,20 @@ const Marketplace = () => {
 
     const fetchOrders = async () => {
         if (!currentShop?.id) return;
-        // b2b_orders table doesn't exist yet - using empty array as placeholder
-        // Future: Create b2b_orders table for B2B order tracking
-        setOrders([]);
+
+        try {
+            const { data, error } = await supabase
+                .from('b2b_orders')
+                .select('*')
+                .eq('shop_id', currentShop.id)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            setOrders(data || []);
+        } catch (error) {
+            console.error("Error fetching B2B orders:", error);
+            setOrders([]);
+        }
     };
 
     useEffect(() => {
@@ -101,9 +112,16 @@ const Marketplace = () => {
                 const distItems = cart.filter(c => c.distributor.name === distName);
                 const total = distItems.reduce((a, c) => a + (c.price * c.orderQty), 0);
 
-                // b2b_orders table doesn't exist yet - placeholder for future implementation
-                console.log("B2B Order:", { distName, total, items: distItems });
-                // Future: Insert into b2b_orders table
+                // Insert into b2b_orders table
+                const { error } = await supabase.from('b2b_orders').insert({
+                    shop_id: currentShop.id,
+                    distributor_name: distName,
+                    items: distItems,
+                    total_amount: total,
+                    status: 'pending'
+                });
+
+                if (error) throw error;
             }
 
             toast.success("B2B Order(s) Placed Successfully!");

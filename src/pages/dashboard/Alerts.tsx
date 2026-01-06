@@ -37,8 +37,31 @@ const Alerts = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchNotifications = async () => {
-    // notifications table doesn't exist - using empty array as placeholder
-    setPersistentAlerts([]);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('shop_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile?.shop_id) return;
+
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('shop_id', profile.shop_id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      setPersistentAlerts(data || []);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      setPersistentAlerts([]);
+    }
   };
 
   useEffect(() => {
@@ -60,9 +83,17 @@ const Alerts = () => {
   }, []);
 
   const markAsRead = async (id: string) => {
-    // notifications table doesn't exist - placeholder for future implementation
-    console.log("Mark as read:", id);
-    fetchNotifications();
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', id);
+
+      if (error) throw error;
+      await fetchNotifications();
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
   };
 
   // Logic to generate alerts from inventory

@@ -33,9 +33,23 @@ const Compliance = () => {
     }, [currentShop]);
 
     const fetchLicense = async () => {
-        // license_expiry column doesn't exist yet - using fallback for demo
-        // Future: Add license_expiry column to shops table
-        setLicenseExpiry(new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString());
+        try {
+            if (!currentShop?.id) return;
+
+            const { data, error } = await supabase
+                .from('shops')
+                .select('license_expiry')
+                .eq('id', currentShop.id)
+                .single();
+
+            if (error) throw error;
+
+            setLicenseExpiry(data?.license_expiry || null);
+        } catch (error) {
+            console.error("Error fetching license:", error);
+            // Set to null if no license data available
+            setLicenseExpiry(null);
+        }
     };
 
     const fetchH1Data = async () => {

@@ -64,7 +64,7 @@ const AIInsights = () => {
       if (info) {
         toast.success(`Found clinical data for ${info.name}`);
       } else {
-        toast.error("No data found. Try 'Dolo' or 'Metformin' for demo.");
+        toast.error("No data found. Please check the drug name and try again.");
       }
     } catch (error) {
       toast.error("Failed to fetch drug info");
