@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     title TEXT NOT NULL,
     message TEXT NOT NULL,
     type TEXT DEFAULT 'info' CHECK (type IN ('info', 'warning', 'error', 'success')),
-    "read" BOOLEAN DEFAULT FALSE,
+    is_read BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- Add indexes for performance
 CREATE INDEX IF NOT EXISTS idx_notifications_shop_id ON notifications(shop_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications("read") WHERE "read" = FALSE;
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read) WHERE is_read = FALSE;
 
 -- Enable RLS
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;

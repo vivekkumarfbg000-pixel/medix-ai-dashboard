@@ -86,7 +86,7 @@ const Alerts = () => {
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
+        .update({ is_read: true })
         .eq('id', id);
 
       if (error) throw error;
@@ -161,7 +161,7 @@ const Alerts = () => {
     description: n.message,
     severity: "info",
     date: new Date(n.created_at),
-    is_read: n.is_read,
+    is_read: n.is_read || false,
     id: n.id
   }));
 
