@@ -6,11 +6,11 @@ import type { Database } from './types';
 const FALLBACK_URL = "https://placeholder-project.supabase.co";
 const FALLBACK_KEY = "placeholder-key";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || FALLBACK_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || FALLBACK_KEY;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL || FALLBACK_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.SUPABASE_PUBLISHABLE_KEY || FALLBACK_KEY;
 
 if (SUPABASE_URL === FALLBACK_URL) {
-  console.warn("⚠️ Supabase URL is missing! Using fallback. Please check your environment variables.");
+  console.warn("⚠️ Supabase URL is missing! Using fallback. Checked VITE_SUPABASE_URL and SUPABASE_URL.");
 }
 
 // Import the supabase client like this:
