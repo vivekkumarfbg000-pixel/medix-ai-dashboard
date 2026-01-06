@@ -1,18 +1,10 @@
-
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Bell,
-  Clock,
-  Package,
-  Users,
-  CheckCircle,
-} from "lucide-react";
-import { format, differenceInDays, addDays } from "date-fns";
+import { Bell, Clock, Package, Users, CheckCircle } from "lucide-react";
+import { format, differenceInDays } from "date-fns";
 
 interface InventoryItem {
   id: string;
@@ -31,38 +23,9 @@ interface Reminder {
 }
 
 const Alerts = () => {
-  const [persistentAlerts, setPersistentAlerts] = useState<any[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const fetchNotifications = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('shop_id')
-        .eq('id', user.id)
-        .single();
-
-      if (!profile?.shop_id) return;
-
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('shop_id', profile.shop_id)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-      setPersistentAlerts(data || []);
-    } catch (error) {
-      console.error("Error fetching notifications:", error);
-      setPersistentAlerts([]);
-    }
-  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -75,33 +38,16 @@ const Alerts = () => {
       if (inventoryRes.data) setInventory(inventoryRes.data as InventoryItem[]);
       if (remindersRes.data) setReminders(remindersRes.data as Reminder[]);
 
-      await fetchNotifications();
       setLoading(false);
     };
 
     fetchData();
   }, []);
 
-  const markAsRead = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', id);
-
-      if (error) throw error;
-      await fetchNotifications();
-    } catch (error) {
-      console.error("Error marking notification as read:", error);
-    }
-  };
-
-  // Logic to generate alerts from inventory
   const generateAlerts = () => {
     const alerts: any[] = [];
     const today = new Date();
 
-    // 1. Expiry Alerts
     inventory.forEach(item => {
       if (item.expiry_date) {
         const daysToExpiry = differenceInDays(new Date(item.expiry_date), today);
@@ -124,7 +70,6 @@ const Alerts = () => {
         }
       }
 
-      // 2. Stock Alerts
       if (item.quantity <= item.reorder_level) {
         alerts.push({
           type: "stock",
@@ -136,7 +81,6 @@ const Alerts = () => {
       }
     });
 
-    // 3. Reminder Alerts
     reminders.forEach(rem => {
       const due = new Date(rem.reminder_date);
       if (differenceInDays(due, today) <= 1 && rem.status === 'pending') {
@@ -155,18 +99,6 @@ const Alerts = () => {
 
   const generatedAlerts = generateAlerts();
 
-  const historyAlerts = persistentAlerts.map(n => ({
-    type: "history",
-    title: n.title,
-    description: n.message,
-    severity: "info",
-    date: new Date(n.created_at),
-    is_read: n.is_read || false,
-    id: n.id
-  }));
-
-  const allAlerts = [...generatedAlerts, ...historyAlerts.filter(h => !h.is_read)];
-
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
@@ -178,36 +110,20 @@ const Alerts = () => {
         <TabsList>
           <TabsTrigger value="all" className="gap-2">
             <Bell className="w-4 h-4" />
-            Active ({allAlerts.length})
+            Active ({generatedAlerts.length})
           </TabsTrigger>
           <TabsTrigger value="history" className="gap-2">
             <Clock className="w-4 h-4" />
-            History ({persistentAlerts.length})
+            History (0)
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="all">
-          <AlertsList alerts={allAlerts} loading={loading} />
+          <AlertsList alerts={generatedAlerts} loading={loading} />
         </TabsContent>
 
         <TabsContent value="history">
-          <div className="space-y-3">
-            {historyAlerts.map((alert, i) => (
-              <Card key={i} className={`border-l-4 ${alert.is_read ? 'opacity-60' : 'border-primary'}`}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">{alert.title}</p>
-                    <p className="text-sm text-muted-foreground">{alert.description}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{format(alert.date, "PP p")}</p>
-                  </div>
-                  {!alert.is_read && (
-                    <Button variant="outline" size="sm" onClick={() => markAsRead(alert.id)}>Mark Read</Button>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-            {historyAlerts.length === 0 && <p className="text-center text-muted-foreground py-10">No history found.</p>}
-          </div>
+          <div className="text-center text-muted-foreground py-10">No history found.</div>
         </TabsContent>
       </Tabs>
     </div>
