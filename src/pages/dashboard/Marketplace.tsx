@@ -8,6 +8,7 @@ import { Search, ShoppingCart, Truck, Package, Filter, ArrowRight } from "lucide
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserShops } from "@/hooks/useUserShops";
+import logger from "@/utils/logger";
 import { format } from "date-fns";
 
 
@@ -47,14 +48,15 @@ const Marketplace = () => {
             .select(`
                 *,
                 distributor:distributors(name)
-            `);
+            `)
+            .limit(100); // Prevent fetching thousands of items
 
         if (error) {
-            console.error("Supabase Error:", error);
+            logger.error("Supabase Error:", error);
             toast.error("Error: " + error.message);
             setItems([]);
         } else {
-            console.log("Fetched Data:", data);
+            logger.log("Fetched Data:", data);
             if (!data || data.length === 0) {
                 toast.warning("No catalogs found in database.");
             }
@@ -83,12 +85,13 @@ const Marketplace = () => {
                 .from('b2b_orders')
                 .select('*')
                 .eq('shop_id', currentShop.id)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .limit(50); // Pagination
 
             if (error) throw error;
             setOrders(data || []);
         } catch (error) {
-            console.error("Error fetching B2B orders:", error);
+            logger.error("Error fetching B2B orders:", error);
             setOrders([]);
         }
     };
@@ -129,7 +132,7 @@ const Marketplace = () => {
             setActiveTab("orders");
             fetchOrders();
         } catch (e: any) {
-            console.error(e);
+            logger.error(e);
             toast.error("Failed to place order: " + e.message);
         } finally {
             setLoading(false);
