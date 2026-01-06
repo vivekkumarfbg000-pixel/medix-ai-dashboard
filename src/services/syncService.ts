@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { db, OfflineInventory } from "@/db/db";
 import { toast } from "sonner";
+import logger from "@/utils/logger"; // Added logger import
 
 export const syncService = {
     // 1. Pull latest inventory from Supabase -> Dexie
@@ -20,9 +21,9 @@ export const syncService = {
             }));
 
             await db.inventory.bulkPut(offlineData);
-            console.log("Offline DB Synced: ", offlineData.length, " items");
+            logger.log("Offline DB Synced: ", offlineData.length, " items");
         } catch (e) {
-            console.error("Sync Down Failed:", e);
+            logger.error("Sync Down Failed:", e);
         }
     },
 
@@ -31,7 +32,7 @@ export const syncService = {
         // Only fetch if empty or user requests
         const count = await db.inventory.count();
         if (count === 0 && navigator.onLine) {
-            console.log("Seeding Local DB...");
+            logger.log("Seeding Local DB...");
             await this.syncInventoryDown();
         }
     },

@@ -1,4 +1,6 @@
 import { aiService } from "./aiService";
+import { supabase } from "@/integrations/supabase/client";
+import logger from "@/utils/logger";
 
 export interface ClinicalDrugInfo {
   name: string;
@@ -227,10 +229,10 @@ class DrugService {
           // Clean JSON (in case of ```json wrapper)
           const cleanJsonStr = rawJson.replace(/```json/g, '').replace(/```/g, '').trim();
           data = JSON.parse(cleanJsonStr);
-          console.log("Gemini Clinical Data:", data);
+          logger.log("Gemini Clinical Data:", data);
 
         } catch (aiErr) {
-          console.error("Gemini Fallback Failed:", aiErr);
+          logger.error("Gemini Fallback Failed:", aiErr);
           // Final safety net: Empty but valid structure to prevent crash
           return null;
         }
@@ -249,7 +251,7 @@ class DrugService {
       // 5. Structure Data (MediFlow Format)
       return this.formatClinicalData(data, cleanQuery, resolveResult, marketData);
     } catch (error) {
-      console.error("Clinical Engine Error:", error);
+      logger.error("Clinical Engine Error:", error);
       return null;
     }
   }
@@ -430,7 +432,7 @@ class DrugService {
       // Direct call to N8N via AI Service
       return await aiService.checkInteractions(drugs);
     } catch (err) {
-      console.error("Failed to check interactions via AI", err);
+      logger.error("Failed to check interactions via AI", err);
       return [];
     }
   }

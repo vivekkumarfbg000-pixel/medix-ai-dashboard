@@ -122,7 +122,7 @@ export const aiService = {
             .from('clinical-uploads')
             .upload(filePath, file)
             .then(({ error }) => {
-                if (error) console.error("Background Upload Failed:", error);
+                if (error) logger.error("Background Upload Failed:", error);
             });
 
         // 2. Convert to Base64 for N8N (Gemini expects inline data)
@@ -143,7 +143,7 @@ export const aiService = {
         if (type === 'prescription') action = 'scan-parcha';
         if (type === 'invoice') action = 'scan-medicine';
 
-        console.log("[N8N Request] Analyze Document:", { action, size: base64Data.length });
+        logger.log("[N8N Request] Analyze Document:", { action, size: base64Data.length });
         const response = await fetch(ENDPOINTS.OPS, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -165,10 +165,10 @@ export const aiService = {
 
         try {
             const resData = JSON.parse(text);
-            console.log("[N8N Response] Analyze Document:", resData);
+            logger.log("[N8N Response] Analyze Document:", resData);
             return resData;
         } catch (e) {
-            console.error("Failed to parse N8N response:", text);
+            logger.error("Failed to parse N8N response:", text);
             throw new Error("Invalid response from Analysis Engine");
         }
     },
@@ -187,7 +187,7 @@ export const aiService = {
             shopId: shopId
         };
 
-        console.log("[N8N Request] TriggerOp:", finalBody);
+        logger.log("[N8N Request] TriggerOp:", finalBody);
         const response = await fetch(ENDPOINTS.OPS, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -204,10 +204,10 @@ export const aiService = {
 
         try {
             const data = JSON.parse(text);
-            console.log("[N8N Response] TriggerOp:", data);
+            logger.log("[N8N Response] TriggerOp:", data);
             return data;
         } catch (e) {
-            console.error("Failed to parse N8N response:", text);
+            logger.error("Failed to parse N8N response:", text);
             throw new Error("Invalid response from AI Agent");
         }
     },
@@ -218,7 +218,7 @@ export const aiService = {
     async checkInteractions(drugs: string[]): Promise<any[]> {
         if (drugs.length < 2) return [];
 
-        console.log("[N8N Request] Interactions:", { drugs });
+        logger.log("[N8N Request] Interactions:", { drugs });
         const response = await fetch(ENDPOINTS.INTERACTIONS, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -228,12 +228,12 @@ export const aiService = {
 
         const text = await response.text();
         if (!text) {
-            console.error("N8N Interaction Check returned Empty Body");
+            logger.error("N8N Interaction Check returned Empty Body");
             throw new Error("Interaction Check: Backend returned empty response. Check n8n workflow.");
         }
 
         const data = cleanN8NResponse(text);
-        console.log("[N8N Response] Interactions:", data);
+        logger.log("[N8N Response] Interactions:", data);
 
         // Handle nested output structure
         if (data.output && data.output.interactions) {
@@ -247,7 +247,7 @@ export const aiService = {
      * Market Intelligence (Price & Substitutes)
      */
     async getMarketData(drugName: string): Promise<any> {
-        console.log("[N8N Request] Market:", { drugName });
+        logger.log("[N8N Request] Market:", { drugName });
         const response = await fetch(ENDPOINTS.MARKET, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -257,12 +257,12 @@ export const aiService = {
 
         const text = await response.text();
         if (!text) {
-            console.error("N8N Market Intel returned Empty Body");
+            logger.error("N8N Market Intel returned Empty Body");
             throw new Error("Market Check: Backend returned empty response. Check n8n workflow.");
         }
 
         const data = cleanN8NResponse(text);
-        console.log("[N8N Response] Market:", data);
+        logger.log("[N8N Response] Market:", data);
         return data;
     },
 
@@ -270,7 +270,7 @@ export const aiService = {
      * Compliance & Banned Drug Check
      */
     async checkCompliance(drugName: string): Promise<any> {
-        console.log("[N8N Request] Compliance:", { drugName });
+        logger.log("[N8N Request] Compliance:", { drugName });
         const response = await fetch(ENDPOINTS.COMPLIANCE, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -280,12 +280,12 @@ export const aiService = {
 
         const text = await response.text();
         if (!text) {
-            console.error("N8N Compliance Check returned Empty Body");
+            logger.error("N8N Compliance Check returned Empty Body");
             throw new Error("Compliance Check: Backend returned empty response. Check n8n workflow.");
         }
 
         const data = cleanN8NResponse(text);
-        console.log("[N8N Response] Compliance:", data);
+        logger.log("[N8N Response] Compliance:", data);
         return data;
     },
 
@@ -294,7 +294,7 @@ export const aiService = {
      */
     async getInventoryForecast(salesHistory: any[]): Promise<any> {
         const FORECAST_URL = `${N8N_BASE}/forecast`;
-        console.log("[N8N Request] Forecast:", { salesHistory });
+        logger.log("[N8N Request] Forecast:", { salesHistory });
         const response = await fetch(FORECAST_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -307,12 +307,12 @@ export const aiService = {
 
         const text = await response.text();
         if (!text) {
-            console.error("N8N Forecast returned Empty Body");
+            logger.error("N8N Forecast returned Empty Body");
             throw new Error("Forecasting: Backend returned empty response. Check n8n workflow.");
         }
 
         const data = cleanN8NResponse(text);
-        console.log("[N8N Response] Forecast:", data);
+        logger.log("[N8N Response] Forecast:", data);
         return data;
     },
 
@@ -345,7 +345,7 @@ export const aiService = {
             shopId: shopId
         };
 
-        console.log("[N8N Request] Voice Bill Payload (size):", JSON.stringify(payload).length);
+        logger.log("[N8N Request] Voice Bill Payload (size):", JSON.stringify(payload).length);
         const response = await fetch(ENDPOINTS.OPS, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -354,7 +354,7 @@ export const aiService = {
 
         if (!response.ok) throw new Error("Voice Billing Agent Failed");
         const result = await response.json();
-        console.log("[N8N Response] Voice Bill:", result);
+        logger.log("[N8N Response] Voice Bill:", result);
 
         // Handle different response formats from n8n
         if (result.transcription && result.items) {

@@ -3,14 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <!-- TODO: Set the document title to the name of your application -->
-    <title>Lovable App</title>
-    <meta name="description" content="Lovable Generated Project" />
-    <meta name="author" content="Lovable" />
+    
+    <!-- Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" 
+          content="default-src 'self'; 
+                   script-src 'self' 'unsafe-inline' 'unsafe-eval'; 
+                   style-src 'self' 'unsafe-inline'; 
+                   img-src 'self' data: https: blob:; 
+                   font-src 'self' data:;
+                   connect-src 'self' https://*.supabase.co https://*.app.n8n.cloud wss://*.supabase.co;
+                   media-src 'self' blob:;">
+    
+    <title>PharmaAssist.AI Dashboard</title>
+    <meta name="description" content="AI-powered pharmacy management system" />
+    <meta name="author" content="PharmaAssist.AI" />
 
-    <!-- TODO: Update og:title to match your application name -->
-    <meta property="og:title" content="Lovable App" />
-    <meta property="og:description" content="Lovable Generated Project" />
+    <meta property="og:title" content="PharmaAssist.AI Dashboard" />
+    <meta property="og:description" content="AI-powered pharmacy management system" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
 
