@@ -1,4 +1,21 @@
 import { supabase } from "@/integrations/supabase/client";
+import logger from "@/utils/logger";
+
+// Rate limiting configuration
+const requestCache = new Map<string, number>();
+const RATE_LIMIT_MS = 1000; // 1 request per second per endpoint
+
+function checkRateLimit(endpoint: string): boolean {
+    const lastRequest = requestCache.get(endpoint);
+    const now = Date.now();
+
+    if (lastRequest && now - lastRequest < RATE_LIMIT_MS) {
+        return false; // Rate limited
+    }
+
+    requestCache.set(endpoint, now);
+    return true;
+}
 
 // Configuration from Environment
 // Using the N8N Cloud URLs directly
@@ -33,13 +50,13 @@ const cleanN8NResponse = (text: string): any => {
         try {
             parsed = JSON.parse(cleaned);
         } catch (e) {
-            console.error("Failed to parse N8N response:", text);
+            logger.error("Failed to parse N8N response:", text);
             throw new Error("Invalid format received from AI Agent");
         }
     }
 
     if (parsed && (parsed.error || parsed.message === "Webhook call failed")) {
-        console.error("N8N Error Details:", parsed);
+        logger.error("N8N Error Details:", parsed);
         throw new Error(parsed.error || parsed.message || "AI Service Error: Webhook Failed");
     }
 
@@ -62,7 +79,13 @@ export const aiService = {
             shopId: shopId
         };
 
-        console.log("[N8N Request] Chat:", payload);
+        logger.log("[N8N Request] Chat:", payload);
+
+        // Rate limiting check
+        if (!checkRateLimit(ENDPOINTS.CHAT)) {
+            throw new Error("Too many requests. Please wait a moment.");
+        }
+
         const response = await fetch(ENDPOINTS.CHAT, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -71,7 +94,7 @@ export const aiService = {
 
         if (!response.ok) throw new Error(`AI Agent Unreachable: ${response.status}`);
         const data = await response.json();
-        console.log("[N8N Response] Chat:", data);
+        logger.log("[N8N Response] Chat:", data);
 
         if (data.error) {
             throw new Error(data.error);
