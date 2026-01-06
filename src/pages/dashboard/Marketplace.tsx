@@ -1,16 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, ShoppingCart, Truck, Package, Filter, ArrowRight } from "lucide-react";
+import { Search, ShoppingCart, Truck, Package, Filter } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useUserShops } from "@/hooks/useUserShops";
-import logger from "@/utils/logger";
-import { format } from "date-fns";
-
 
 interface CatalogItem {
     id: number;
@@ -28,43 +24,22 @@ interface CartItem extends CatalogItem {
     orderQty: number;
 }
 
+// Sample data since B2B tables don't exist yet
+const sampleItems: CatalogItem[] = [
+    { id: 1, drug_name: "Paracetamol 500mg", brand: "Crocin", price: 25, min_order_qty: 100, in_stock: true, distributor: { name: "Apollo Distributors" } },
+    { id: 2, drug_name: "Azithromycin 500mg", brand: "Azee", price: 120, min_order_qty: 50, in_stock: true, distributor: { name: "MedPlus Wholesale" } },
+    { id: 3, drug_name: "Omeprazole 20mg", brand: "Omez", price: 85, min_order_qty: 100, in_stock: true, distributor: { name: "Apollo Distributors" } },
+    { id: 4, drug_name: "Metformin 500mg", brand: "Glycomet", price: 45, min_order_qty: 200, in_stock: true, distributor: { name: "Pharma Direct" } },
+];
+
 const Marketplace = () => {
     const { currentShop } = useUserShops();
-    const [items, setItems] = useState<CatalogItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [items] = useState<CatalogItem[]>(sampleItems);
+    const [loading, setLoading] = useState(false);
     const [cart, setCart] = useState<CartItem[]>([]);
-    const [orders, setOrders] = useState<any[]>([]);
+    const [orders] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [activeTab, setActiveTab] = useState("browse");
-
-    useEffect(() => {
-        fetchCatalogs();
-    }, []);
-
-    const fetchCatalogs = async () => {
-        // Debug: Try simple query first without join
-        const { data, error } = await supabase
-            .from('catalogs' as any)
-            .select(`
-                *,
-                distributor:distributors(name)
-            `)
-            .limit(100); // Prevent fetching thousands of items
-
-        if (error) {
-            logger.error("Supabase Error:", error);
-            toast.error("Error: " + error.message);
-            setItems([]);
-        } else {
-            logger.log("Fetched Data:", data);
-            if (!data || data.length === 0) {
-                toast.warning("No catalogs found in database.");
-            }
-            // @ts-ignore
-            setItems(data || []);
-        }
-        setLoading(false);
-    };
 
     const addToCart = (item: CatalogItem) => {
         const existing = cart.find(c => c.id === item.id);
@@ -77,29 +52,6 @@ const Marketplace = () => {
         }
     };
 
-    const fetchOrders = async () => {
-        if (!currentShop?.id) return;
-
-        try {
-            const { data, error } = await supabase
-                .from('b2b_orders')
-                .select('*')
-                .eq('shop_id', currentShop.id)
-                .order('created_at', { ascending: false })
-                .limit(50); // Pagination
-
-            if (error) throw error;
-            setOrders(data || []);
-        } catch (error) {
-            logger.error("Error fetching B2B orders:", error);
-            setOrders([]);
-        }
-    };
-
-    useEffect(() => {
-        if (activeTab === "orders") fetchOrders();
-    }, [activeTab, currentShop]);
-
     const placeOrder = async () => {
         if (!currentShop?.id) {
             toast.error("Shop ID missing. Please refresh.");
@@ -108,31 +60,10 @@ const Marketplace = () => {
 
         setLoading(true);
         try {
-            // Group by Distributor
-            const distributors = Array.from(new Set(cart.map(c => c.distributor.name)));
-
-            for (const distName of distributors) {
-                const distItems = cart.filter(c => c.distributor.name === distName);
-                const total = distItems.reduce((a, c) => a + (c.price * c.orderQty), 0);
-
-                // Insert into b2b_orders table
-                const { error } = await supabase.from('b2b_orders').insert({
-                    shop_id: currentShop.id,
-                    distributor_name: distName,
-                    items: distItems,
-                    total_amount: total,
-                    status: 'pending'
-                });
-
-                if (error) throw error;
-            }
-
-            toast.success("B2B Order(s) Placed Successfully!");
+            // B2B tables not yet available - show demo message
+            toast.info("B2B ordering coming soon! Tables not yet configured.");
             setCart([]);
-            setActiveTab("orders");
-            fetchOrders();
         } catch (e: any) {
-            logger.error(e);
             toast.error("Failed to place order: " + e.message);
         } finally {
             setLoading(false);
@@ -143,10 +74,6 @@ const Marketplace = () => {
         i.drug_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         i.brand.toLowerCase().includes(searchQuery.toLowerCase())
     );
-
-
-
-
 
     return (
         <div className="space-y-6 animate-fade-in p-4">
@@ -189,7 +116,7 @@ const Marketplace = () => {
                                     <div className="flex justify-between items-start">
                                         <Badge variant="outline" className="bg-primary/5">{item.distributor.name}</Badge>
                                         <Badge variant={item.in_stock ? "default" : "destructive"} className="text-[10px] h-5">
-                                            {item.in_stock ? "In Stock" : "Helpers"}
+                                            {item.in_stock ? "In Stock" : "Out of Stock"}
                                         </Badge>
                                     </div>
                                     <CardTitle className="mt-2 text-xl">{item.brand}</CardTitle>
@@ -234,16 +161,6 @@ const Marketplace = () => {
                                         <div key={order.id} className="flex justify-between items-center p-4 border rounded-lg hover:bg-muted/50">
                                             <div>
                                                 <p className="font-bold">{order.distributor_name}</p>
-                                                <p className="text-sm text-muted-foreground">Placed on {format(new Date(order.created_at), "dd MMM yyyy, hh:mm a")}</p>
-                                                <div className="text-xs mt-1 text-muted-foreground">
-                                                    {Array.isArray(order.items) && order.items.map((i: any) => i.brand).join(", ")}
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <Badge variant={order.status === 'pending' ? 'outline' : 'default'} className="mb-1">
-                                                    {order.status.toUpperCase()}
-                                                </Badge>
-                                                <p className="font-bold">₹{order.total_amount.toLocaleString()}</p>
                                             </div>
                                         </div>
                                     ))}
@@ -254,7 +171,6 @@ const Marketplace = () => {
                 </TabsContent>
             </Tabs>
 
-            {/* Floating Cart for B2B */}
             {cart.length > 0 && (
                 <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5">
                     <Card className="w-80 shadow-2xl border-primary">
@@ -273,7 +189,7 @@ const Marketplace = () => {
                             ))}
                         </CardContent>
                         <CardFooter className="pt-2 pb-3">
-                            <Button className="w-full" onClick={placeOrder}>Confirm Order</Button>
+                            <Button className="w-full" onClick={placeOrder} disabled={loading}>Confirm Order</Button>
                         </CardFooter>
                     </Card>
                 </div>

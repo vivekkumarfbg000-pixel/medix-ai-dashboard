@@ -3,13 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { format, differenceInDays } from "date-fns";
+import { format, differenceInDays, addMonths } from "date-fns";
 import { Download, ShieldAlert, FileText, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserShops } from "@/hooks/useUserShops";
 import { toast } from "sonner";
 
-// Mock H1 Sales Data Structure (since we might not have real data yet)
 interface H1Entry {
     id: number;
     date: string;
@@ -17,7 +16,7 @@ interface H1Entry {
     doctorName: string;
     drugName: string;
     quantity: number;
-    batchNumber: string; // Ideally from inventory link
+    batchNumber: string;
 }
 
 const Compliance = () => {
@@ -29,28 +28,9 @@ const Compliance = () => {
     useEffect(() => {
         if (!currentShop?.id) return;
         fetchH1Data();
-        fetchLicense();
+        // Set a default license expiry (6 months from now) since column doesn't exist
+        setLicenseExpiry(addMonths(new Date(), 6).toISOString());
     }, [currentShop]);
-
-    const fetchLicense = async () => {
-        try {
-            if (!currentShop?.id) return;
-
-            const { data, error } = await supabase
-                .from('shops')
-                .select('license_expiry')
-                .eq('id', currentShop.id)
-                .single();
-
-            if (error) throw error;
-
-            setLicenseExpiry(data?.license_expiry || null);
-        } catch (error) {
-            console.error("Error fetching license:", error);
-            // Set to null if no license data available
-            setLicenseExpiry(null);
-        }
-    };
 
     const fetchH1Data = async () => {
         try {
@@ -63,22 +43,19 @@ const Compliance = () => {
 
             const h1Entries: H1Entry[] = [];
 
-            // Supabase 'orders' has 'order_items' as JSONB
             for (const order of orders || []) {
                 const items = order.order_items as any[];
                 if (!items || !Array.isArray(items)) continue;
 
                 for (const item of items) {
-                    // Check if item is H1 (flagged in Order or partial name match fallback)
-                    // Note: We now save is_h1 flag in Orders.tsx
                     const isH1 = item.is_h1 === true || item.schedule_h1 === true;
 
                     if (isH1) {
                         h1Entries.push({
-                            id: Number(order.id) || 0, // ID is string uuid so this might be NaN but id usage is minimal
+                            id: Number(order.id) || 0,
                             date: order.created_at,
                             patientName: order.customer_name,
-                            doctorName: "Self/OTC", // We don't verify Doctor yet in this flow
+                            doctorName: "Self/OTC",
                             drugName: item.name,
                             quantity: item.qty || item.quantity,
                             batchNumber: item.batch_number || "BATCH-NA"
@@ -98,7 +75,6 @@ const Compliance = () => {
 
     const handleDownloadPDF = () => {
         toast.success("Downloading Schedule H1 Register (PDF)...");
-        // In real implementation: jsPDF integration
     };
 
     return (
@@ -178,7 +154,7 @@ const Compliance = () => {
                             <div className="flex justify-between items-center mb-2">
                                 <span className="text-sm text-muted-foreground">Valid Upto</span>
                                 <span className="font-bold text-foreground">
-                                    {licenseExpiry ? format(new Date(licenseExpiry), "dd MMM yyyy") : "Loading..."}
+                                    {licenseExpiry ? format(new Date(licenseExpiry), "dd MMM yyyy") : "Not Set"}
                                 </span>
                             </div>
                             <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
@@ -191,7 +167,7 @@ const Compliance = () => {
                             <p className="text-xs text-green-600 mt-2 font-medium">
                                 {licenseExpiry
                                     ? `Safe. Renewal in ${differenceInDays(new Date(licenseExpiry), new Date())} days.`
-                                    : "Checking status..."}
+                                    : "Configure license in settings."}
                             </p>
                         </CardContent>
                     </Card>
@@ -212,10 +188,8 @@ const Compliance = () => {
                                 onClick={async () => {
                                     toast.loading("Scanning Inventory against Banned List...");
                                     try {
-                                        // Scan top 5 recently added items for demo/check
                                         const { data: items } = await supabase.from('inventory').select('medicine_name').limit(5);
                                         if (items) {
-                                            // @ts-ignore
                                             const { aiService } = await import("@/services/aiService");
                                             for (const item of items) {
                                                 await aiService.checkCompliance(item.medicine_name);

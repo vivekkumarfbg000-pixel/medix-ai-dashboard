@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { format, addMonths, parseISO, differenceInDays } from "date-fns";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,21 +11,20 @@ import {
   TrendingDown,
   AlertTriangle,
   Calendar,
-  Package,
-  ArrowUpRight,
   Zap,
   RefreshCw,
   ShoppingCart,
   Hourglass
 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { supabase } from "@/integrations/supabase/client";
+import { useUserShops } from "@/hooks/useUserShops";
 
-// --- TYPES ---
 interface StockoutRisk {
   medicine: string;
   currentStock: number;
   avgDailySales: number;
-  burnRate: number; // days remaining
+  burnRate: number;
   safetyStock: number;
   reorderQty: number;
   criticality: "high" | "medium" | "low";
@@ -41,18 +40,14 @@ interface ExpiryRisk {
   recommendation: string;
 }
 
-import { supabase } from "@/integrations/supabase/client";
-import { useUserShops } from "@/hooks/useUserShops";
-
 const Forecasting = () => {
   const { currentShop } = useUserShops();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("demand");
   const [stockoutRisks, setStockoutRisks] = useState<StockoutRisk[]>([]);
   const [expiryRisks, setExpiryRisks] = useState<ExpiryRisk[]>([]);
-  const [forecastHistory, setForecastHistory] = useState<any[]>([]); // New State for Chart
+  const [forecastHistory, setForecastHistory] = useState<any[]>([]);
 
-  // Fetch Warnings from DB
   useEffect(() => {
     if (!currentShop?.id) return;
     fetchPredictions();
@@ -60,40 +55,21 @@ const Forecasting = () => {
   }, [currentShop?.id]);
 
   const fetchPredictions = async () => {
-    // @ts-ignore - Table exists in database
     const { data } = await supabase
       .from('restock_predictions')
       .select('*')
       .order('predicted_quantity', { ascending: false });
 
-    const { data: history } = await supabase
-      .from('forecast_history')
-      .select('*')
-      .eq('shop_id', currentShop.id)
-      .order('forecast_date', { ascending: false })
-      .limit(12);
-
-    if (history) {
-      // Transform to chart format
-      const chartData = history.map(h => ({
-        month: format(new Date(h.forecast_date), 'MMM yy'),
-        sales: h.actual_sales || 0,
-        forecast: h.forecasted_demand || 0
-      }));
-      setForecastHistory(chartData);
-    } else {
-      setForecastHistory([]);
-    }
-
+    // No forecast_history table - use empty array
+    setForecastHistory([]);
 
     if (data) {
-      // Transform DB data to UI format
       const risks = (data as any[]).map((item) => ({
         medicine: item.medicine_name,
         currentStock: item.current_stock,
-        avgDailySales: item.avg_daily_sales || 5, // Fallback if 0
+        avgDailySales: item.avg_daily_sales || 5,
         burnRate: item.current_stock / (item.avg_daily_sales || 1),
-        safetyStock: 50, // Default constant
+        safetyStock: 50,
         reorderQty: item.predicted_quantity,
         criticality: (item.current_stock / (item.avg_daily_sales || 1)) < 3 ? "high" : "medium"
       }));
@@ -104,7 +80,6 @@ const Forecasting = () => {
   const fetchExpiryRisks = async () => {
     if (!currentShop?.id) return;
 
-    // Fetch items expiring in next 6 months
     const sixMonths = addMonths(new Date(), 6).toISOString();
 
     const { data } = await supabase
@@ -132,63 +107,39 @@ const Forecasting = () => {
     }
   };
 
-  // --- MOCK DATA REMOVED ---
-  // Expiry Risks now fetched from DB
-  const seasonalAlerts: any[] = []; // Future: Fetch from AI Analysis
+  const seasonalAlerts: any[] = [];
 
-  // --- HANDLERS ---
   const runAIAnalysis = async () => {
     if (!currentShop?.id) return;
     setLoading(true);
 
     try {
-      // 1. Fetch Sales History for Context (Last 30 days)
       const { data: salesHistory } = await supabase
-        .from('orders') // Assuming orders table tracks sales
+        .from('orders')
         .select('*')
         .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
         .eq('shop_id', currentShop.id);
 
-      // 2. Call Real AI Forecast Engine (N8N Workflow C)
-      // @ts-ignore
       const aiResponse = await import("@/services/aiService").then(m => m.aiService.getInventoryForecast(salesHistory || []));
 
       if (aiResponse && aiResponse.forecast) {
-        // Clear old predictions
-        // @ts-ignore
         await supabase.from('restock_predictions').delete().eq('shop_id', currentShop.id);
 
-        // Insert AI Predictions
-        // @ts-ignore
         await supabase.from('restock_predictions').insert(aiResponse.forecast.map((item: any) => ({
           shop_id: currentShop.id,
           medicine_name: item.product,
           current_stock: item.current_stock || 0,
-          avg_daily_sales: item.predicted_daily_sales || 5, // AI derived
+          avg_daily_sales: item.predicted_daily_sales || 5,
           predicted_quantity: item.suggested_restock || 50,
           confidence_score: item.confidence || 0.85,
           reason: item.reason || "AI Demand Forecast"
         })));
 
         await fetchPredictions();
-        toast.success("AI Forecast Complete", {
-        });
-
-        // 3. Save Forecast History 
-        // We calculate real monthly aggregates from fetched salesHistory
-        // For now, we skip mocking data.
-        /* 
-        await supabase.from('forecast_history').upsert({
-          shop_id: currentShop.id,
-          month_data: newChartData
-        }); 
-        */
-
-        await fetchPredictions();
+        toast.success("AI Forecast Complete");
       } else {
         throw new Error("Invalid AI Response");
       }
-
     } catch (e) {
       console.error(e);
       toast.error("Forecasting Engine Failed", { description: "Using fallback logic." });
@@ -207,7 +158,6 @@ const Forecasting = () => {
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">FutureSight AI</h1>
@@ -226,7 +176,6 @@ const Forecasting = () => {
           <TabsTrigger value="expiry">Expiry Matrix</TabsTrigger>
         </TabsList>
 
-        {/* TAB 1: DEMAND FORECASTING */}
         <TabsContent value="demand" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
@@ -237,26 +186,32 @@ const Forecasting = () => {
                 <CardDescription>AI Prediction vs Actual Sales (Next 3 Months)</CardDescription>
               </CardHeader>
               <CardContent className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={forecastHistory.length > 0 ? forecastHistory : []}>
-                    <defs>
-                      <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="colorForecast" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                    <Area type="monotone" dataKey="sales" stroke="#3b82f6" fillOpacity={1} fill="url(#colorSales)" name="Actual Sales" />
-                    <Area type="monotone" dataKey="forecast" stroke="#10b981" strokeDasharray="5 5" fillOpacity={1} fill="url(#colorForecast)" name="AI Forecast" />
-                  </AreaChart>
-                </ResponsiveContainer>
+                {forecastHistory.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={forecastHistory}>
+                      <defs>
+                        <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorForecast" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                      <Area type="monotone" dataKey="sales" stroke="#3b82f6" fillOpacity={1} fill="url(#colorSales)" name="Actual Sales" />
+                      <Area type="monotone" dataKey="forecast" stroke="#10b981" strokeDasharray="5 5" fillOpacity={1} fill="url(#colorForecast)" name="AI Forecast" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    Run AI Analysis to generate forecast data
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -274,12 +229,6 @@ const Forecasting = () => {
                       <span className="font-bold text-lg">{season.season}</span>
                       <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">Starts {season.start}</Badge>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
-                      {season.drugs.map((d: any, i: number) => <Badge key={i} variant="secondary">{d}</Badge>)}
-                    </div>
-                    <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-purple-700">
-                      <ArrowUpRight className="w-4 h-4" /> Recommendation: {season.action}
-                    </div>
                   </div>
                 )) : (
                   <p className="text-muted-foreground text-center py-8">No seasonal alerts generated by AI yet.</p>
@@ -289,7 +238,6 @@ const Forecasting = () => {
           </div>
         </TabsContent>
 
-        {/* TAB 2: STOCKOUT RISKS (SMART REORDER) */}
         <TabsContent value="stockouts" className="space-y-6">
           <Card>
             <CardHeader>
@@ -342,7 +290,6 @@ const Forecasting = () => {
           </Card>
         </TabsContent>
 
-        {/* TAB 3: EXPIRY MATRIX */}
         <TabsContent value="expiry" className="space-y-6">
           <Card className="border-l-4 border-l-red-500">
             <CardHeader>
@@ -375,11 +322,13 @@ const Forecasting = () => {
                     </Button>
                   </div>
                 ))}
+                {expiryRisks.length === 0 && (
+                  <p className="text-center py-8 text-muted-foreground">No items nearing expiry.</p>
+                )}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
-
       </Tabs>
     </div>
   );
