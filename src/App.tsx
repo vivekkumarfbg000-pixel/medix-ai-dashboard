@@ -30,6 +30,8 @@ const Prescriptions = lazy(() => import("./pages/dashboard/Prescriptions"));
 const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
 const AuditLogs = lazy(() => import("./pages/dashboard/AuditLogs"));
 const Customers = lazy(() => import("./pages/dashboard/Customers"));
+const EnvDebug = lazy(() => import("./pages/EnvDebug"));
+
 
 const queryClient = new QueryClient();
 
@@ -89,6 +91,7 @@ const App = () => {
                 <Route path="customers" element={<Customers />} />
                 <Route path="audit-logs" element={<AuditLogs />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="env-debug" element={<EnvDebug />} />
               </Route >
               <Route path="*" element={<NotFound />} />
             </Routes >

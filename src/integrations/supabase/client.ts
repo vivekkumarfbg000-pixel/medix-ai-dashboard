@@ -2,8 +2,16 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// Fallback values to prevent crash during initial load if env vars are missing
+const FALLBACK_URL = "https://placeholder-project.supabase.co";
+const FALLBACK_KEY = "placeholder-key";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || FALLBACK_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || FALLBACK_KEY;
+
+if (SUPABASE_URL === FALLBACK_URL) {
+  console.warn("⚠️ Supabase URL is missing! Using fallback. Please check your environment variables.");
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
