@@ -57,8 +57,12 @@ export function useUserShops(): UserShopsState {
           const primary = mappedShops.find((s: Shop) => s.is_primary);
           const savedShopId = localStorage.getItem("currentShopId");
           const savedShop = savedShopId ? mappedShops.find((s: Shop) => s.id === savedShopId) : null;
-          
-          setCurrentShopId(savedShop?.id || primary?.id || mappedShops[0]?.id || null);
+
+          const defaultShopId = savedShop?.id || primary?.id || mappedShops[0]?.id || null;
+          setCurrentShopId(defaultShopId);
+          if (defaultShopId) {
+            localStorage.setItem("currentShopId", defaultShopId);
+          }
         }
       } catch (err) {
         console.error("Error:", err);
