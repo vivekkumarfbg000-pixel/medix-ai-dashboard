@@ -1,0 +1,21 @@
+version: "3"
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    restart: always
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      - N8N_HOST=n8n.medixai.shop
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - NODE_ENV=production
+      - WEBHOOK_URL=https://n8n.medixai.shop/
+      - GENERIC_TIMEZONE=Asia/Kolkata
+      - N8N_EDITOR_BASE_URL=https://n8n.medixai.shop/
+      - N8N_ENDPOINT_REST_CORS_ORIGIN=*
+      - N8N_ENDPOINT_REST_CORS_ALLOW_HEADERS=*
+      - N8N_ENDPOINT_REST_CORS_ALLOW_METHODS=*
+    volumes:
+      - ./n8n_data:/home/node/.n8n

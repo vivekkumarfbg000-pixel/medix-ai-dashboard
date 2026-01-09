@@ -1,5 +1,5 @@
 {
-    "name": "Medix Shop Operator Workflow (Gemini Only)",
+    "name": "Medix Shop Operator Workflow (Gemini Only) - v2 FIXED",
     "nodes": [
         {
             "parameters": {
@@ -53,6 +53,7 @@
             "parameters": {
                 "httpMethod": "POST",
                 "path": "operations",
+                "responseMode": "responseNode",
                 "options": {}
             },
             "id": "ops-webhook",
@@ -156,6 +157,28 @@
                             },
                             "renameOutput": true,
                             "outputKey": "scan_parcha"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": false,
+                                    "leftValue": "",
+                                    "typeValidation": "loose"
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.body.action }}",
+                                        "rightValue": "scan-report",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "contains"
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "scan_report"
                         }
                     ]
                 },
@@ -194,7 +217,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract medicine details. Return valid JSON only: { \\\"medicine_name\\\": string, \\\"batch_number\\\": string, \\\"expiry_date\\\": string (YYYY-MM-DD), \\\"mrp\\\": number }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract ALL medicine details from this image/invoice. Return a valid JSON Array of objects: [{ \\\"medicine_name\\\": string, \\\"batch_number\\\": string, \\\"expiry_date\\\": string (YYYY-MM-DD), \\\"mrp\\\": number, \\\"quantity\\\": number }]. Ensure you capture as many items as possible (up to 50+). STRICT JSON ONLY. NO MARKDOWN. NO BACKTICKS.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
                 "options": {
                     "response": {
                         "response": {
@@ -214,7 +237,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+                "jsCode": "// Clean Gemini Response & Fan-Out Array\nconst text = $input.item.json.candidates[0].content.parts[0].text;\n// Robust Regex to find JSON Array\nconst jsonMatch = text.match(/\\[[\\s\\S]*\\]/);\nif (!jsonMatch) throw new Error(\"No JSON Array found in response\");\nconst parsed = JSON.parse(jsonMatch[0]);\n\n// Determine if it is an array or single object\nconst items = Array.isArray(parsed) ? parsed : [parsed];\n\n// Return in N8N Item format for iteration\nreturn items.map(item => ({ json: item }));"
             },
             "id": "parse-gemini-medicine",
             "name": "Parse Gemini JSON",
@@ -249,7 +272,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract items. Return valid JSON Array only: [{ \\\"item_name\\\": string, \\\"quantity\\\": number, \\\"price\\\": number }].\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract items. Return valid JSON only: { \\\"medicines\\\": [{ \\\"medicine_name\\\": string, \\\"quantity\\\": number, \\\"unit_price\\\": number }] }. STRICT JSON ONLY. NO MARKDOWN.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
                 "options": {
                     "response": {
                         "response": {
@@ -291,7 +314,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Act as an expert Clinical Pharmacist. Analyze this handwritten prescription image carefully.\\n\\nExtract the following details and return them in this specific JSON format ONLY:\\n{\\n  \\\"doctor_name\\\": \\\"string\\\",\\n  \\\"patient_name\\\": \\\"string\\\",\\n  \\\"visit_date\\\": \\\"string (YYYY-MM-DD)\\\",\\n  \\\"medicines\\\": [\\n    {\\n      \\\"medication_name\\\": \\\"string (resolve generic names if brand is unclear)\\\",\\n      \\\"strength\\\": \\\"string (e.g. 500mg)\\\",\\n      \\\"dosage_frequency\\\": \\\"string (e.g. 1-0-1 or BD)\\\",\\n      \\\"duration\\\": \\\"string (e.g. 5 days)\\\",\\n      \\\"notes\\\": \\\"string (instructions like After Food)\\\"\\n    }\\n  ]\\n}\\n\\nDo not include markdown or explanations. Just the JSON.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract prescription info. Return valid JSON only: { \\\"doctor_name\\\": string, \\\"patient_name\\\": string, \\\"medicines\\\": [ { \\\"medication_name\\\": string, \\\"strength\\\": string, \\\"dosage_frequency\\\": string, \\\"duration\\\": string, \\\"notes\\\": string } ], \\\"visit_date\\\": string }. STRICT JSON ONLY. NO MARKDOWN.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
                 "options": {
                     "response": {
                         "response": {
@@ -333,7 +356,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Structure this text into an order. Return JSON: { \\\"items\\\": [{ \\\"name\\\": string, \\\"qty\\\": number }] }.\\nOrder Text: \" + $json.text\n      }\n    ]\n  }]\n} }}",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Listen to this medical order audio. Extract items into JSON: { \\\"items\\\": [{ \\\"name\\\": string, \\\"qty\\\": number }], \\\"text\\\": string (transcription) }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"audio/mp3\",\n          \"data\": $json.body.data\n        }\n      }\n    ]\n  }]\n} }}",
                 "options": {
                     "response": {
                         "response": {
@@ -353,7 +376,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst jsonMatch = text.match(/(\\{[\\s\\S]*\\}|\\[[\\s\\S]*\\])/);\nif (!jsonMatch) throw new Error(\"No JSON found in response\");\nreturn JSON.parse(jsonMatch[0]);"
             },
             "id": "parse-gemini-diary",
             "name": "Parse Gemini JSON (Diary)",
@@ -366,7 +389,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\nif (!jsonMatch) throw new Error(\"No JSON Object found in response\");\nreturn JSON.parse(jsonMatch[0]);"
             },
             "id": "parse-gemini-parcha",
             "name": "Parse Gemini JSON (Parcha)",
@@ -379,7 +402,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+                "jsCode": "// Robust Voice Parser\nconst text = $input.item.json.candidates[0].content.parts[0].text;\n\n// 1. Try extracting JSON\nconst jsonMatch = text.match(/(\\{[\\s\\S]*\\}|\\[[\\s\\S]*\\])/);\nif (jsonMatch) {\n  try {\n    return JSON.parse(jsonMatch[0]);\n  } catch (e) {}\n}\n\n// 2. Fallback: Treat entire text as transcription\nreturn {\n  items: [],\n  text: text.replace(/[\\r\\n]+/g, ' ').trim()\n};"
             },
             "id": "parse-gemini-voice",
             "name": "Parse Gemini JSON (Voice)",
@@ -537,6 +560,108 @@
         },
         {
             "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "={{ $('Ops Configuration').first().json.googleGeminiApiKey }}"
+                        }
+                    ]
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"You are a Senior Pathologist AI. Analyze this medical lab report image.\\n\\n### OUTPUT FORMAT:\\nReturn a SINGLE valid formatted JSON object. Do not include markdown.\\n\\n{\\n  \\\"result\\\": \\\"string (summary)\\\",\\n  \\\"results\\\": [\\n    {\\n      \\\"parameter\\\": \\\"string\\\",\\n      \\\"value\\\": \\\"string\\\",\\n      \\\"unit\\\": \\\"string\\\",\\n      \\\"normalRange\\\": \\\"string\\\",\\n      \\\"status\\\": \\\"Normal|High|Low\\\"\\n    }\\n  ],\\n  \\\"disease_possibility\\\": [\\\"string\\\"],\\n  \\\"diet\\\": [\\\"string\\\"],\\n  \\\"next_steps\\\": [\\\"string\\\"]\\n}\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "gemini-scan-report",
+            "name": "Gemini 1.5 Flash (Lab)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                700,
+                1000
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\nif (!jsonMatch) throw new Error(\"No JSON Object found in response\");\nreturn JSON.parse(jsonMatch[0]);"
+            },
+            "id": "parse-gemini-report",
+            "name": "Parse Gemini JSON (Report)",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                950,
+                1000
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "lab_reports",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('Ops Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "summary",
+                            "value": "={{ $json.result }}"
+                        },
+                        {
+                            "fieldId": "raw_analysis",
+                            "value": "={{ JSON.stringify($json) }}"
+                        },
+                        {
+                            "fieldId": "disease_possibility",
+                            "value": "={{ $json.disease_possibility }}"
+                        },
+                        {
+                            "fieldId": "diet_recommendations",
+                            "value": "={{ $json.diet }}"
+                        },
+                        {
+                            "fieldId": "next_steps",
+                            "value": "={{ $json.next_steps }}"
+                        }
+                    ]
+                }
+            },
+            "id": "save-lab-report",
+            "name": "Save Lab Report",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1150,
+                1000
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
                 "content": "📱 GEMINI OPS (NO OPENAI)\n\n1. Handles Medicine, Diary, Parcha Scans.\n2. Handles Voice Input (Text Processing).\n3. Uses Standard HTTP Nodes.",
                 "height": 450,
                 "width": 600
@@ -563,6 +688,49 @@
         },
         {
             "parameters": {
+                "tableId": "retry_queue",
+                "columnsUi": {
+                    "columnValues": [
+                        {
+                            "fieldId": "shop_id",
+                            "value": "={{ $('Ops Configuration').first().json.shopId }}"
+                        },
+                        {
+                            "fieldId": "workflow_name",
+                            "value": "ops-workflow"
+                        },
+                        {
+                            "fieldId": "node_name",
+                            "value": "={{ $json.execution.lastNodeExecuted }}"
+                        },
+                        {
+                            "fieldId": "error_message",
+                            "value": "={{ $json.execution.error.message }}"
+                        },
+                        {
+                            "fieldId": "status",
+                            "value": "pending"
+                        }
+                    ]
+                }
+            },
+            "id": "save-error-db",
+            "name": "Save to Retry Queue",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                500,
+                1000
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
                 "content": "🚨 SYSTEM ALERT\n\nOps Workflow Failed!\nAction: Log & Alert Owner."
             },
             "id": "action-error-ops",
@@ -580,8 +748,8 @@
                 "responseBody": "={{ $json }}",
                 "options": {}
             },
-            "id": "respond-success",
-            "name": "Respond to Webhook (Success)",
+            "id": "respond-ops",
+            "name": "Respond to Frontend",
             "type": "n8n-nodes-base.respondToWebhook",
             "typeVersion": 1,
             "position": [
@@ -592,18 +760,18 @@
         {
             "parameters": {
                 "respondWith": "json",
-                "responseBody": "={{ { \"error\": $json.execution.error.message } }}",
+                "responseBody": "={{ { error: $json.error_message, details: $json } }}",
                 "options": {
-                    "responseCode": 500
+                    "responseCode": 400
                 }
             },
-            "id": "respond-error",
-            "name": "Respond to Webhook (Error)",
+            "id": "respond-ops-error",
+            "name": "Respond to Frontend (Error)",
             "type": "n8n-nodes-base.respondToWebhook",
             "typeVersion": 1,
             "position": [
                 800,
-                1200
+                1000
             ]
         }
     ],
@@ -614,6 +782,17 @@
                 [
                     {
                         "node": "Ops Configuration",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Save to Retry Queue": {
+            "main": [
+                [
+                    {
+                        "node": "Respond to Frontend (Error)",
                         "type": "main",
                         "index": 0
                     }
@@ -660,6 +839,24 @@
                         "type": "main",
                         "index": 0
                     }
+                ],
+                [
+                    {
+                        "node": "Gemini 1.5 Flash (Lab)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini 1.5 Flash (Lab)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini JSON (Report)",
+                        "type": "main",
+                        "index": 0
+                    }
                 ]
             ]
         },
@@ -696,6 +893,17 @@
                 ]
             ]
         },
+        "Parse Gemini JSON (Diary)": {
+            "main": [
+                [
+                    {
+                        "node": "Save to Staging (Draft)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
         "Gemini 1.5 Flash (Voice)": {
             "main": [
                 [
@@ -711,7 +919,7 @@
             "main": [
                 [
                     {
-                        "node": "Record Voice Order",
+                        "node": "Respond to Frontend",
                         "type": "main",
                         "index": 0
                     }
@@ -740,6 +948,17 @@
                 ]
             ]
         },
+        "Parse Gemini JSON (Report)": {
+            "main": [
+                [
+                    {
+                        "node": "Save Lab Report",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
         "Global Error Trigger": {
             "main": [
                 [
@@ -755,7 +974,7 @@
             "main": [
                 [
                     {
-                        "node": "Respond to Webhook (Success)",
+                        "node": "Respond to Frontend",
                         "type": "main",
                         "index": 0
                     }
@@ -766,7 +985,7 @@
             "main": [
                 [
                     {
-                        "node": "Respond to Webhook (Success)",
+                        "node": "Respond to Frontend",
                         "type": "main",
                         "index": 0
                     }
@@ -777,18 +996,18 @@
             "main": [
                 [
                     {
-                        "node": "Respond to Webhook (Success)",
+                        "node": "Respond to Frontend",
                         "type": "main",
                         "index": 0
                     }
                 ]
             ]
         },
-        "Save to Retry Queue": {
+        "Save Lab Report": {
             "main": [
                 [
                     {
-                        "node": "Respond to Webhook (Error)",
+                        "node": "Respond to Frontend",
                         "type": "main",
                         "index": 0
                     }

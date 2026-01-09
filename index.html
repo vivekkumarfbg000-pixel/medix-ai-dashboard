@@ -1,35 +1,37 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    
-    <!-- Content Security Policy -->
-    <meta http-equiv="Content-Security-Policy" 
-          content="default-src 'self'; 
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+  <!-- Content Security Policy -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; 
                    script-src 'self' 'unsafe-inline' 'unsafe-eval'; 
-                   style-src 'self' 'unsafe-inline'; 
+                   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
                    img-src 'self' data: https: blob:; 
-                   font-src 'self' data:;
-                   connect-src 'self' https://*.supabase.co https://*.app.n8n.cloud wss://*.supabase.co;
+                   font-src 'self' data: https://fonts.gstatic.com;
+                   connect-src 'self' https://*.supabase.co https://*.app.n8n.cloud https://n8n.medixai.shop wss://*.supabase.co;
                    media-src 'self' blob:;">
-    
-    <title>PharmaAssist.AI Dashboard</title>
-    <meta name="description" content="AI-powered pharmacy management system" />
-    <meta name="author" content="PharmaAssist.AI" />
 
-    <meta property="og:title" content="PharmaAssist.AI Dashboard" />
-    <meta property="og:description" content="AI-powered pharmacy management system" />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+  <title>PharmaAssist.AI Dashboard</title>
+  <meta name="description" content="AI-powered pharmacy management system" />
+  <meta name="author" content="PharmaAssist.AI" />
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@Lovable" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-  </head>
+  <meta property="og:title" content="PharmaAssist.AI Dashboard" />
+  <meta property="og:description" content="AI-powered pharmacy management system" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@Lovable" />
+  <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
 </html>

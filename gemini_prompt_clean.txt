@@ -1,0 +1,15 @@
+{{ {
+  "contents": [{
+    "parts": [
+      {
+        "text": "Act as an expert Clinical Pharmacist. Analyze this handwritten prescription image carefully.\n\nExtract the following details and return them in this specific JSON format ONLY:\n{\n  \"doctor_name\": \"string\",\n  \"patient_name\": \"string\",\n  \"visit_date\": \"string (YYYY-MM-DD)\",\n  \"medicines\": [\n    {\n      \"medication_name\": \"string (resolve generic names if brand is unclear)\",\n      \"strength\": \"string (e.g. 500mg)\",\n      \"dosage_frequency\": \"string (e.g. 1-0-1 or BD)\",\n      \"duration\": \"string (e.g. 5 days)\",\n      \"notes\": \"string (instructions like After Food)\"\n    }\n  ]\n}\n\nDo not include markdown or explanations. Just the JSON."
+      },
+      {
+        "inline_data": {
+          "mime_type": "image/jpeg",
+          "data": $json.body.image_base64
+        }
+      }
+    ]
+  }]
+} }}

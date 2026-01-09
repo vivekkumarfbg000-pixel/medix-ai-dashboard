@@ -18,17 +18,17 @@ function checkRateLimit(endpoint: string): boolean {
 }
 
 // Configuration from Environment
-// Using the N8N Cloud URLs directly
-const N8N_BASE = "https://vivek2073.app.n8n.cloud/webhook";
+// Hardcoded Production URL to bypass incorrect environment variables
+const N8N_BASE = "https://n8n.medixai.shop/webhook";
 
 // Specific Workflow Routes
 export const ENDPOINTS = {
-    CHAT: `${N8N_BASE}/medix-chat-v2`,           // Integrates with production medix-chat workflow
-    INTERACTIONS: `${N8N_BASE}/medix-interactions-v5`, // Renamed for uniqueness
-    MARKET: `${N8N_BASE}/medix-market-v5`,             // Renamed for uniqueness
-    COMPLIANCE: `${N8N_BASE}/medix-compliance-v5`,      // Renamed for uniqueness
-    FORECAST: `${N8N_BASE}/medix-forecast-v5`,    // Added missing endpoint
-    OPS: `${N8N_BASE}/operations`             // medix-operations-workflow.json
+    CHAT: `${N8N_BASE}/medix-chat-v2`,
+    INTERACTIONS: `${N8N_BASE}/medix-interactions-v5`,
+    MARKET: `${N8N_BASE}/medix-market-v5`,
+    COMPLIANCE: `${N8N_BASE}/medix-compliance-v5`,
+    FORECAST: `${N8N_BASE}/medix-forecast-v5`,
+    OPS: `${N8N_BASE}/operations`
 };
 
 interface ChatResponse {
@@ -139,12 +139,22 @@ export const aiService = {
         });
 
         // 3. Trigger n8n Ops Webhook
-        let action = 'scan-report'; // default
-        if (type === 'prescription') action = 'scan-parcha';
-        if (type === 'invoice') action = 'scan-medicine';
+        let action = 'scan-report';
+        let endpoint = ENDPOINTS.OPS;
+
+        if (type === 'prescription') {
+            action = 'analyze-prescription';
+            endpoint = `${N8N_BASE}/analyze-prescription`;
+        } else if (type === 'lab_report') {
+            action = 'analyze-report';
+            endpoint = `${N8N_BASE}/analyze-report`;
+        } else if (type === 'invoice') {
+            // Keep invoice as scan-medicine for now (requires workflow update to support)
+            action = 'scan-medicine';
+        }
 
         logger.log("[N8N Request] Analyze Document:", { action, size: base64Data.length });
-        const response = await fetch(ENDPOINTS.OPS, {
+        const response = await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -346,7 +356,8 @@ export const aiService = {
         };
 
         logger.log("[N8N Request] Voice Bill Payload (size):", JSON.stringify(payload).length);
-        const response = await fetch(ENDPOINTS.OPS, {
+        // Use specific voice-bill endpoint to match N8N router keys
+        const response = await fetch(`${N8N_BASE}/voice-bill`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),

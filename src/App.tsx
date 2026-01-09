@@ -31,6 +31,8 @@ const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
 const AuditLogs = lazy(() => import("./pages/dashboard/AuditLogs"));
 const Customers = lazy(() => import("./pages/dashboard/Customers"));
 const EnvDebug = lazy(() => import("./pages/EnvDebug"));
+const AiDebug = lazy(() => import("./pages/AiDebug"));
+
 
 
 const queryClient = new QueryClient();
@@ -54,6 +56,8 @@ const MobileNavHandler = () => {
   return null;
 };
 
+import ErrorBoundary from "./components/ErrorBoundary";
+
 const App = () => {
   useEffect(() => {
     try {
@@ -64,41 +68,44 @@ const App = () => {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <MobileNavHandler />
-          <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-              <Route path="/" element={<Navigate to="/auth" replace />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/lite-pos" element={<LitePOS />} />
-              <Route path="/dashboard" element={<DashboardLayout />}>
-                <Route index element={<Overview />} />
-                <Route path="inventory" element={<Inventory />} />
-                <Route path="diary-scan" element={<DiaryScan />} />
-                <Route path="lab-analyzer" element={<LabAnalyzer />} />
-                <Route path="compliance" element={<Compliance />} />
-                <Route path="orders" element={<Orders />} />
-                <Route path="ai-insights" element={<AIInsights />} />
-                <Route path="forecasting" element={<Forecasting />} />
-                <Route path="alerts" element={<Alerts />} />
-                <Route path="marketplace" element={<Marketplace />} />
-                <Route path="prescriptions" element={<Prescriptions />} />
-                <Route path="analytics" element={<Analytics />} />
-                <Route path="customers" element={<Customers />} />
-                <Route path="audit-logs" element={<AuditLogs />} />
-                <Route path="settings" element={<Settings />} />
-                <Route path="env-debug" element={<EnvDebug />} />
-              </Route >
-              <Route path="*" element={<NotFound />} />
-            </Routes >
-          </Suspense >
-        </BrowserRouter >
-      </TooltipProvider >
-    </QueryClientProvider >
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <MobileNavHandler />
+            <Suspense fallback={<LoadingFallback />}>
+              <Routes>
+                <Route path="/" element={<Navigate to="/auth" replace />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/lite-pos" element={<LitePOS />} />
+                <Route path="/dashboard" element={<DashboardLayout />}>
+                  <Route index element={<Overview />} />
+                  <Route path="inventory" element={<Inventory />} />
+                  <Route path="diary-scan" element={<DiaryScan />} />
+                  <Route path="lab-analyzer" element={<LabAnalyzer />} />
+                  <Route path="compliance" element={<Compliance />} />
+                  <Route path="orders" element={<Orders />} />
+                  <Route path="ai-insights" element={<AIInsights />} />
+                  <Route path="forecasting" element={<Forecasting />} />
+                  <Route path="alerts" element={<Alerts />} />
+                  <Route path="marketplace" element={<Marketplace />} />
+                  <Route path="prescriptions" element={<Prescriptions />} />
+                  <Route path="analytics" element={<Analytics />} />
+                  <Route path="customers" element={<Customers />} />
+                  <Route path="audit-logs" element={<AuditLogs />} />
+                  <Route path="settings" element={<Settings />} />
+                  <Route path="env-debug" element={<EnvDebug />} />
+                  <Route path="ai-debug" element={<AiDebug />} />
+                </Route >
+                <Route path="*" element={<NotFound />} />
+              </Routes >
+            </Suspense >
+          </BrowserRouter >
+        </TooltipProvider >
+      </QueryClientProvider >
+    </ErrorBoundary>
   );
 };
 
