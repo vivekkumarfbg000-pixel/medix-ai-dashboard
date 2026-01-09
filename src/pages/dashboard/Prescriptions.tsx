@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FileText, Calendar, User, Search, Stethoscope, Pill } from "lucide-react";
+import { FileText, Calendar, User, Search, Stethoscope, Pill, Share2 } from "lucide-react";
+import { whatsappService } from "@/services/whatsappService";
 import { format } from "date-fns";
 
 interface Prescription {
@@ -34,6 +35,17 @@ const Prescriptions = () => {
             setPrescriptions(data as unknown as Prescription[]);
         }
         setLoading(false);
+    };
+
+    const handleShare = (p: Prescription) => {
+        // @ts-ignore
+        const link = whatsappService.generatePrescriptionLink("", { // Phone not stored in prescription table usually, fallback to empty
+            doctor_name: p.doctor_name,
+            customer_name: p.customer_name,
+            visit_date: p.visit_date,
+            medicines: p.medicines
+        });
+        window.open(link, '_blank');
     };
 
     useEffect(() => {
@@ -95,6 +107,9 @@ const Prescriptions = () => {
                                         <Calendar className="w-4 h-4" />
                                         <span>{p.visit_date ? format(new Date(p.visit_date), 'PP') : 'No Date'}</span>
                                     </div>
+                                    <Button size="sm" variant="outline" className="text-green-600 border-green-200 hover:bg-green-50" onClick={() => handleShare(p)}>
+                                        <Share2 className="w-4 h-4 mr-1" /> WhatsApp
+                                    </Button>
                                 </div>
                                 <div className="space-y-2">
                                     <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-wider mb-2">Medicines</h4>

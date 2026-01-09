@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { drugService } from "@/services/drugService";
+import { whatsappService } from "@/services/whatsappService";
 import { Link } from "react-router-dom";
 import { VoiceCommandBar } from "@/components/dashboard/VoiceCommandBar";
 import { calculateTax, formatCurrency } from "@/utils/taxCalculator";
@@ -76,28 +77,18 @@ const Orders = () => {
     }
 
     const items = (Array.isArray(order.order_items) ? order.order_items : []) as any[];
-    const itemsList = items.map((item, idx) =>
-      `${idx + 1}. ${item.name} x${item.qty || 1} = ₹${item.price * (item.qty || 1)}`
-    ).join('%0A'); // %0A is newline
 
-    const text = `🧾 *INVOICE #${order.invoice_number || 'NA'}*%0A` +
-      `🏪 *Medix Pharmacy & Diagnostics*%0A` +
-      `📍 Date: ${new Date(order.created_at).toLocaleDateString()}%0A` +
-      `--------------------------------%0A` +
-      itemsList +
-      `%0A--------------------------------%0A` +
-      `💰 *GRAND TOTAL: ₹${order.total_amount}*%0A` +
-      `✅ Payment: ${order.status === 'pending_payment' ? 'PENDING (Udhaar)' : 'PAID'}%0A` +
-      `--------------------------------%0A` +
-      `Thank you for your trust! 🙏%0A` +
-      `_Powered by PharmaAssist AI_`;
+    // @ts-ignore
+    const link = whatsappService.generateInvoiceLink(order.customer_phone, {
+      invoice_number: order.invoice_number,
+      customer_name: order.customer_name,
+      created_at: order.created_at,
+      total_amount: order.total_amount,
+      status: order.status,
+      items: items
+    });
 
-    // Remove non-digit chars from phone
-    const cleanPhone = order.customer_phone.replace(/\D/g, '');
-    const finalPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-
-    const url = `https://wa.me/${finalPhone}?text=${text}`;
-    window.open(url, '_blank');
+    window.open(link, '_blank');
   };
 
   const handlePrintInvoice = async (order: Order) => {
