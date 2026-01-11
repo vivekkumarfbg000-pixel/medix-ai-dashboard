@@ -153,7 +153,7 @@ const AIInsights = () => {
     <div className="space-y-6 animate-fade-in p-2">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">MediFlow Clinical Intelligence</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">MedixAI Clinical Intelligence</h1>
           <p className="text-muted-foreground mt-1">AI-Powered Drug Analysis & Decision Support Engine</p>
         </div>
         <Badge variant="outline" className="text-primary border-primary/20 bg-primary/5 px-4 py-1">

@@ -189,7 +189,7 @@ const PATIENT_EDUCATION: Record<string, { diet: string[], lifestyle: string[], w
 
 class DrugService {
   /**
-   * Safe Clinical Search - Implements "MediFlow" Normalization
+   * Safe Clinical Search - Implements "MedixAI" Normalization
    */
   async searchDrug(query: string): Promise<ClinicalDrugInfo | null> {
     try {
@@ -248,7 +248,7 @@ class DrugService {
         console.warn("Market Intel unavailable");
       }
 
-      // 5. Structure Data (MediFlow Format)
+      // 5. Structure Data (MedixAI Format)
       return this.formatClinicalData(data, cleanQuery, resolveResult, marketData);
     } catch (error) {
       logger.error("Clinical Engine Error:", error);

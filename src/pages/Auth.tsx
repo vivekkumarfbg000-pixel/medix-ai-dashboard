@@ -100,7 +100,7 @@ const Auth = () => {
             <div className="w-10 h-10 rounded-xl bg-primary-foreground/20 flex items-center justify-center">
               <Pill className="w-6 h-6 text-primary-foreground" />
             </div>
-            <h1 className="text-2xl font-bold text-primary-foreground">MediFlow</h1>
+            <h1 className="text-2xl font-bold text-primary-foreground">MedixAI</h1>
           </div>
           <p className="text-primary-foreground/80 text-sm">Medical Shop Management System</p>
         </div>
@@ -128,7 +128,7 @@ const Auth = () => {
         </div>
 
         <p className="text-primary-foreground/60 text-sm">
-          © 2024 MediFlow. Secure & HIPAA Compliant.
+          © 2024 MedixAI. Secure & HIPAA Compliant.
         </p>
       </div>
 
@@ -140,7 +140,7 @@ const Auth = () => {
             <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
               <Pill className="w-6 h-6 text-primary-foreground" />
             </div>
-            <h1 className="text-2xl font-bold text-foreground">MediFlow</h1>
+            <h1 className="text-2xl font-bold text-foreground">MedixAI</h1>
           </div>
 
           <Card className="border-0 shadow-lg">

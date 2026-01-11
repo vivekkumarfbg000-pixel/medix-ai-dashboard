@@ -44,7 +44,7 @@ const LoadingFallback = () => (
         <Activity className="w-12 h-12 text-primary animate-pulse" />
         <div className="absolute inset-0 animate-ping border-2 border-primary rounded-full opacity-20"></div>
       </div>
-      <p className="text-muted-foreground text-sm font-medium animate-pulse">Loading MediFlow OS...</p>
+      <p className="text-muted-foreground text-sm font-medium animate-pulse">Loading MedixAI OS...</p>
     </div>
   </div>
 );

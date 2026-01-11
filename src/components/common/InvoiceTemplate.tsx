@@ -109,7 +109,7 @@ export const InvoiceTemplate = React.forwardRef<HTMLDivElement, InvoiceProps>(({
             <div className="text-center text-xs text-gray-400 mt-12 pt-8 border-t">
                 <p>Thank you for your business!</p>
                 <p className="mt-1">Computer Generated Invoice. No Signature Required.</p>
-                <p className="mt-4 font-mono">Powered by PharmaAssist.AI</p>
+                <p className="mt-4 font-mono">Powered by MedixAI</p>
             </div>
         </div>
     );
