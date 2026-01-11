@@ -216,7 +216,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract ALL medicine details from this image/invoice. Return a valid JSON Array of objects: [{ \\\"medicine_name\\\": string, \\\"batch_number\\\": string, \\\"expiry_date\\\": string (YYYY-MM-DD), \\\"mrp\\\": number, \\\"quantity\\\": number }]. Ensure you capture as many items as possible (up to 50+).\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract ALL medicine details from this image/invoice. Return a valid JSON Array of objects: [{ \\\"medicine_name\\\": string, \\\"batch_number\\\": string, \\\"expiry_date\\\": string (YYYY-MM-DD), \\\"mrp\\\": number, \\\"quantity\\\": number }]. Ensure you capture as many items as possible (up to 50+).\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n} }}",
                 "options": {
                     "response": {
                         "response": {
@@ -236,7 +236,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response & Fan-Out Array\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nconst parsed = JSON.parse(cleaned);\n\n// Determine if it is an array or single object\nconst items = Array.isArray(parsed) ? parsed : [parsed];\n\n// Return in N8N Item format for iteration\nreturn items.map(item => ({ json: item }));"
+                "jsCode": "// Clean Gemini Response & Fan-Out Array\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nlet cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nconst firstOpen = cleaned.indexOf('['); const lastClose = cleaned.lastIndexOf(']');\nif (firstOpen !== -1 && lastClose !== -1) cleaned = cleaned.substring(firstOpen, lastClose + 1);\nconst parsed = JSON.parse(cleaned);\n\n// Determine if it is an array or single object\nconst items = Array.isArray(parsed) ? parsed : [parsed];\n\n// Return in N8N Item format for iteration\nreturn items.map(item => ({ json: item }));"
             },
             "id": "parse-gemini-medicine",
             "name": "Parse Gemini JSON",
@@ -271,7 +271,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract items. Return valid JSON Array only: [{ \\\"item_name\\\": string, \\\"quantity\\\": number, \\\"price\\\": number }].\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract items. Return valid JSON Array only: [{ \\\"item_name\\\": string, \\\"quantity\\\": number, \\\"price\\\": number }].\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64.replace(/^data:image\\/[a-z]+;base64,/, '').replace(/^=+/, '')\n        }\n      }\n    ]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n} }}",
                 "options": {
                     "response": {
                         "response": {
@@ -313,7 +313,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract prescription info. Return valid JSON only: { \\\"doctor_name\\\": string, \\\"patient_name\\\": string, \\\"medicines\\\": [ { \\\"medication_name\\\": string, \\\"strength\\\": string, \\\"dosage_frequency\\\": string, \\\"duration\\\": string, \\\"notes\\\": string } ], \\\"visit_date\\\": string }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract prescription info. Return valid JSON only: { \\\"doctor_name\\\": string, \\\"patient_name\\\": string, \\\"medicines\\\": [ { \\\"medication_name\\\": string, \\\"strength\\\": string, \\\"dosage_frequency\\\": string, \\\"duration\\\": string, \\\"notes\\\": string } ], \\\"visit_date\\\": string }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64.replace(/^data:image\\/[a-z]+;base64,/, '').replace(/^=+/, '')\n        }\n      }\n    ]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n} }}",
                 "options": {
                     "response": {
                         "response": {
@@ -355,7 +355,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Listen to this medical order audio. Extract items into JSON: { \\\"items\\\": [{ \\\"name\\\": string, \\\"qty\\\": number }] }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"audio/mp3\",\n          \"data\": $json.body.data\n        }\n      }\n    ]\n  }]\n} }}",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Listen to this medical order audio. Extract items into JSON: { \\\"items\\\": [{ \\\"name\\\": string, \\\"qty\\\": number }] }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"audio/mp3\",\n          \"data\": $json.body.data\n        }\n      }\n    ]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n} }}",
                 "options": {
                     "response": {
                         "response": {
@@ -375,7 +375,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nlet cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nconst firstOpen = cleaned.indexOf('['); const lastClose = cleaned.lastIndexOf(']');\nif (firstOpen !== -1 && lastClose !== -1) cleaned = cleaned.substring(firstOpen, lastClose + 1);\nreturn JSON.parse(cleaned);"
             },
             "id": "parse-gemini-diary",
             "name": "Parse Gemini JSON (Diary)",
@@ -388,7 +388,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nlet cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nconst firstOpen = cleaned.indexOf('{'); const lastClose = cleaned.lastIndexOf('}');\nif (firstOpen !== -1 && lastClose !== -1) cleaned = cleaned.substring(firstOpen, lastClose + 1);\nreturn JSON.parse(cleaned);"
             },
             "id": "parse-gemini-parcha",
             "name": "Parse Gemini JSON (Parcha)",
@@ -401,7 +401,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nlet cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nconst firstOpen = cleaned.indexOf('{'); const lastClose = cleaned.lastIndexOf('}');\nif (firstOpen !== -1 && lastClose !== -1) cleaned = cleaned.substring(firstOpen, lastClose + 1);\nreturn JSON.parse(cleaned);"
             },
             "id": "parse-gemini-voice",
             "name": "Parse Gemini JSON (Voice)",
@@ -581,7 +581,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Analyze this medical report. Extract data into this JSON structure: { \\\"result\\\": string (summary), \\\"results\\\": [{ \\\"parameter\\\": string, \\\"value\\\": string, \\\"unit\\\": string, \\\"normalRange\\\": string, \\\"status\\\": \\\"Normal\\\"|\\\"High\\\"|\\\"Low\\\" }], \\\"disease_possibility\\\": string[], \\\"diet\\\": string[], \\\"next_steps\\\": string[] }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }]\n} }}",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Analyze this medical report. Extract data into this JSON structure: { \\\"result\\\": string (summary), \\\"results\\\": [{ \\\"parameter\\\": string, \\\"value\\\": string, \\\"unit\\\": string, \\\"normalRange\\\": string, \\\"status\\\": \\\"Normal\\\"|\\\"High\\\"|\\\"Low\\\" }], \\\"disease_possibility\\\": string[], \\\"diet\\\": string[], \\\"next_steps\\\": string[] }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $json.body.image_base64\n        }\n      }\n    ]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n} }}",
                 "options": {
                     "response": {
                         "response": {
@@ -601,7 +601,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nlet cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nconst firstOpen = cleaned.indexOf('{'); const lastClose = cleaned.lastIndexOf('}');\nif (firstOpen !== -1 && lastClose !== -1) cleaned = cleaned.substring(firstOpen, lastClose + 1);\nreturn JSON.parse(cleaned);"
             },
             "id": "parse-gemini-report",
             "name": "Parse Gemini JSON (Report)",

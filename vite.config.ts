@@ -18,8 +18,8 @@ export default defineConfig(({ mode }) => ({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'placeholder.svg'],
       manifest: {
-        name: 'PharmaAssist Bihar Edition',
-        short_name: 'PharmaAssist',
+        name: 'MedixAI',
+        short_name: 'MedixAI',
         description: 'AI-Powered Manager for Medical Shops',
         theme_color: '#0ea5e9',
         background_color: '#ffffff',
@@ -27,14 +27,19 @@ export default defineConfig(({ mode }) => ({
         orientation: 'portrait',
         icons: [
           {
-            src: 'favicon.ico',
+            src: 'icon.png',
             sizes: '64x64 32x32 24x24 16x16',
-            type: 'image/x-icon'
+            type: 'image/png'
           },
           {
-            src: 'placeholder.svg',
+            src: 'icon.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: 'icon.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any maskable'
           }
         ]

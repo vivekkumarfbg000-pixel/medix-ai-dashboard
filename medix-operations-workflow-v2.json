@@ -237,7 +237,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response & Fan-Out Array\nconst text = $input.item.json.candidates[0].content.parts[0].text;\n// Robust Regex to find JSON Array\nconst jsonMatch = text.match(/\\[[\\s\\S]*\\]/);\nif (!jsonMatch) throw new Error(\"No JSON Array found in response\");\nconst parsed = JSON.parse(jsonMatch[0]);\n\n// Determine if it is an array or single object\nconst items = Array.isArray(parsed) ? parsed : [parsed];\n\n// Return in N8N Item format for iteration\nreturn items.map(item => ({ json: item }));"
+                "jsCode": "// Robust Medicine Parser\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst match = text.match(/(\\[[\\s\\S]*\\]|\\{[\\s\\S]*\\})/);\nif (!match) throw new Error(\"No JSON found\");\nlet parsed;\ntry { parsed = JSON.parse(match[0]); } catch(e) { parsed = JSON.parse(match[0].replace(/```json/g,'').replace(/```/g,'')); }\n\n// Handle { medicines: [] } wrapper\nif (!Array.isArray(parsed) && parsed.medicines && Array.isArray(parsed.medicines)) {\n  parsed = parsed.medicines;\n}\nconst items = Array.isArray(parsed) ? parsed : [parsed];\nreturn items.map(item => ({ json: item }));"
             },
             "id": "parse-gemini-medicine",
             "name": "Parse Gemini JSON",
@@ -376,7 +376,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst jsonMatch = text.match(/(\\{[\\s\\S]*\\}|\\[[\\s\\S]*\\])/);\nif (!jsonMatch) throw new Error(\"No JSON found in response\");\nreturn JSON.parse(jsonMatch[0]);"
+                "jsCode": "// Robust Diary Parser\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst match = text.match(/(\\{[\\s\\S]*\\}|\\[[\\s\\S]*\\])/);\nif (!match) throw new Error(\"No JSON found\");\ntry { return JSON.parse(match[0]); } catch(e) { return JSON.parse(match[0].replace(/```json/g,'').replace(/```/g,'')); }"
             },
             "id": "parse-gemini-diary",
             "name": "Parse Gemini JSON (Diary)",
@@ -389,7 +389,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\nif (!jsonMatch) throw new Error(\"No JSON Object found in response\");\nreturn JSON.parse(jsonMatch[0]);"
+                "jsCode": "// Robust Parcha Parser\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst match = text.match(/\\{[\\s\\S]*\\}/);\nif (!match) throw new Error(\"No JSON object found in response\");\ntry {\n  return JSON.parse(match[0]);\n} catch (e) {\n  const clean = match[0].replace(/```json/g, '').replace(/```/g, '');\n  return JSON.parse(clean);\n}"
             },
             "id": "parse-gemini-parcha",
             "name": "Parse Gemini JSON (Parcha)",
@@ -602,7 +602,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\nif (!jsonMatch) throw new Error(\"No JSON Object found in response\");\nreturn JSON.parse(jsonMatch[0]);"
+                "jsCode": "// Robust Report Parser\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst match = text.match(/\\{[\\s\\S]*\\}/);\nif (!match) throw new Error(\"No JSON object found in response\");\ntry {\n  return JSON.parse(match[0]);\n} catch (e) {\n  const clean = match[0].replace(/```json/g, '').replace(/```/g, '');\n  return JSON.parse(clean);\n}"
             },
             "id": "parse-gemini-report",
             "name": "Parse Gemini JSON (Report)",

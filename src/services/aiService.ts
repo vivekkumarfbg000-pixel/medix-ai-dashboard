@@ -111,7 +111,7 @@ export const aiService = {
     /**
      * Secure Clinical Document Upload & Analysis
      */
-    async analyzeDocument(file: File, type: 'prescription' | 'lab_report' | 'invoice'): Promise<any> {
+    async analyzeDocument(file: File, type: 'prescription' | 'lab_report' | 'invoice' | 'inventory_list'): Promise<any> {
         // 1. Upload to Supabase Storage 'clinical-uploads' bucket (Backup/Log)
         const fileExt = file.name.split('.').pop();
         const fileName = `${type}_${Date.now()}.${fileExt}`;
@@ -131,8 +131,9 @@ export const aiService = {
         const base64Data = await new Promise<string>((resolve, reject) => {
             reader.onloadend = () => {
                 const result = reader.result as string;
-                // Remove data URL prefix (e.g., "data:image/jpeg;base64,")
-                const base64 = result.split(',')[1];
+                // Remove data URL prefix and CRITICAL: Strip any newlines or whitespace
+                let base64 = result.split(',')[1] || result;
+                base64 = base64.replace(/[\r\n\s]+/g, '');
                 resolve(base64);
             };
             reader.onerror = reject;
@@ -146,8 +147,14 @@ export const aiService = {
             action = 'analyze-prescription';
             endpoint = `${N8N_BASE}/analyze-prescription`;
         } else if (type === 'lab_report') {
-            action = 'analyze-report';
-            endpoint = `${N8N_BASE}/analyze-report`;
+            // User confirmed Universal Brain uses analyze-prescription webhook for both
+            action = 'scan-report';
+            endpoint = `${N8N_BASE}/analyze-prescription`;
+        } else if (type === 'inventory_list') {
+            // New Inventory Scanner connection
+            action = 'scan-inventory';
+            // UPDATED: Using Integrated Chat Workflow V2
+            endpoint = `${N8N_BASE}/medix-chat-v2`;
         } else if (type === 'invoice') {
             // Keep invoice as scan-medicine for now (requires workflow update to support)
             action = 'scan-medicine';
@@ -159,7 +166,8 @@ export const aiService = {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 action: action,
-                image_base64: base64Data, // <--- Send Base64 directly
+                image_base64: base64Data,
+                data: base64Data, // Redundant key for safety (Universal Brain compatibility)
                 userId: (await supabase.auth.getUser()).data.user?.id,
                 shopId: localStorage.getItem("currentShopId")
             }),
@@ -340,8 +348,9 @@ export const aiService = {
         const base64Data = await new Promise<string>((resolve, reject) => {
             reader.onloadend = () => {
                 const result = reader.result as string;
-                // Remove data URL prefix (e.g., "data:audio/webm;base64,")
-                const base64 = result.split(',')[1];
+                // Remove data URL prefix and CRITICAL: Strip any newlines or whitespace
+                let base64 = result.split(',')[1] || result;
+                base64 = base64.replace(/[\r\n\s]+/g, '');
                 resolve(base64);
             };
             reader.onerror = reject;
@@ -356,8 +365,8 @@ export const aiService = {
         };
 
         logger.log("[N8N Request] Voice Bill Payload (size):", JSON.stringify(payload).length);
-        // Use specific voice-bill endpoint to match N8N router keys
-        const response = await fetch(`${N8N_BASE}/voice-bill`, {
+        // User confirmed Universal Brain uses analyze-prescription webhook for ALL operations
+        const response = await fetch(`${N8N_BASE}/analyze-prescription`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
@@ -368,17 +377,48 @@ export const aiService = {
         logger.log("[N8N Response] Voice Bill:", result);
 
         // Handle different response formats from n8n
-        if (result.transcription && result.items) {
-            return result;
+        // Universal Brain might return: { result: "...", items: [...] } or { output: "..." }
+
+        // 1. Standard format (transcription + items)
+        if (result.transcription || result.items) {
+            const rawItems = result.items || [];
+            // FIX: Map 'qty' (from N8N) to 'quantity' (Frontend expectation)
+            const mappedItems = rawItems.map((item: any) => ({
+                ...item,
+                quantity: item.quantity || item.qty || 1
+            }));
+
+            return {
+                transcription: result.transcription || result.text || result.result || "Voice Order Processed",
+                items: mappedItems
+            };
         }
 
-        // Map Supabase 'order_items' to 'items' for VoiceCommandBar
-        // Result is likely an array of inserted rows
-        if (Array.isArray(result) && result[0]?.order_items) {
-            const parsedItems = typeof result[0].order_items === 'string'
-                ? JSON.parse(result[0].order_items)
-                : result[0].order_items;
-            return { items: parsedItems, transcription: "Voice Order Processed" };
+        // 2. Supabase Array format (direct from DB insert node)
+        if (Array.isArray(result) && result[0]) {
+            if (result[0].order_items) {
+                const parsedItems = typeof result[0].order_items === 'string'
+                    ? JSON.parse(result[0].order_items)
+                    : result[0].order_items;
+                return { items: parsedItems, transcription: "Voice Order Processed" };
+            }
+            // Raw items array?
+            if (result[0].name && result[0].quantity) {
+                return { items: result, transcription: "Voice Order Processed" };
+            }
+        }
+
+        // 3. Generic Text Output (Agent Reply)
+        if (result.output || result.result || result.message) {
+            const text = result.output || result.result || result.message;
+            // Try to find JSON in the text
+            try {
+                const extracted = JSON.parse(text);
+                if (Array.isArray(extracted)) return { items: extracted, transcription: "Order Extracted" };
+                if (extracted.items) return { items: extracted.items, transcription: extracted.text || "Order Extracted" };
+            } catch (e) { }
+
+            return { transcription: text, items: [] }; // Let frontend parse text
         }
 
         return result;

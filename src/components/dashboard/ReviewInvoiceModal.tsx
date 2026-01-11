@@ -14,12 +14,12 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { 
-  Check, 
-  X, 
-  Edit2, 
-  Phone, 
-  FileText, 
+import {
+  Check,
+  X,
+  Edit2,
+  Phone,
+  FileText,
   Loader2,
   Trash2,
   Plus,
@@ -54,7 +54,7 @@ export function ReviewInvoiceModal({
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isMatching, setIsMatching] = useState(true);
+  const [isMatching, setIsMatching] = useState(false); // Default to false to avoid initial hang
 
   useEffect(() => {
     if (open && parsedItems.length > 0) {
@@ -63,10 +63,23 @@ export function ReviewInvoiceModal({
   }, [open, parsedItems]);
 
   const matchWithInventory = async () => {
-    if (!shopId) return;
+    if (!shopId) {
+      console.warn("No Shop ID found for matching inventory");
+      // Fallback: Just show items as unmatched
+      setItems(parsedItems.map((item, i) => ({
+        id: `temp-${i}`,
+        name: item.name,
+        quantity: item.quantity,
+        price: 0
+      })));
+      setIsMatching(false);
+      return;
+    }
+
     setIsMatching(true);
 
     try {
+      console.log("Matching items with inventory...", parsedItems);
       const { data: inventory } = await supabase
         .from("inventory")
         .select("id, medicine_name, unit_price, quantity")
@@ -84,10 +97,12 @@ export function ReviewInvoiceModal({
 
       const matchedItems: InvoiceItem[] = parsedItems.map((item, i) => {
         // Find best match in inventory (case-insensitive partial match)
-        const match = inventory.find(inv => 
-          inv.medicine_name.toLowerCase().includes(item.name.toLowerCase()) ||
-          item.name.toLowerCase().includes(inv.medicine_name.toLowerCase())
-        );
+        // Improved Match: Trim spaces and be flexible
+        const match = inventory.find(inv => {
+          const invName = inv.medicine_name.toLowerCase().trim();
+          const itemName = item.name.toLowerCase().trim();
+          return invName.includes(itemName) || itemName.includes(invName);
+        });
 
         return {
           id: `item-${i}`,
@@ -113,7 +128,7 @@ export function ReviewInvoiceModal({
   };
 
   const updateItem = (id: string, field: keyof InvoiceItem, value: string | number) => {
-    setItems(prev => prev.map(item => 
+    setItems(prev => prev.map(item =>
       item.id === id ? { ...item, [field]: value } : item
     ));
   };
@@ -176,7 +191,7 @@ export function ReviewInvoiceModal({
             .select("quantity")
             .eq("id", item.inventoryId)
             .single();
-          
+
           if (current) {
             await supabase
               .from("inventory")

@@ -27,67 +27,40 @@ export interface LabAnalysisReport {
 class LabService {
     async analyzeReport(file: File): Promise<LabAnalysisReport> {
         try {
-            // Convert File to Base64
-            const base64 = await this.fileToBase64(file);
+            console.log("Starting Lab Analysis via aiService...");
 
-            // Call N8N via aiService (which handles the endpoint mapping)
-            // We use the generic 'triggerOp' or a specific method if we add one.
-            // Since aiService.triggerOp handles JSON body, we construct the payload here.
-            // The 'action' must match the workflow conditions: 'scan-report'
+            // Use the unified aiService which handles the correct endpoint (analyze-report)
+            // and formatting expected by the backend.
+            const data = await aiService.analyzeDocument(file, 'lab_report');
 
-            const response = await aiService.triggerOp('scan-report', {
-                image_base64: base64, // N8N expects this key for vision nodes
-                filename: file.name
-            });
+            console.log("[LabService] Raw Response:", data);
 
-            // The Workflow B returns: { result: string, warning: string, analysis: object }
-            // We need to map the N8N response back to our Frontend Interface (LabAnalysisReport)
-            // Assuming the Workflow returns a structure we can map, or we adjust the UI to match.
-            // For now, let's assume the Gemini node in N8N returns the exact structure or we map it.
-
-            // IF N8N returns mixed structure, we normalize it here.
-            // This relies on the N8N Gemini system prompt being VERY specific.
-
-            // Fallback mapper if direct structure doesn't match
-            const data = Array.isArray(response) ? response[0] : (response || {});
-
-            // Parse raw analysis if it's a string (though Supabase JSONB usually comes as object)
+            // Parse raw analysis if it's a string
             let rawAnalysis = data.raw_analysis || {};
             if (typeof rawAnalysis === 'string') {
                 try { rawAnalysis = JSON.parse(rawAnalysis); } catch (e) { }
             }
 
+            // Map response to Frontend Model
+            // Handling variations in N8N response keys (result/summary, etc)
             return {
-                summary: data.summary || data.result || "Analysis Complete", // Supabase: summary, Gemini: result
+                summary: data.result || data.summary || "Analysis Complete",
                 diseasePossibility: data.disease_possibility || [],
-                results: rawAnalysis.results || data.results || [], // Extract from raw_analysis
+                results: rawAnalysis.results || data.results || [],
                 recommendations: {
-                    diet: data.diet_recommendations || data.diet || [], // Supabase: diet_recommendations
+                    diet: data.diet || data.diet_recommendations || [],
                     nextSteps: data.next_steps || [],
                     prevention: []
                 }
             };
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Lab Analysis Failed:", error);
             throw error;
         }
     }
 
-    private fileToBase64(file: File): Promise<string> {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => {
-                const result = reader.result as string;
-                // Remove data:image/jpeg;base64, prefix if needed, but N8N usually handles it or we strip it.
-                // Standard N8N binary handling often prefers just the base64 string.
-                const base64Clean = result.split(',')[1];
-                resolve(base64Clean);
-            };
-            reader.onerror = error => reject(error);
-        });
-    }
+    // transformFile method removed as it is handled by aiService now
 }
 
 export const labService = new LabService();

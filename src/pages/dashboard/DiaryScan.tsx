@@ -115,31 +115,46 @@ const DiaryScan = () => {
       const result = await aiService.analyzeDocument(selectedFile, 'prescription');
 
       let items = [];
+      // Handle various N8N response formats
       if (result && result.items) {
         items = result.items;
       } else if (Array.isArray(result) && result[0]?.medicines) {
-        // Handle N8N Supabase Response
-        items = typeof result[0].medicines === 'string'
-          ? JSON.parse(result[0].medicines)
-          : result[0].medicines;
+        items = typeof result[0].medicines === 'string' ? JSON.parse(result[0].medicines) : result[0].medicines;
+      } else if (Array.isArray(result) && result[0]?.json?.medicines) {
+        items = typeof result[0].json.medicines === 'string' ? JSON.parse(result[0].json.medicines) : result[0].json.medicines;
       } else if (result && result.medicines) {
         items = result.medicines;
+      } else if (result && result.json?.medicines) {
+        items = result.json.medicines;
+      } else if (result && result.prescription) {
+        // Handle "prescription" key from user's screenshot
+        items = result.prescription;
+      } else if (Array.isArray(result) && result[0]?.prescription) {
+        items = result[0].prescription;
+      } else if (Array.isArray(result) && result[0]?.json?.prescription) {
+        items = result[0].json.prescription;
       }
 
       if (items && items.length > 0) {
-        // Ensure IDs exist for the UI grid
+        // Ensure IDs exist and map fields if necessary (handle name/dose schema)
         const mappedItems = items.map((item: any, index: number) => ({
           ...item,
           id: item.id || index + 1,
-          sequence: item.sequence || index + 1
+          sequence: item.sequence || index + 1,
+          medication_name: item.medication_name || item.drug_name || item.name || "Unknown",
+          strength: item.strength || "",
+          dosage_frequency: item.dosage_frequency || item.dosage || item.dose || "",
+          duration: item.duration || "",
+          notes: item.notes || ""
         }));
         setExtractedItems(mappedItems);
         toast.success("AI Analysis Complete!");
       } else {
-        console.error("Invalid Response:", result);
-        throw new Error("Invalid response structure - No medicines found");
+        console.error("Invalid Response Structure:", result);
+        toast.error("Analysis failed. See console for response details: " + JSON.stringify(result).slice(0, 100));
+        throw new Error("Invalid response structure - No medicines or prescription found");
       }
-      setExtractedItems([]);
+
     } catch (error: any) {
       console.error("AI Service Error:", error);
       toast.error(error.message || "AI Analysis Failed. Please check your connection or try again.");

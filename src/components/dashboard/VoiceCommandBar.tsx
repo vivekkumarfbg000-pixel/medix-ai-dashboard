@@ -108,11 +108,12 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
 
           if (response) {
             // Prefer n8n parsed items, fallback to local parsing if only text is returned
-            const transcription = response.transcription || response.text || "";
+            console.log("Voice Response:", response); // Debug Log
+            const transcription = response.transcription || response.text || (response.items ? "Voice Order Processed" : "");
             const items = response.items || parseTranscription(transcription);
 
-            if (!transcription) {
-              throw new Error("No transcription received");
+            if (!transcription && items.length === 0) {
+              throw new Error("No transcription or items received");
             }
 
             onTranscriptionComplete(transcription, items);

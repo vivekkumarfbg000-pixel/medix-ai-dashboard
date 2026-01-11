@@ -55,7 +55,8 @@ const LabAnalyzer = () => {
             setProgress(100);
             toast.success("Analysis Complete! AI Insights Generated.");
         } catch (error) {
-            toast.error("Failed to analyze report.");
+            console.error("Lab Analysis Error:", error);
+            toast.error(`Failed to analyze report: ${error.message || "Unknown error"}`);
         } finally {
             clearInterval(interval);
             setAnalyzing(false);

@@ -385,7 +385,8 @@ const Inventory = () => {
 
                           // @ts-ignore
                           const { aiService } = await import("@/services/aiService");
-                          await aiService.triggerOp('scan-medicine', { image_base64: base64 });
+                          // UPDATED: Use the Universal Brain Analysis Engine
+                          await aiService.analyzeDocument(file, 'inventory_list');
                           toast.success("Scan Complete! Drafts created.");
                           fetchStaging();
                         } catch (err: any) {

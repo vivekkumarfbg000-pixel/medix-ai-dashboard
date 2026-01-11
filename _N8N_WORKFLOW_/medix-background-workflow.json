@@ -89,7 +89,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Check for drug interactions between: \" + JSON.stringify($json.body.drugs) + \". Return valid JSON only: { \\\"interactions\\\": [{ \\\"drug1\\\": string, \\\"drug2\\\": string, \\\"severity\\\": \\\"Major\\\"|\\\"Moderate\\\"|\\\"Minor\\\", \\\"description\\\": string }] }.\"\n      }\n    ]\n  }]\n} }}",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Check for drug interactions between: \" + JSON.stringify($json.body.drugs) + \". Return valid JSON only: { \\\"interactions\\\": [{ \\\"drug1\\\": string, \\\"drug2\\\": string, \\\"severity\\\": \\\"Major\\\"|\\\"Moderate\\\"|\\\"Minor\\\", \\\"description\\\": string }] }.\"\n      }\n    ]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n} }}",
                 "options": {
                     "response": {
                         "response": {
@@ -109,7 +109,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nlet cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nconst firstOpen = cleaned.indexOf('{'); const lastClose = cleaned.lastIndexOf('}');\nif (firstOpen !== -1 && lastClose !== -1) cleaned = cleaned.substring(firstOpen, lastClose + 1);\nreturn JSON.parse(cleaned);"
             },
             "id": "parse-interactions",
             "name": "Parse Interactions",
@@ -144,7 +144,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Check compliance for drug: \" + $json.body.drugName + \". Is it banned in India? Is it Schedule H/H1? Return valid JSON only: { \\\"is_banned\\\": boolean, \\\"is_h1\\\": boolean, \\\"warning_level\\\": string }.\"\n      }\n    ]\n  }]\n} }}",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Check compliance for drug: \" + $json.body.drugName + \". Is it banned in India? Is it Schedule H/H1? Return valid JSON only: { \\\"is_banned\\\": boolean, \\\"is_h1\\\": boolean, \\\"warning_level\\\": string }.\"\n      }\n    ]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n} }}",
                 "options": {
                     "response": {
                         "response": {
@@ -164,7 +164,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nlet cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nconst firstOpen = cleaned.indexOf('{'); const lastClose = cleaned.lastIndexOf('}');\nif (firstOpen !== -1 && lastClose !== -1) cleaned = cleaned.substring(firstOpen, lastClose + 1);\nreturn JSON.parse(cleaned);"
             },
             "id": "parse-compliance",
             "name": "Parse Compliance",
@@ -413,7 +413,7 @@
         },
         {
             "parameters": {
-                "jsCode": "const orders = $input.all();\nconst salesMap = {};\nlet totalRevenue = 0;\n\n// Aggregate Sales\norders.forEach(order => {\n  totalRevenue += (order.json.total_amount || 0);\n  const items = order.json.order_items || [];\n  items.forEach(item => {\n    if (salesMap[item.name]) {\n      salesMap[item.name] += item.qty;\n    } else {\n      salesMap[item.name] = item.qty;\n    }\n  });\n});\n\n// Transform for Gemini\nconst topItems = Object.keys(salesMap).map(name => ({ \n  medicine_name: name, \n  qty: salesMap[name]\n})).sort((a,b) => b.qty - a.qty).slice(0, 5);\n\nreturn [{\n  json: {\n    total_revenue: totalRevenue,\n    top_items: topItems,\n    sales_data: Object.keys(salesMap).map(name => ({ medicine_name: name, last_month_sales: salesMap[name] }))\n  }\n}];"
+                "jsCode": "function cleanGemini(text) {\n  let cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\n  const firstOpen = cleaned.indexOf('['); const lastClose = cleaned.lastIndexOf(']');\n  if (firstOpen !== -1 && lastClose !== -1) cleaned = cleaned.substring(firstOpen, lastClose + 1);\n  return JSON.parse(cleaned);\n}\n\nconst items = $input.all();\nconst responseText = items[0].json.candidates[0].content.parts[0].text;\nreturn cleanGemini(responseText);"
             },
             "id": "prep-sales-data",
             "name": "Aggregate Sales & Revenue",
@@ -448,7 +448,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Context: Pharmacy in Bihar, India. Date: Today. Seasonality: Consider Dengue/Monsoon/Flu.\\nInput Sales: \" + JSON.stringify($json.sales_data) + \"\\nTask: Predict restock qty for next month. Return JSON Array: [{ \\\"medicine_name\\\": string, \\\"predicted_quantity\\\": number, \\\"reason\\\": string }].\"\n      }\n    ]\n  }]\n} }}",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Context: Pharmacy in Bihar, India. Date: Today. Seasonality: Consider Dengue/Monsoon/Flu.\\nInput Sales: \" + JSON.stringify($json.sales_data) + \"\\nTask: Predict restock qty for next month. Return JSON Array: [{ \\\"medicine_name\\\": string, \\\"predicted_quantity\\\": number, \\\"reason\\\": string }].\"\n      }\n    ]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n} }}",
                 "options": {
                     "response": {
                         "response": {
@@ -481,7 +481,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nfunction cleanGemini(text) {\n  return JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());\n}\n\nconst items = $input.all();\nconst responseText = items[0].json.candidates[0].content.parts[0].text;\nreturn cleanGemini(responseText);"
+                "jsCode": "function cleanGemini(text) {\n  let cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\n  const firstOpen = cleaned.indexOf('['); const lastClose = cleaned.lastIndexOf(']');\n  if (firstOpen !== -1 && lastClose !== -1) cleaned = cleaned.substring(firstOpen, lastClose + 1);\n  return JSON.parse(cleaned);\n}\n\nconst items = $input.all();\nconst responseText = items[0].json.candidates[0].content.parts[0].text;\nreturn cleanGemini(responseText);"
             },
             "id": "parse-gemini-forecast",
             "name": "Parse Gemini Forecast",

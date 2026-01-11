@@ -150,7 +150,7 @@
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract prescription text and medicine names from this image. Return valid JSON only: { \\\"full_text\\\": string, \\\"medicines\\\": [ string ], \\\"patient_name\\\": string }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $binary.data.data\n        }\n      }\n    ]\n  }]\n} }}",
+                "jsonBody": "={{ {\n  \"contents\": [{\n    \"parts\": [\n      {\n        \"text\": \"Extract prescription text and medicine names from this image. Return valid JSON only: { \\\"full_text\\\": string, \\\"medicines\\\": [ string ], \\\"patient_name\\\": string }.\"\n      },\n      {\n        \"inline_data\": {\n          \"mime_type\": \"image/jpeg\",\n          \"data\": $binary.data.data\n        }\n      }\n    ]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n} }}",
                 "options": {
                     "response": {
                         "response": {
@@ -170,7 +170,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nconst cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(cleaned);"
+                "jsCode": "// Clean Gemini Response\nconst text = $input.item.json.candidates[0].content.parts[0].text;\nlet cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();\nconst firstOpen = cleaned.indexOf('{'); const lastClose = cleaned.lastIndexOf('}');\nif (firstOpen !== -1 && lastClose !== -1) cleaned = cleaned.substring(firstOpen, lastClose + 1);\nreturn JSON.parse(cleaned);"
             },
             "id": "parse-gemini-ocr",
             "name": "Parse Gemini OCR",

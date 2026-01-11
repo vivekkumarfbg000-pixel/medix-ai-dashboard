@@ -85,15 +85,19 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-sidebar-border h-full max-h-screen flex flex-col">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-            <Pill className="w-5 h-5 text-primary-foreground" />
-          </div>
-          {!collapsed && (
-            <div className="flex flex-col">
-              <span className="font-bold text-sidebar-foreground">MediFlow</span>
-              <span className="text-xs text-muted-foreground">Medical Dashboard</span>
-            </div>
-          )}
+          <NavLink to="/dashboard" className="flex items-center gap-2">
+            {!collapsed ? (
+              <img
+                src="/medix-logo.jpg"
+                alt="Medix AI"
+                className="h-[50px] w-auto object-contain"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+                <Pill className="w-5 h-5 text-primary-foreground" />
+              </div>
+            )}
+          </NavLink>
         </div>
       </SidebarHeader>
 
