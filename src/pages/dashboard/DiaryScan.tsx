@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useUserShops } from "@/hooks/useUserShops";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,6 +46,7 @@ interface ExtractedItem {
 
 const DiaryScan = () => {
   const { currentShop } = useUserShops();
+  const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -52,6 +54,7 @@ const DiaryScan = () => {
   const [progress, setProgress] = useState(0);
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
   const [suggestion, setSuggestion] = useState<any>(null); // For ComparisonCard demo
+  const [actionMode, setActionMode] = useState<'scan' | 'bill' | 'adjust' | null>(null);
 
   useEffect(() => {
     return () => {
@@ -403,49 +406,95 @@ const DiaryScan = () => {
               </div>
 
               {!isConfirmed && (
-                <div className="mt-6 flex justify-end gap-3">
-                  <Button variant="outline" onClick={() => setExtractedItems([])}>
-                    Discard
-                  </Button>
-                  <Button
-                    onClick={async () => {
-                      if (!currentShop?.id) {
-                        toast.error("Shop ID mismatch. Please refresh.");
-                        return;
-                      }
-                      const patientName = (document.getElementById('patient-name') as HTMLInputElement).value || "Unknown Patient";
-                      const doctorName = (document.getElementById('doctor-name') as HTMLInputElement).value || "Unknown Doctor";
+                <div className="mt-6 flex flex-col gap-3">
+                  <div className="flex justify-end gap-3">
+                    <Button variant="outline" onClick={() => setExtractedItems([])}>
+                      Discard
+                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={async () => {
+                          if (!currentShop?.id) return;
 
-                      toast.loading("Saving Prescription...");
+                          // Redirect to LitePOS with cart items
+                          const cartItems = extractedItems.map(i => ({
+                            name: i.medication_name,
+                            qty: 1, // Default to 1
+                            voice_parsed: true
+                          }));
 
-                      const { error } = await supabase.from('prescriptions').insert({
-                        customer_name: patientName,
-                        doctor_name: doctorName,
-                        visit_date: new Date().toISOString(),
-                        medicines: extractedItems.map(item => ({
-                          name: item.medication_name,
-                          dosage: `${item.strength} | ${item.dosage_frequency}`,
-                          duration: item.duration,
-                          notes: item.notes
-                        })),
-                        shop_id: currentShop.id
-                      });
+                          navigate("/dashboard/lite-pos", { state: { cartItems } });
+                          toast.success("Redirecting to Billing...");
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        Create Bill & Invoice
+                      </Button>
 
-                      toast.dismiss();
+                      <Button
+                        onClick={async () => {
+                          if (!currentShop?.id) {
+                            toast.error("Shop ID mismatch. Please refresh.");
+                            return;
+                          }
 
-                      if (error) {
-                        console.error(error);
-                        toast.error("Failed to save to database.");
-                      } else {
-                        setIsConfirmed(true);
-                        toast.success("Prescription Saved Successfully!");
-                      }
-                    }}
-                    className="bg-success hover:bg-success/90 text-white"
-                  >
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Verify & Save to Database
-                  </Button>
+                          if (!confirm("This will deduct stock for all items listed above. Proceed?")) return;
+
+                          toast.loading("Adjusting Inventory...");
+
+                          let successCount = 0;
+                          for (const item of extractedItems) {
+                            // 1. Find Inventory ID (Best Effort Match)
+                            const { data: exactMatch } = await supabase
+                              .from('inventory')
+                              .select('id')
+                              .eq('shop_id', currentShop.id)
+                              .ilike('medicine_name', item.medication_name)
+                              .maybeSingle();
+
+                            let inventoryId = exactMatch?.id;
+
+                            if (!inventoryId) {
+                              // Try fuzzy search if exact match fails
+                              const { data: fuzzy } = await supabase
+                                .from('inventory')
+                                .select('id')
+                                .eq('shop_id', currentShop.id)
+                                .ilike('medicine_name', `${item.medication_name}%`)
+                                .limit(1);
+
+                              if (fuzzy && fuzzy.length > 0) inventoryId = fuzzy[0].id;
+                            }
+
+                            if (inventoryId) {
+                              // 2. Call RPC
+                              const { error } = await supabase.rpc('adjust_inventory_stock', {
+                                p_inventory_id: inventoryId,
+                                p_quantity_change: -1, // Deduct 1 unit per line item
+                                p_movement_type: 'OUT',
+                                p_reason: 'Diary Scan: Sold'
+                              });
+                              if (!error) successCount++;
+                            }
+                          }
+
+                          toast.dismiss();
+                          if (successCount > 0) {
+                            setIsConfirmed(true);
+                            toast.success(`Stock adjusted for ${successCount}/${extractedItems.length} items.`);
+                          } else {
+                            toast.warning("No matching items found in inventory to adjust.");
+                          }
+                        }}
+                        className="bg-amber-600 hover:bg-amber-700 text-white"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Log as Sold (Adjust Stock)
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-right text-muted-foreground">Select "Create Bill" to invoice customer via WhatsApp, or "Log as Sold" to update stock directly.</p>
                 </div>
               )}
             </CardContent>

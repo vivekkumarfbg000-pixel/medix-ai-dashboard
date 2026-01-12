@@ -21,9 +21,46 @@ const LitePOS = () => {
     const [paymentMode, setPaymentMode] = useState<string>("cash");
     const { currentShop } = useUserShops();
 
-    // Safety Logic
     const [interactions, setInteractions] = useState<string[]>([]);
     const [checkingSafety, setCheckingSafety] = useState(false);
+
+    // Handle Navigation State (from DiaryScan)
+    useEffect(() => {
+        if (history.state?.usr?.cartItems) {
+            const incomingItems = history.state.usr.cartItems;
+
+            // Fuzzy Find Logic to map Incoming Names -> Local Dexie Items
+            const processIncoming = async () => {
+                let mappedCount = 0;
+                for (const item of incomingItems) {
+                    // 1. Try Exact Match
+                    let bestMatch = await db.inventory.where("medicine_name").equalsIgnoreCase(item.name).first();
+
+                    // 2. If not found, try StartsWith
+                    if (!bestMatch) {
+                        const candidates = await db.inventory.where("medicine_name").startsWithIgnoreCase(item.name).toArray();
+                        if (candidates.length > 0) bestMatch = candidates[0];
+                    }
+
+                    if (bestMatch) {
+                        addToCart(bestMatch, item.qty || 1);
+                        mappedCount++;
+                    }
+                }
+
+                if (mappedCount > 0) {
+                    toast.success(`Imported ${mappedCount} items from Diary Scan`);
+                } else if (incomingItems.length > 0) {
+                    toast.warning("Could not automatically match extracted items to inventory. Please search manually.");
+                }
+            };
+
+            processIncoming();
+
+            // Clear state to prevent re-adding on refresh (simple hack)
+            window.history.replaceState({}, document.title);
+        }
+    }, [currentShop?.id]);
 
     useEffect(() => {
         const checkSafety = async () => {
