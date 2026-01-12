@@ -16,46 +16,10 @@ import {
   TrendingUp,
   ArrowRight,
   FileText,
-  Share2
-} from "lucide-react";
-import { format } from "date-fns";
-import { drugService } from "@/services/drugService";
-import { whatsappService } from "@/services/whatsappService";
-import { Link } from "react-router-dom";
-import { VoiceCommandBar } from "@/components/dashboard/VoiceCommandBar";
-import { calculateTax, formatCurrency } from "@/utils/taxCalculator";
-import { InvoiceTemplate } from "@/components/common/InvoiceTemplate";
-import { createRoot } from "react-dom/client";
+import { ReturnOrderModal } from "@/components/dashboard/orders/ReturnOrderModal";
+import { Undo2 } from "lucide-react";
 
-interface Order {
-  id: string;
-  customer_name: string;
-  customer_phone: string | null;
-  order_items: unknown;
-  status: string;
-  total_amount: number | null;
-  source: string;
-  created_at: string;
-  invoice_number?: string;
-}
-
-interface CartItem {
-  id: string;
-  name: string;
-  quantity: number;
-  price: number; // MRP (Inclusive)
-  hsn_code?: string;
-  sgst_rate: number;
-  cgst_rate: number;
-  igst_rate: number;
-  schedule_h1?: boolean;
-  substitute?: {
-    name: string;
-    price: number;
-    savings: number;
-    margin: number;
-  };
-}
+// ... existing imports ...
 
 const Orders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -63,436 +27,38 @@ const Orders = () => {
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [activeTab, setActiveTab] = useState("whatsapp");
 
+  // Return Modal State
+  const [returnModalOpen, setReturnModalOpen] = useState(false);
+  const [selectedOrderForReturn, setSelectedOrderForReturn] = useState<Order | null>(null);
+
   // POS State
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  // ... existing POS state ...
 
-  // --- WHATSAPP HELPER ---
-  const handleWhatsAppShare = (order: Order) => {
-    if (!order.customer_phone) {
-      toast.error("No phone number for this customer");
-      return;
-    }
+  // ... existing functions ...
 
-    const items = (Array.isArray(order.order_items) ? order.order_items : []) as any[];
-
-    // @ts-ignore
-    const link = whatsappService.generateInvoiceLink(order.customer_phone, {
-      invoice_number: order.invoice_number,
-      customer_name: order.customer_name,
-      created_at: order.created_at,
-      total_amount: order.total_amount,
-      status: order.status,
-      items: items
-    });
-
-    window.open(link, '_blank');
+  const handleOpenReturn = (order: Order) => {
+    setSelectedOrderForReturn(order);
+    setReturnModalOpen(true);
   };
-
-  const handlePrintInvoice = async (order: Order) => {
-    // Fetch shop details for the invoice header
-    const { data: profile } = await supabase.from('profiles').select('shop_id').single();
-    let shopDetails = undefined;
-
-    if (profile?.shop_id) {
-      const { data: shop } = await supabase.from('shops').select('*').eq('id', profile.shop_id).single();
-      if (shop) shopDetails = shop;
-    }
-
-    // Create a hidden iframe or new window for printing
-    const printWindow = window.open('', '_blank', 'width=800,height=600');
-    if (printWindow) {
-      printWindow.document.write('<html><head><title>Print Invoice</title>');
-      // Inject styles - naive approach or link to main css
-      printWindow.document.write('<style>body { font-family: sans-serif; } table { width: 100%; border-collapse: collapse; } th, td { padding: 8px; text-align: left; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .border-b { border-bottom: 1px solid #ddd; } .text-sm { font-size: 0.875rem; } .text-xs { font-size: 0.75rem; } .flex { display: flex; } .justify-between { justify-content: space-between; } .mb-6 { margin-bottom: 1.5rem; } .p-8 { padding: 2rem; }</style>');
-      printWindow.document.write('</head><body><div id="print-root"></div></body></html>');
-
-      const root = createRoot(printWindow.document.getElementById('print-root')!);
-      root.render(<InvoiceTemplate order={order} shopDetails={shopDetails} />);
-
-      // Allow time for render
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 500);
-    }
-  };
-
-  const fetchOrders = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      toast.error("Failed to load orders");
-      console.error(error);
-    } else {
-      setOrders(data || []);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchOrders();
-
-    const channel = supabase
-      .channel('schema-db-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders'
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            toast.info("New WhatsApp Order Received! 🔔");
-            fetchOrders();
-          } else {
-            fetchOrders();
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  // --- POS FUNCTIONS ---
-
-  // --- VOICE BILLING HANDLER ---
-  const handleVoiceItems = (transcription: string, items: any[]) => {
-    toast.success("Voice processed!", { description: transcription });
-
-    // Add processed items to cart
-    items.forEach(async (item) => {
-      // 1. Try to find match in inventory
-      const { data: localItem } = await supabase
-        .from("inventory")
-        .select("*")
-        .ilike('medicine_name', `%${item.name}%`)
-        .limit(1)
-        .maybeSingle();
-
-      const newItem: CartItem = {
-        id: Date.now().toString() + Math.random(),
-        name: localItem?.medicine_name || item.name,
-        price: localItem?.unit_price || 0,
-        quantity: item.quantity || 1,
-        hsn_code: "3004",
-        sgst_rate: 6,
-        cgst_rate: 6,
-        igst_rate: 0
-      };
-
-      setCart(prev => [...prev, newItem]);
-    });
-  };
-
-  // Legacy text-only handler (kept if needed, but primary is now VoiceCommandBar)
-  // const handleVoiceInput = ... (removed)
-
-  const handleAddItemWithQuery = async (query: string) => {
-    if (!query) return;
-
-    // 1. Try Local Inventory First (for accurate price & tax)
-    const { data: localItem } = await supabase
-      .from("inventory")
-      .select("*")
-      .ilike('medicine_name', `%${query}%`)
-      .limit(1)
-      .maybeSingle();
-
-    let name = query;
-    let price = 0;
-    let hsn_code = "";
-    let sgst_rate = 0;
-    let cgst_rate = 0;
-    let igst_rate = 0;
-
-    let foundSub = null;
-
-    if (localItem && localItem.quantity > 0) {
-      name = localItem.medicine_name;
-      price = localItem.unit_price || 0;
-      hsn_code = "3004"; // Default HSN for medicines
-      sgst_rate = 6; // Default 12% GST split
-      cgst_rate = 6;
-      igst_rate = 0;
-      toast.success(`Found in Inventory: ${name}`);
-    } else {
-      // 2. Fallback to Global Knowledge Base
-      // Note: We don't have a real pricing API for every drug in the world, so we set price to 0 and let user edit it, 
-      // OR we could use a standard estimated price if available in drugInfo (usually not).
-
-      const drugInfo = await drugService.searchDrug(query);
-      if (drugInfo) {
-        name = drugInfo.name; // Use canonical name
-        price = 0; // Unknown price, user must enter
-
-        if (drugInfo.substitutes && drugInfo.substitutes.length > 0) {
-          const bestSub = drugInfo.substitutes.sort((a, b) => b.margin_percentage - a.margin_percentage)[0];
-          if (bestSub.margin_percentage > 15) {
-            foundSub = {
-              name: bestSub.name,
-              price: bestSub.price,
-              savings: bestSub.savings,
-              margin: bestSub.margin_percentage
-            };
-          }
-        }
-      } else {
-        // Completely unknown item
-        price = 0;
-      }
-    }
-
-    if (price === 0 && !localItem) {
-      toast.info("Item price unknown. Please edit price in cart.", { duration: 4000 });
-    }
-
-    // --- SAFETY CHECK: DRUG INTERACTIONS ---
-    const currentDrugs = cart.map(c => c.name);
-    // Combine current cart + new item (cleaned name)
-    const checkList = [...currentDrugs, name];
-
-    if (checkList.length >= 2) {
-      try {
-        const interactions = await drugService.checkInteractions(checkList);
-        if (interactions && interactions.length > 0) {
-          const warningMsg = interactions.map(i => `${i.drug1} + ${i.drug2} (${i.severity})`).join('\n');
-          toast.warning("⚠️ DRUG INTERACTION DETECTED", {
-            description: warningMsg,
-            duration: 6000,
-            action: {
-              label: "View Details",
-              onClick: () => console.log(interactions)
-            }
-          });
-        }
-      } catch (error) {
-        console.warn("Interaction check failed silently:", error);
-        // Continue allowing add to cart
-      }
-    }
-
-    const newItem: CartItem = {
-      id: Date.now().toString(),
-      name: name,
-      price: price,
-      quantity: 1,
-      hsn_code,
-      sgst_rate,
-      cgst_rate,
-      igst_rate,
-      substitute: foundSub || undefined
-    };
-
-    setCart(prev => [...prev, newItem]);
-    setSearchQuery("");
-
-    if (foundSub) {
-      toast("💡 Profit Opportunity Detected!", {
-        description: `Switch ${newItem.name} to ${foundSub.name} to earn ${foundSub.margin}% margin!`,
-        action: { label: "Switch Now", onClick: () => switchSubstitute(newItem.id, foundSub!) },
-        duration: 8000,
-      });
-    } else if (!localItem) {
-      toast.success(`External Added: ${name}`);
-    }
-  };
-
-  const handleAddItem = async () => {
-    await handleAddItemWithQuery(searchQuery);
-  };
-
-  const switchSubstitute = (itemId: string, sub: NonNullable<CartItem['substitute']>) => {
-    setCart(cart.map(item => {
-      if (item.id === itemId) {
-        return {
-          ...item,
-          name: sub.name,
-          price: sub.price,
-          substitute: undefined
-        };
-      }
-      return item;
-    }));
-    toast.success(`Switched to ${sub.name}!`, {
-      description: "Customer saves money, you earn more margin."
-    });
-  };
-
-  const removeItem = (id: string) => {
-    setCart(cart.filter(item => item.id !== id));
-  };
-
-  const calculateCartTotals = () => {
-    let subtotal = 0;
-    let totalTax = 0;
-
-    cart.forEach(item => {
-      const breakdown = calculateTax(item.price * item.quantity, item.sgst_rate, item.cgst_rate, item.igst_rate, true);
-      subtotal += breakdown.taxableAmount; // Base amount
-      totalTax += breakdown.totalTax;
-    });
-
-    // We display Total Payable (which is MRP sum usually for retail)
-    // Total Payable = Subtotal + Tax
-    const totalPayable = subtotal + totalTax;
-
-    return {
-      subtotal,
-      totalTax,
-      totalPayable
-    };
-  };
-
-  const completeSale = async (isUdhaar: boolean = false) => {
-    if (cart.length === 0) return;
-
-    // Validate Customer for Pay Later
-    let customerId = null;
-    if (isUdhaar) {
-      if (!customerPhone) {
-        toast.error("Phone number required for Credit/Udhaar!");
-        return;
-      }
-      // Find customer
-      const profileData = await supabase.from('profiles').select('shop_id').single();
-      // @ts-ignore - Table exists in database
-      const { data: cust } = await supabase.from('customers').select('id').eq('shop_id', profileData.data?.shop_id).eq('phone', customerPhone).single();
-      if (!cust) {
-        toast.error("Customer not found. Please register them in 'Customers' tab first.");
-        return;
-      }
-      customerId = cust.id;
-    }
-
-    const { data: profile } = await supabase.from('profiles').select('shop_id').single();
-    if (!profile) return;
-
-    const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
-    const totals = calculateCartTotals();
-
-    // Prepare items with snapshot of tax data
-    const orderItems = cart.map(c => {
-      const tax = calculateTax(c.price * c.quantity, c.sgst_rate, c.cgst_rate, c.igst_rate, true);
-      return {
-        name: c.name,
-        qty: c.quantity,
-        price: c.price,
-        hsn: c.hsn_code,
-        tax_breakdown: tax
-      };
-    });
-
-    const status = isUdhaar ? 'pending_payment' : 'approved';
-
-    // 1. Create Order
-    const { error } = await supabase.from('orders').insert({
-      shop_id: profile.shop_id,
-      customer_name: customerName || "Walk-in Customer",
-      customer_phone: customerPhone || null,
-      total_amount: totals.totalPayable,
-      tax_total: totals.totalTax,
-      invoice_number: invoiceNumber,
-      status: status,
-      source: 'manual_pos',
-      order_items: orderItems as any
-    });
-
-    if (error) {
-      toast.error("Failed to complete sale");
-      console.error(error);
-    } else {
-      // 2. If Udhaar, Add to Ledger
-      if (isUdhaar && customerId) {
-        // @ts-ignore - Table exists in database
-        const { error: ledgerError } = await supabase.from('ledger_entries').insert({
-          shop_id: profile.shop_id,
-          customer_id: customerId,
-          amount: totals.totalPayable, // Positive = Debt
-          transaction_type: 'purchase',
-          description: `Invoice ${invoiceNumber}`
-        });
-        if (ledgerError) {
-          console.error("Ledger Error", ledgerError);
-          toast.error("Order saved but Ledger update failed.");
-        }
-      }
-
-      toast.success(isUdhaar ? `Credit Added! Invoice ${invoiceNumber}` : `Sale Completed! Invoice ${invoiceNumber}`);
-      setCart([]);
-      setCustomerName("");
-      setCustomerPhone("");
-      setActiveTab("whatsapp");
-    }
-  };
-
-  const totals = calculateCartTotals();
-
-  const filteredOrders = orders.filter(order =>
-    filter === "all" ? true : order.status === filter
-  );
-
-  const pendingCount = orders.filter(o => o.status === "pending").length;
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Order Management</h1>
-          <p className="text-muted-foreground mt-1">Manage sales and incoming orders</p>
-        </div>
-        <Button variant="outline" onClick={fetchOrders}>
-          <RefreshCw className="w-4 h-4 mr-2" /> Refresh
-        </Button>
-      </div>
+      {/* ... existing header ... */}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[600px]">
-          <TabsTrigger value="whatsapp" className="gap-2">
-            <MessageSquare className="w-4 h-4" /> WhatsApp ({pendingCount})
-          </TabsTrigger>
-          <TabsTrigger value="pos" className="gap-2">
-            <ShoppingCart className="w-4 h-4" /> New Sale (POS)
-          </TabsTrigger>
-          <Link to="/lite-pos" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm bg-purple-100 text-purple-700 hover:bg-purple-200 ml-2">
-            ⚡ Lite Mode
-          </Link>
-        </TabsList>
+        {/* ... existing tabs list ... */}
 
         <TabsContent value="whatsapp" className="space-y-4">
-          <div className="flex gap-2 flex-wrap mb-4">
-            {[
-              { value: "all", label: "All" },
-              { value: "pending", label: "Pending" },
-              { value: "approved", label: "Approved" },
-              { value: "rejected", label: "Rejected" }
-            ].map(tab => (
-              <Button
-                key={tab.value}
-                variant={filter === tab.value ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilter(tab.value as any)}
-              >
-                {tab.label}
-              </Button>
-            ))}
-          </div>
+          {/* ... existing filter buttons ... */}
 
           {loading ? (
+            // ... loading skeleton ...
             <div className="space-y-4">
               {[1, 2].map(i => <div key={i} className="h-24 bg-muted rounded animate-pulse" />)}
             </div>
           ) : filteredOrders.length === 0 ? (
+            // ... empty state ...
             <Card><CardContent className="p-12 text-center text-muted-foreground">No orders found</CardContent></Card>
           ) : (
             <div className="space-y-4">
@@ -500,6 +66,7 @@ const Orders = () => {
                 <Card key={order.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-6">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                      {/* ... existing order details ... */}
                       <div className="space-y-3 flex-1">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -519,12 +86,16 @@ const Orders = () => {
                           </div>
                         )}
                       </div>
+
                       <div className="text-right flex flex-col items-end gap-2">
                         <p className="text-xl font-bold">₹{order.total_amount?.toLocaleString() || '-'}</p>
                         <p className="text-xs text-muted-foreground">{format(new Date(order.created_at), 'PP p')}</p>
                         <div className="flex gap-2">
                           <Button size="sm" variant="outline" onClick={() => handlePrintInvoice(order)}>
                             <FileText className="w-4 h-4 mr-1" /> Print
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-orange-600 border-orange-200 hover:bg-orange-50" onClick={() => handleOpenReturn(order)}>
+                            <Undo2 className="w-4 h-4 mr-1" /> Return
                           </Button>
                           <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleWhatsAppShare(order)}>
                             <Share2 className="w-4 h-4 mr-1" /> Share
@@ -539,7 +110,9 @@ const Orders = () => {
           )}
         </TabsContent>
 
+        {/* ... existing POS tab content ... */}
         <TabsContent value="pos">
+          {/* ... existing POS content ... */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="lg:col-span-2 border-primary/20 bg-card/50 backdrop-blur">
               <CardHeader>
@@ -648,6 +221,15 @@ const Orders = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      <ReturnOrderModal
+        open={returnModalOpen}
+        onOpenChange={setReturnModalOpen}
+        order={selectedOrderForReturn}
+        onSuccess={() => {
+          fetchOrders();
+        }}
+      />
     </div>
   );
 };

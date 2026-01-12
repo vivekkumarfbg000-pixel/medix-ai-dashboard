@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import logger from "@/utils/logger";
+import imageCompression from 'browser-image-compression';
 
 // Rate limiting configuration
 const requestCache = new Map<string, number>();
@@ -111,23 +112,49 @@ export const aiService = {
     /**
      * Secure Clinical Document Upload & Analysis
      */
+
+
+    /**
+     * Secure Clinical Document Upload & Analysis
+     */
     async analyzeDocument(file: File, type: 'prescription' | 'lab_report' | 'invoice' | 'inventory_list'): Promise<any> {
-        // 1. Upload to Supabase Storage 'clinical-uploads' bucket (Backup/Log)
-        const fileExt = file.name.split('.').pop();
+        let fileToUpload = file;
+
+        // 1. Compress Image (Speed Optimization)
+        if (file.type.startsWith('image/')) {
+            try {
+                const options = {
+                    maxSizeMB: 0.8, // Target < 1MB for speed
+                    maxWidthOrHeight: 1920,
+                    useWebWorker: true,
+                    initialQuality: 0.8
+                };
+                logger.log(`[AI Service] Compressing image: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+                const compressedFile = await imageCompression(file, options);
+                logger.log(`[AI Service] Compressed to: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
+                fileToUpload = compressedFile;
+            } catch (error) {
+                logger.warn("[AI Service] Compression failed, using original file:", error);
+            }
+        }
+
+        // 2. Upload to Supabase Storage 'clinical-uploads' bucket (Backup/Log)
+        const fileExt = fileToUpload.name.split('.').pop() || 'jpg';
         const fileName = `${type}_${Date.now()}.${fileExt}`;
-        const filePath = `${(await supabase.auth.getUser()).data.user?.id}/${fileName}`;
+        const user = (await supabase.auth.getUser()).data.user;
+        const filePath = `${user?.id}/${fileName}`;
 
         // Non-blocking upload (fire and forget for speed, or await if critical)
         supabase.storage
             .from('clinical-uploads')
-            .upload(filePath, file)
+            .upload(filePath, fileToUpload)
             .then(({ error }) => {
                 if (error) logger.error("Background Upload Failed:", error);
             });
 
-        // 2. Convert to Base64 for N8N (Gemini expects inline data)
+        // 3. Convert to Base64 for N8N (Gemini expects inline data)
         const reader = new FileReader();
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(fileToUpload);
         const base64Data = await new Promise<string>((resolve, reject) => {
             reader.onloadend = () => {
                 const result = reader.result as string;

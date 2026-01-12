@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { ComparisonCard } from "@/components/dashboard/ai/ComparisonCard";
 
 interface ExtractedItem {
   id: number;
@@ -50,6 +51,7 @@ const DiaryScan = () => {
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [progress, setProgress] = useState(0);
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
+  const [suggestion, setSuggestion] = useState<any>(null); // For ComparisonCard demo
 
   useEffect(() => {
     return () => {
@@ -149,6 +151,20 @@ const DiaryScan = () => {
         }));
         setExtractedItems(mappedItems);
         toast.success("AI Analysis Complete!");
+
+        // DEMO: Simulate Profit Optimizer logic
+        const hasPan40 = mappedItems.some(i => i.medication_name.toLowerCase().includes("pan") || i.medication_name.toLowerCase().includes("pantop"));
+        if (hasPan40) {
+          setTimeout(() => {
+            setSuggestion({
+              prescribed: { name: "Pan 40 (Brand)", manufacturer: "Alkem", priceToPatient: 155, costToPharmacy: 140, isGeneric: false },
+              suggested: { name: "Pantoprazole 40 (Generic)", manufacturer: "MedixGen", priceToPatient: 90, costToPharmacy: 45, isGeneric: true }
+            });
+            toast.info("💡 Smart Alternative Found!", { description: "You can increase profit by switching to generic." });
+          }, 1000);
+        } else {
+          setSuggestion(null);
+        }
       } else {
         console.error("Invalid Response Structure:", result);
         toast.error("Analysis failed. See console for response details: " + JSON.stringify(result).slice(0, 100));
@@ -266,6 +282,27 @@ const DiaryScan = () => {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Comparison Card (Profit Engine) */}
+        {suggestion && (
+          <div className="lg:col-span-2 animate-fade-in-up">
+            <ComparisonCard
+              prescribed={suggestion.prescribed}
+              suggested={suggestion.suggested}
+              onAcceptSuggestion={() => {
+                toast.success("Switched to Generic!");
+                // Update the list to replace Brand with Generic
+                setExtractedItems(prev => prev.map(i =>
+                  (i.medication_name.toLowerCase().includes("pan") || i.medication_name.toLowerCase().includes("pantop"))
+                    ? { ...i, medication_name: suggestion.suggested.name, notes: "Switched to Generic via Smart-Opt" }
+                    : i
+                ));
+                setSuggestion(null);
+              }}
+              onKeepPrescribed={() => setSuggestion(null)}
+            />
+          </div>
+        )}
 
         {/* Extracted Results Section */}
         {extractedItems.length > 0 && (

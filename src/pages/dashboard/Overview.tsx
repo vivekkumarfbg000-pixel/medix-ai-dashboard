@@ -11,6 +11,7 @@ import { SafetyWidget } from "@/components/dashboard/widgets/SafetyWidget";
 import { RefillAlertsWidget } from "@/components/dashboard/widgets/RefillAlertsWidget";
 import { BusinessReportWidget } from "@/components/dashboard/widgets/BusinessReportWidget";
 import { SystemHealthWidget } from "@/components/dashboard/widgets/SystemHealthWidget";
+import { DayEndTally } from "@/components/dashboard/widgets/DayEndTally";
 
 const Overview = () => {
   const [loading, setLoading] = useState(true);
@@ -79,9 +80,9 @@ const Overview = () => {
           <BusinessReportWidget />
         </div>
 
-        {/* SYSTEM HEALTH */}
+        {/* DAY END TALLY */}
         <div className="h-full">
-          <SystemHealthWidget />
+          <DayEndTally />
         </div>
       </div>
 

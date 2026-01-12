@@ -13,7 +13,9 @@ import {
   ShieldAlert,
   Store,
   Users,
-  History
+  History,
+  Truck,
+  NotebookPen
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +44,8 @@ const mainNavItems = [
   { title: "Marketplace", url: "/dashboard/marketplace", icon: Store },
   { title: "Orders", url: "/dashboard/orders", icon: MessageSquare },
   { title: "Smart Khata", url: "/dashboard/customers", icon: Users },
+  { title: "Suppliers", url: "/dashboard/suppliers", icon: Truck },
+  { title: "Shortbook", url: "/dashboard/shortbook", icon: NotebookPen },
   { title: "Digital Parchas", url: "/dashboard/prescriptions", icon: FileText },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: History },
 ];

@@ -30,12 +30,23 @@ const Prescriptions = lazy(() => import("./pages/dashboard/Prescriptions"));
 const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
 const AuditLogs = lazy(() => import("./pages/dashboard/AuditLogs"));
 const Customers = lazy(() => import("./pages/dashboard/Customers"));
+const Suppliers = lazy(() => import("./pages/dashboard/Suppliers"));
+const Shortbook = lazy(() => import("./pages/dashboard/Shortbook"));
 const EnvDebug = lazy(() => import("./pages/EnvDebug"));
 const AiDebug = lazy(() => import("./pages/AiDebug"));
 
 
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes data retention (prevents refetching)
+      gcTime: 1000 * 60 * 30, // 30 minutes garbage collection
+      retry: 1, // Fail fast after 1 retry
+      refetchOnWindowFocus: false, // Don't refetch on tab switch (save bandwidth)
+    },
+  },
+});
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-screen bg-background">
@@ -56,7 +67,7 @@ const MobileNavHandler = () => {
   return null;
 };
 
-import ErrorBoundary from "./components/ErrorBoundary";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 const App = () => {
   useEffect(() => {
@@ -94,6 +105,8 @@ const App = () => {
                   <Route path="prescriptions" element={<Prescriptions />} />
                   <Route path="analytics" element={<Analytics />} />
                   <Route path="customers" element={<Customers />} />
+                  <Route path="suppliers" element={<Suppliers />} />
+                  <Route path="shortbook" element={<Shortbook />} />
                   <Route path="audit-logs" element={<AuditLogs />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="env-debug" element={<EnvDebug />} />

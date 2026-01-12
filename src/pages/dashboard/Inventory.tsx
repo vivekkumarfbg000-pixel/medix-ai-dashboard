@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Plus, Search, Package, AlertTriangle, Filter, Sparkles, Check, X, RefreshCw, Upload } from "lucide-react";
+import { Plus, Search, Package, AlertTriangle, Filter, Sparkles, Check, X, RefreshCw, Upload, Trash2, NotebookPen, TrendingUp } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 
 interface InventoryItem {
@@ -50,6 +50,11 @@ interface StagingItem {
   unit_price: number;
   source: string;
   created_at: string;
+  insights?: {
+    velocity: 'Fast' | 'Slow' | 'Dead';
+    classification: 'A' | 'B' | 'C';
+    action: 'Reorder' | 'Return' | 'Discount' | 'None';
+  };
 }
 
 const Inventory = () => {
@@ -76,7 +81,11 @@ const Inventory = () => {
     salt_composition: ""
   });
 
+  /* Debug Logging */
   const fetchInventory = async () => {
+    // Only fetch if we have a shop selected (though RLS handles security, this is good for UX)
+    if (!currentShop?.id) return;
+
     const { data, error } = await supabase
       .from("inventory")
       // @ts-ignore
@@ -85,14 +94,21 @@ const Inventory = () => {
 
     if (error) {
       console.error(error);
+      toast.error("Failed to load inventory");
     } else {
       // @ts-ignore
-      setInventory(data || []);
+      const validData = data || [];
+      if (validData.length > 0) {
+        console.log("Inventory Loaded:", validData.length, "items", validData[0]);
+      }
+      setInventory(validData);
     }
     setLoading(false);
   };
 
   const fetchStaging = async () => {
+    if (!currentShop?.id) return;
+
     // @ts-ignore - Table exists in database
     const { data, error } = await supabase
       .from("inventory_staging")
@@ -103,13 +119,36 @@ const Inventory = () => {
     if (error) {
       console.error("Error fetching drafts:", error);
     } else {
-      setStagingItems((data || []) as StagingItem[]);
+      // Mock Enrichment (ABC-VEN Analysis)
+      // In production, this data would come from the N8N analysis engine directly
+      const enrichedData = (data || []).map((item: any) => {
+        // Simple logic: Price > 500 is Class A. Random Velocity.
+        const isExpensive = item.unit_price > 500;
+        const velocity = Math.random() > 0.5 ? 'Fast' : (Math.random() > 0.5 ? 'Slow' : 'Dead');
+        let action = 'None';
+
+        if (velocity === 'Dead' && isExpensive) action = 'Return';
+        else if (velocity === 'Slow' && !isExpensive) action = 'Discount';
+        else if (velocity === 'Fast') action = 'Reorder';
+
+        return {
+          ...item,
+          insights: {
+            classification: isExpensive ? 'A' : 'C',
+            velocity: velocity,
+            action: action
+          }
+        };
+      });
+      setStagingItems(enrichedData as StagingItem[]);
     }
   };
 
   useEffect(() => {
-    fetchInventory();
-    fetchStaging();
+    if (currentShop?.id) {
+      fetchInventory();
+      fetchStaging();
+    }
 
     const channel = supabase
       .channel('inventory-updates')
@@ -118,7 +157,7 @@ const Inventory = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [currentShop?.id]); // Re-fetch when shop changes
 
   const getExpiryStatus = (expiryDate: string | null) => {
     if (!expiryDate) return "safe";
@@ -130,25 +169,34 @@ const Inventory = () => {
   };
 
   const handleApproveDraft = async (item: StagingItem) => {
+    if (!currentShop?.id) {
+      toast.error("No Shop Selected. Please switch shops or reload.");
+      return;
+    }
+
+    if (!item.medicine_name || !item.medicine_name.trim()) {
+      toast.error("Cannot approve item with empty name.");
+      return;
+    }
+
     // 1. Move to Main Inventory
-    // We map only the basic fields present in staging. The user can edit details later.
     const { error: insertError } = await supabase.from("inventory").insert({
-      shop_id: (await supabase.auth.getUser()).data.user?.user_metadata?.shop_id, // Fetch real shop_id if possible
+      shop_id: currentShop.id, // reliable shop_id
       medicine_name: item.medicine_name,
       batch_number: item.batch_number,
       quantity: item.quantity,
       unit_price: item.unit_price,
       expiry_date: item.expiry_date,
       source: 'ai_scan'
-    } as any); // Type casting for quick implementation
+    } as any);
 
     if (insertError) {
-      toast.error("Failed to approve item");
+      toast.error("Failed to approve item: " + insertError.message);
       console.error(insertError);
       return;
     }
 
-    // 2. Mark as Approved in Staging (or delete)
+    // 2. Mark as Approved in Staging
     // @ts-ignore - Table exists in database
     await supabase.from("inventory_staging").update({ status: 'approved' }).eq('id', item.id);
 
@@ -165,6 +213,11 @@ const Inventory = () => {
   };
 
   const handleAddItem = async () => {
+    if (!currentShop?.id) {
+      toast.error("No Shop Selected. Please reload.");
+      return;
+    }
+
     if (!newItem.medicine_name.trim()) {
       toast.error("Medicine name is required");
       return;
@@ -198,14 +251,8 @@ const Inventory = () => {
       });
     }
 
-    const { data: profile } = await supabase.from("profiles").select("shop_id").single();
-    if (!profile?.shop_id) {
-      toast.error("Unable to find your shop. Please try logging in again.");
-      return;
-    }
-
-    const { error } = await supabase.from("inventory").insert({ // Keeping "inventory" to not break legacy code
-      shop_id: profile.shop_id,
+    const { error } = await supabase.from("inventory").insert({
+      shop_id: currentShop.id, // reliable shop_id
       medicine_name: newItem.medicine_name,
       generic_name: newItem.generic_name,
       batch_number: newItem.batch_number,
@@ -218,7 +265,7 @@ const Inventory = () => {
     } as any);
 
     if (error) {
-      toast.error("Failed to add item");
+      toast.error("Failed to add item: " + error.message);
       console.error(error);
     } else {
       toast.success("Item added successfully");
@@ -237,8 +284,84 @@ const Inventory = () => {
     item.category?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  /* New State for Stock Adjustment */
+  const [adjustmentDialog, setAdjustmentDialog] = useState<{
+    isOpen: boolean;
+    item: InventoryItem | null;
+    type: 'IN' | 'OUT';
+  }>({ isOpen: false, item: null, type: 'IN' });
+
+  const [adjustmentForm, setAdjustmentForm] = useState({ quantity: 1, reason: "" });
+
+  const handleOpenAdjustment = (item: InventoryItem, type: 'IN' | 'OUT') => {
+    setAdjustmentDialog({ isOpen: true, item, type });
+    setAdjustmentForm({ quantity: 1, reason: "" });
+  };
+
+  const handleExecuteAdjustment = async () => {
+    if (!adjustmentDialog.item) return;
+
+    const qtyChange = adjustmentDialog.type === 'IN' ? adjustmentForm.quantity : -adjustmentForm.quantity;
+    const reason = adjustmentForm.reason || (adjustmentDialog.type === 'IN' ? "Restock" : "Manual Deduction");
+
+    const toastId = toast.loading("Updating Stock...");
+
+    // @ts-ignore
+    const { data, error } = await supabase.rpc('adjust_inventory_stock', {
+      p_inventory_id: adjustmentDialog.item.id,
+      p_quantity_change: qtyChange,
+      p_movement_type: adjustmentDialog.type,
+      p_reason: reason
+    });
+
+    toast.dismiss(toastId);
+
+    if (error) {
+      console.error(error);
+      toast.error("Failed to update stock: " + error.message);
+    } else {
+      // @ts-ignore
+      if (data && data.success) {
+        toast.success(`Stock updated! New Qty: ${data.new_quantity}`);
+        fetchInventory();
+        setAdjustmentDialog({ ...adjustmentDialog, isOpen: false });
+      } else {
+        // @ts-ignore
+        toast.error(data?.error || "Update failed");
+      }
+    }
+  };
+
+  const handleAddToShortbook = async (item: InventoryItem) => {
+    if (!currentShop?.id) return;
+    const { error } = await supabase.from('shortbook_items').insert({
+      shop_id: currentShop.id,
+      medicine_name: item.medicine_name,
+      quantity_needed: "10 strips", // Default suggestion
+      priority: 'normal'
+    });
+
+    if (error) toast.error("Failed to add to Shortbook");
+    else toast.success(`Added ${item.medicine_name} to Shortbook`);
+  };
+
+  /* Delete Functionality */
+  const handleDeleteItem = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete ${name || "this item"}?`)) return;
+
+    const { error } = await supabase.from("inventory").delete().eq("id", id);
+    if (error) {
+      toast.error("Failed to delete item");
+      console.error(error);
+    } else {
+      toast.success("Item deleted");
+      fetchInventory();
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* ... Headers ... */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Inventory Management</h1>
@@ -259,7 +382,6 @@ const Inventory = () => {
         </TabsList>
 
         <TabsContent value="stock" className="space-y-6">
-          {/* Search & Add Section */}
           <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
             <Card className="flex-1 w-full">
               <CardContent className="p-4 flex gap-4">
@@ -286,7 +408,6 @@ const Inventory = () => {
                     <DialogTitle>Add New Medicine</DialogTitle>
                     <DialogDescription>Enter details manually.</DialogDescription>
                   </DialogHeader>
-                  {/* Simplified Add Form for brevity in this edit */}
                   <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -322,15 +443,40 @@ const Inventory = () => {
                   {filteredInventory.map((item) => {
                     const status = getExpiryStatus(item.expiry_date);
                     return (
-                      <div key={item.id} className="medical-card group relative hover:shadow-xl transition-all duration-300">
-                        <div className="flex justify-between items-start mb-4">
-                          <div><h3 className="font-semibold text-lg">{item.medicine_name}</h3><p className="text-xs text-muted-foreground">{item.batch_number}</p></div>
-                          <Badge variant={item.quantity < 10 ? "destructive" : "secondary"}>{item.quantity} units</Badge>
+                      <div key={item.id} className="medical-card group relative hover:shadow-xl transition-all duration-300 flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-start mb-4">
+                            <div>
+                              <h3 className={`font-semibold text-lg ${!item.medicine_name ? 'text-red-500' : ''}`}>
+                                {item.medicine_name || "Unknown Item (Data Error)"}
+                              </h3>
+                              <p className="text-xs text-muted-foreground">{item.batch_number || "No Batch"}</p>
+                            </div>
+                            <Badge variant={item.quantity < 10 ? "destructive" : "secondary"}>{item.quantity} units}</Badge>
+                          </div>
+                          <div className="flex justify-between items-center text-sm mb-4">
+                            <span className="font-bold">₹{item.unit_price}</span>
+                            <Badge variant={status === 'expired' ? 'destructive' : 'outline'} className="text-[10px]">{status === 'safe' ? 'Safe' : 'Check Expiry'}</Badge>
+                          </div>
                         </div>
-                        <div className="pt-4 border-t flex justify-between items-center text-sm">
-                          <span className="font-bold">₹{item.unit_price}</span>
-                          <Badge variant={status === 'expired' ? 'destructive' : 'outline'} className="text-[10px]">{status === 'safe' ? 'Safe' : 'Check Expiry'}</Badge>
-                        </div>
+
+                        {/* Stock Actions */}
+                        {canModify && (
+                          <div className="flex gap-2 mt-auto pt-3 border-t items-center">
+                            <Button variant="outline" size="sm" className="flex-1 text-green-600 hover:text-green-700 hover:bg-green-50 h-8" onClick={() => handleOpenAdjustment(item, 'IN')}>
+                              <Plus className="w-3 h-3 mr-1" /> Stock In
+                            </Button>
+                            <Button variant="outline" size="sm" className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 h-8" onClick={() => handleOpenAdjustment(item, 'OUT')}>
+                              <X className="w-3 h-3 mr-1" /> Out
+                            </Button>
+                            <Button variant="outline" size="sm" className="flex-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8" onClick={() => handleAddToShortbook(item)}>
+                              <NotebookPen className="w-3 h-3 mr-1" /> Note
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-500" onClick={() => handleDeleteItem(item.id, item.medicine_name)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -340,6 +486,7 @@ const Inventory = () => {
           </Card>
         </TabsContent>
 
+        {/* ... Drafts Tab Content ... */}
         <TabsContent value="drafts" className="space-y-4">
           <Card className="border-purple-200 bg-purple-50/30">
             <CardContent className="p-6">
@@ -351,6 +498,7 @@ const Inventory = () => {
                 </div>
               </div>
 
+              {/* Upload Section */}
               <div className="flex flex-col gap-4">
                 <div className="flex justify-between items-center bg-white p-4 rounded-lg border shadow-sm">
                   <div>
@@ -366,10 +514,7 @@ const Inventory = () => {
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-
-                        // Clear input so same file can be selected again
                         e.target.value = '';
-
                         const toastId = toast.loading("Uploading to AI Vision Engine...");
                         try {
                           const base64 = await new Promise<string>((resolve, reject) => {
@@ -385,7 +530,6 @@ const Inventory = () => {
 
                           // @ts-ignore
                           const { aiService } = await import("@/services/aiService");
-                          // UPDATED: Use the Universal Brain Analysis Engine
                           await aiService.analyzeDocument(file, 'inventory_list');
                           toast.success("Scan Complete! Drafts created.");
                           fetchStaging();
@@ -418,8 +562,33 @@ const Inventory = () => {
                             <span>MRP: ₹{item.unit_price}</span>
                             {item.expiry_date && <span>Exp: {item.expiry_date}</span>}
                           </div>
+                          {item.insights && (
+                            <div className="flex gap-2 mt-2">
+                              <Badge variant="outline" className={item.insights.classification === 'A' ? 'border-red-500 text-red-600' : 'border-slate-400'}>
+                                Class {item.insights.classification}
+                              </Badge>
+                              <Badge variant="secondary" className={
+                                item.insights.velocity === 'Fast' ? 'bg-green-100 text-green-700' :
+                                  item.insights.velocity === 'Dead' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                              }>
+                                {item.insights.velocity} Mover
+                              </Badge>
+                            </div>
+                          )}
                         </div>
                         <div className="flex gap-2">
+                          {/* AI Action Buttons */}
+                          {item.insights?.action === 'Return' && (
+                            <Button size="sm" variant="outline" className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100">
+                              <Trash2 className="w-3 h-3 mr-1" /> Return to Vendor
+                            </Button>
+                          )}
+                          {item.insights?.action === 'Discount' && (
+                            <Button size="sm" variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100">
+                              <TrendingUp className="w-3 h-3 mr-1" /> Apply 10% Off
+                            </Button>
+                          )}
+
                           <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => handleRejectDraft(item.id)}>
                             <X className="w-4 h-4 mr-1" /> Reject
                           </Button>
@@ -435,8 +604,48 @@ const Inventory = () => {
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
+
+        {/* Stock Adjustment Dialog */}
+        <Dialog open={adjustmentDialog.isOpen} onOpenChange={(open) => setAdjustmentDialog({ ...adjustmentDialog, isOpen: open })}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{adjustmentDialog.type === 'IN' ? 'Stock In (Restock)' : 'Stock Out (Deduction)'}</DialogTitle>
+              <DialogDescription>
+                Adjusting stock for: <strong>{adjustmentDialog.item?.medicine_name}</strong>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Quantity</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={adjustmentForm.quantity}
+                  onChange={(e) => setAdjustmentForm({ ...adjustmentForm, quantity: Math.abs(parseInt(e.target.value)) || 1 })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Reason (Optional)</Label>
+                <Input
+                  placeholder={adjustmentDialog.type === 'IN' ? "e.g., Vendor Delivery" : "e.g., Damaged, Expired"}
+                  value={adjustmentForm.reason}
+                  onChange={(e) => setAdjustmentForm({ ...adjustmentForm, reason: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setAdjustmentDialog({ ...adjustmentDialog, isOpen: false })}>Cancel</Button>
+              <Button
+                variant={adjustmentDialog.type === 'IN' ? 'default' : 'destructive'}
+                onClick={handleExecuteAdjustment}
+              >
+                Confirm {adjustmentDialog.type === 'IN' ? 'Restock' : 'Deduction'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
     </div>
+    </div >
   );
 };
 

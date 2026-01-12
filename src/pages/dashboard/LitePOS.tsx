@@ -5,18 +5,53 @@ import { Input } from "@/components/ui/input";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, OfflineInventory } from "@/db/db";
 import { toast } from "sonner";
-import { ShoppingCart, RefreshCw, Mic, Trash2, ArrowLeft, Download } from "lucide-react";
+import { ShoppingCart, RefreshCw, Mic, Trash2, ArrowLeft, Download, ShieldAlert } from "lucide-react";
 import { Link } from "react-router-dom";
 import { VoiceCommandBar, ParsedItem } from "@/components/dashboard/VoiceCommandBar";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserShops } from "@/hooks/useUserShops";
 import { useUserRole } from "@/hooks/useUserRole";
+import { whatsappService } from "@/services/whatsappService";
+import { aiService } from "@/services/aiService";
 
 const LitePOS = () => {
     const [cart, setCart] = useState<{ item: OfflineInventory; qty: number }[]>([]);
     const [search, setSearch] = useState("");
     const [isSyncing, setIsSyncing] = useState(false);
+    const [paymentMode, setPaymentMode] = useState<string>("cash");
     const { currentShop } = useUserShops();
+
+    // Safety Logic
+    const [interactions, setInteractions] = useState<string[]>([]);
+    const [checkingSafety, setCheckingSafety] = useState(false);
+
+    useEffect(() => {
+        const checkSafety = async () => {
+            if (cart.length < 2) {
+                setInteractions([]);
+                return;
+            }
+
+            setCheckingSafety(true);
+            try {
+                // Debounce could be good here, but for now we keep it simple
+                const drugNames = cart.map(c => c.item.medicine_name);
+                const warnings = await aiService.checkInteractions(drugNames);
+                // Simplify output for LitePOS
+                const messages = warnings.map((w: any) =>
+                    typeof w === 'string' ? w : `${w.severity?.toUpperCase() || 'WARN'}: ${w.description || 'Interaction detected'}`
+                );
+                setInteractions(messages);
+            } catch (e) {
+                console.error("Safety Check Failed", e);
+            } finally {
+                setCheckingSafety(false);
+            }
+        };
+
+        const timeoutId = setTimeout(checkSafety, 1500); // 1.5s debounce
+        return () => clearTimeout(timeoutId);
+    }, [cart]);
 
     // Sync inventory from Supabase to local Dexie DB
     const syncInventory = async () => {
@@ -24,7 +59,7 @@ const LitePOS = () => {
             toast.error("No shop selected!");
             return;
         }
-        
+
         setIsSyncing(true);
         try {
             const { data, error } = await supabase
@@ -68,7 +103,7 @@ const LitePOS = () => {
 
     // Live Query from Local DB (Instant Search)
     const products = useLiveQuery(
-        () => search 
+        () => search
             ? db.inventory.where("medicine_name").startsWithIgnoreCase(search).limit(12).toArray()
             : db.inventory.limit(12).toArray(),
         [search]
@@ -222,6 +257,8 @@ const LitePOS = () => {
                 total_amount: total,
                 status: 'approved',
                 source: 'lite_pos',
+                payment_mode: paymentMode,
+                payment_status: 'paid', // LitePOS is instant pay usually
                 invoice_number: invoiceNumber,
                 order_items: orderItems as any
             });
@@ -242,6 +279,69 @@ const LitePOS = () => {
         }
     };
 
+    const handleFastCheckout = async () => {
+        if (!currentShop?.id) return;
+        if (cart.length === 0) return;
+
+        setIsCheckingOut(true);
+        const invoiceNumber = `FAST-${Date.now().toString().slice(-6)}`;
+        const total = calculateTotal();
+
+        const orderItems = cart.map(c => ({
+            name: c.item.medicine_name,
+            qty: c.qty,
+            price: c.item.unit_price,
+            inventory_id: c.item.id
+        }));
+
+        try {
+            const { error } = await supabase.from('orders').insert({
+                shop_id: currentShop.id,
+                customer_name: "Walk-in (Fast)",
+                total_amount: total,
+                status: 'approved',
+                source: 'lite_pos_fast',
+                payment_mode: 'cash',
+                payment_status: 'paid',
+                invoice_number: invoiceNumber,
+                order_items: orderItems as any
+            });
+
+            if (error) throw error;
+
+            toast.success(`⚡ Fast Cash: ₹${total} Received!`);
+            setCart([]);
+        } catch (err: any) {
+            toast.error("Failed", { description: err.message });
+        } finally {
+            setIsCheckingOut(false);
+        }
+    };
+
+    const handleWhatsAppShare = () => {
+        if (cart.length === 0) {
+            toast.error("Cart is empty");
+            return;
+        }
+
+        // Prompt for phone number since LitePOS doesn't force customer details
+        const phone = prompt("Enter Customer WhatsApp Number:");
+        if (!phone) return;
+
+        const link = whatsappService.generateInvoiceLink(phone, {
+            customer_name: "Walk-in Customer",
+            created_at: new Date().toISOString(),
+            total_amount: calculateTotal(),
+            status: "DRAFT",
+            items: cart.map(c => ({
+                name: c.item.medicine_name,
+                qty: c.qty,
+                price: c.item.unit_price
+            }))
+        });
+        window.open(link, '_blank');
+    };
+
     return (
         <div className="h-screen flex flex-col bg-background relative">
             {/* Header - Deep Blue Gradient */}
@@ -254,8 +354,8 @@ const LitePOS = () => {
                     <span className="text-xs text-blue-100">{currentShop?.name || "No Shop"}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button 
-                        size="sm" 
+                    <Button
+                        size="sm"
                         variant="secondary"
                         onClick={syncInventory}
                         disabled={isSyncing}
@@ -343,19 +443,73 @@ const LitePOS = () => {
                         ))}
                     </div>
 
+                    {/* Safety Warnings */}
+                    {(interactions.length > 0 || checkingSafety) && (
+                        <div className={`p-3 border-t border-slate-200 dark:border-slate-700 ${interactions.length > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'bg-slate-50'}`}>
+                            {checkingSafety ? (
+                                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                                    <RefreshCw className="w-3 h-3 animate-spin" /> Checking interactions...
+                                </p>
+                            ) : (
+                                <div className="space-y-1">
+                                    <p className="text-xs font-bold text-red-600 flex items-center gap-1">
+                                        <ShieldAlert className="w-3 h-3" /> INTERACTION ALERT
+                                    </p>
+                                    {interactions.map((msg, idx) => (
+                                        <p key={idx} className="text-xs text-red-700 dark:text-red-300">• {msg}</p>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-4">
                         <div className="flex justify-between text-xl font-bold text-slate-800 dark:text-white">
                             <span>Total</span>
                             <span className="text-emerald-600 dark:text-emerald-400">₹{calculateTotal()}</span>
                         </div>
-                        <Button
-                            size="lg"
-                            className="w-full h-14 text-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-transform shadow-lg"
-                            onClick={() => withHaptic(handleCheckout)}
-                            disabled={isCheckingOut || cart.length === 0}
-                        >
-                            {isCheckingOut ? "Saving..." : "Checkout & Cash (₹)"}
-                        </Button>
+                        {/* Payment Mode Selector */}
+                        <div className="grid grid-cols-3 gap-2">
+                            {["cash", "upi", "card"].map((mode) => (
+                                <Button
+                                    key={mode}
+                                    variant={paymentMode === mode ? "default" : "outline"}
+                                    className={`capitalize h-8 text-xs ${paymentMode === mode ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                                    onClick={() => setPaymentMode(mode)}
+                                >
+                                    {mode}
+                                </Button>
+                            ))}
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                size="lg"
+                                variant="outline"
+                                className="h-14 w-14 border-emerald-600 text-emerald-600 hover:bg-emerald-50"
+                                onClick={() => withHaptic(handleWhatsAppShare)}
+                                title="Share Bill on WhatsApp"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-phone"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
+                            </Button>
+                            <Button
+                                size="lg"
+                                className="h-14 font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-lg flex flex-col items-center justify-center leading-none px-6"
+                                onClick={() => withHaptic(handleFastCheckout)}
+                                disabled={isCheckingOut || cart.length === 0}
+                                title="Skip details, just cash"
+                            >
+                                <span className="text-xs uppercase opacity-80 mb-1">Fast Cash</span>
+                                <span className="text-lg">⚡ Pay</span>
+                            </Button>
+                            <Button
+                                size="lg"
+                                className="flex-1 h-14 text-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-transform shadow-lg"
+                                onClick={() => withHaptic(handleCheckout)}
+                                disabled={isCheckingOut || cart.length === 0}
+                            >
+                                {isCheckingOut ? "Saving..." : "Checkout & Cash (₹)"}
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>

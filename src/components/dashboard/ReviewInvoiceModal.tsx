@@ -25,6 +25,7 @@ import {
   Plus,
   Package
 } from "lucide-react";
+import { whatsappService } from "@/services/whatsappService";
 import type { ParsedItem } from "./VoiceCommandBar";
 
 interface ReviewInvoiceModalProps {
@@ -55,6 +56,7 @@ export function ReviewInvoiceModal({
   const [customerName, setCustomerName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isMatching, setIsMatching] = useState(false); // Default to false to avoid initial hang
+  const [paymentMode, setPaymentMode] = useState<string>("cash");
 
   useEffect(() => {
     if (open && parsedItems.length > 0) {
@@ -146,6 +148,21 @@ export function ReviewInvoiceModal({
     }]);
   };
 
+  const handleSendWhatsApp = () => {
+    if (!customerPhone) {
+      toast.error("Please enter a customer phone number first");
+      return;
+    }
+    const link = whatsappService.generateInvoiceLink(customerPhone, {
+      customer_name: customerName || "Customer",
+      created_at: new Date().toISOString(),
+      total_amount: total,
+      status: "DRAFT",
+      items: items.map(i => ({ name: i.name, qty: i.quantity, price: i.price }))
+    });
+    window.open(link, '_blank');
+  };
+
   const total = items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
 
   const handleConfirm = async () => {
@@ -175,7 +192,9 @@ export function ReviewInvoiceModal({
           customer_name: customerName,
           quantity_sold: items.reduce((sum, item) => sum + item.quantity, 0),
           total_amount: total,
-          sale_date: new Date().toISOString()
+          sale_date: new Date().toISOString(),
+          payment_mode: paymentMode,
+          payment_status: paymentMode === "credit" ? "pending" : "paid"
         })
         .select()
         .single();
@@ -210,6 +229,7 @@ export function ReviewInvoiceModal({
             customer_phone: customerPhone,
             items: items.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })),
             total,
+            payment_mode: paymentMode,
             shop_name: "Medical Shop" // Would come from shop data
           }
         });
@@ -270,6 +290,24 @@ export function ReviewInvoiceModal({
           </div>
         </div>
 
+        {/* Payment Mode */}
+        <div className="space-y-2">
+          <Label>Payment Mode</Label>
+          <div className="flex gap-2">
+            {["cash", "upi", "card", "credit"].map((mode) => (
+              <Button
+                key={mode}
+                size="sm"
+                variant={paymentMode === mode ? "default" : "outline"}
+                onClick={() => setPaymentMode(mode)}
+                className="flex-1 capitalize"
+              >
+                {mode === "credit" ? "Pay Later" : mode}
+              </Button>
+            ))}
+          </div>
+        </div>
+
         <Separator />
 
         {/* Items List */}
@@ -293,9 +331,10 @@ export function ReviewInvoiceModal({
             </div>
           ) : (
             <div className="space-y-2">
-              {items.map((item) => (
+              {items.map((item, index) => (
                 <div key={item.id} className="glass-card p-3 rounded-lg space-y-2">
                   <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-muted-foreground w-6">#{index + 1}</span>
                     <Input
                       placeholder="Medicine name"
                       value={item.name}
@@ -360,6 +399,9 @@ export function ReviewInvoiceModal({
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             <X className="w-4 h-4 mr-1" /> Cancel
+          </Button>
+          <Button variant="secondary" className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSendWhatsApp}>
+            <Phone className="w-4 h-4 mr-1" /> WhatsApp
           </Button>
           <Button onClick={handleConfirm} disabled={isProcessing}>
             {isProcessing ? (
