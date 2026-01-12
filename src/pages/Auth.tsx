@@ -97,10 +97,10 @@ const Auth = () => {
       <div className="hidden lg:flex lg:w-1/2 gradient-primary p-12 flex-col justify-between">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-primary-foreground/20 flex items-center justify-center">
-              <Pill className="w-6 h-6 text-primary-foreground" />
+            <div className="w-16 h-16 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20 shadow-xl overflow-hidden">
+              <img src="/medix-logo.jpg" alt="MedixAI Logo" className="w-full h-full object-cover" />
             </div>
-            <h1 className="text-2xl font-bold text-primary-foreground">MedixAI</h1>
+            <h1 className="text-3xl font-bold text-primary-foreground tracking-tight">MedixAI</h1>
           </div>
           <p className="text-primary-foreground/80 text-sm">Medical Shop Management System</p>
         </div>
@@ -136,11 +136,11 @@ const Auth = () => {
       <div className="flex-1 flex items-center justify-center p-8 bg-background">
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-              <Pill className="w-6 h-6 text-primary-foreground" />
+          <div className="lg:hidden flex flex-col items-center gap-4 mb-8 justify-center">
+            <div className="w-16 h-16 rounded-xl bg-primary/5 flex items-center justify-center overflow-hidden border border-primary/10 shadow-lg">
+              <img src="/medix-logo.jpg" alt="MedixAI Logo" className="w-full h-full object-cover" />
             </div>
-            <h1 className="text-2xl font-bold text-foreground">MedixAI</h1>
+            <h1 className="text-3xl font-bold text-foreground tracking-tight">MedixAI</h1>
           </div>
 
           <Card className="border-0 shadow-lg">
