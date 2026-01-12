@@ -452,7 +452,7 @@ const Inventory = () => {
                               </h3>
                               <p className="text-xs text-muted-foreground">{item.batch_number || "No Batch"}</p>
                             </div>
-                            <Badge variant={item.quantity < 10 ? "destructive" : "secondary"}>{item.quantity} units}</Badge>
+                            <Badge variant={item.quantity < 10 ? "destructive" : "secondary"}>{item.quantity} units</Badge>
                           </div>
                           <div className="flex justify-between items-center text-sm mb-4">
                             <span className="font-bold">₹{item.unit_price}</span>
@@ -604,48 +604,48 @@ const Inventory = () => {
             </CardContent>
           </Card>
         </TabsContent>
+      </Tabs>
 
-        {/* Stock Adjustment Dialog */}
-        <Dialog open={adjustmentDialog.isOpen} onOpenChange={(open) => setAdjustmentDialog({ ...adjustmentDialog, isOpen: open })}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{adjustmentDialog.type === 'IN' ? 'Stock In (Restock)' : 'Stock Out (Deduction)'}</DialogTitle>
-              <DialogDescription>
-                Adjusting stock for: <strong>{adjustmentDialog.item?.medicine_name}</strong>
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Quantity</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={adjustmentForm.quantity}
-                  onChange={(e) => setAdjustmentForm({ ...adjustmentForm, quantity: Math.abs(parseInt(e.target.value)) || 1 })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Reason (Optional)</Label>
-                <Input
-                  placeholder={adjustmentDialog.type === 'IN' ? "e.g., Vendor Delivery" : "e.g., Damaged, Expired"}
-                  value={adjustmentForm.reason}
-                  onChange={(e) => setAdjustmentForm({ ...adjustmentForm, reason: e.target.value })}
-                />
-              </div>
+      {/* Stock Adjustment Dialog */}
+      <Dialog open={adjustmentDialog.isOpen} onOpenChange={(open) => setAdjustmentDialog({ ...adjustmentDialog, isOpen: open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{adjustmentDialog.type === 'IN' ? 'Stock In (Restock)' : 'Stock Out (Deduction)'}</DialogTitle>
+            <DialogDescription>
+              Adjusting stock for: <strong>{adjustmentDialog.item?.medicine_name}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Quantity</Label>
+              <Input
+                type="number"
+                min="1"
+                value={adjustmentForm.quantity}
+                onChange={(e) => setAdjustmentForm({ ...adjustmentForm, quantity: Math.abs(parseInt(e.target.value)) || 1 })}
+              />
             </div>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setAdjustmentDialog({ ...adjustmentDialog, isOpen: false })}>Cancel</Button>
-              <Button
-                variant={adjustmentDialog.type === 'IN' ? 'default' : 'destructive'}
-                onClick={handleExecuteAdjustment}
-              >
-                Confirm {adjustmentDialog.type === 'IN' ? 'Restock' : 'Deduction'}
-              </Button>
+            <div className="space-y-2">
+              <Label>Reason (Optional)</Label>
+              <Input
+                placeholder={adjustmentDialog.type === 'IN' ? "e.g., Vendor Delivery" : "e.g., Damaged, Expired"}
+                value={adjustmentForm.reason}
+                onChange={(e) => setAdjustmentForm({ ...adjustmentForm, reason: e.target.value })}
+              />
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setAdjustmentDialog({ ...adjustmentDialog, isOpen: false })}>Cancel</Button>
+            <Button
+              variant={adjustmentDialog.type === 'IN' ? 'default' : 'destructive'}
+              onClick={handleExecuteAdjustment}
+            >
+              Confirm {adjustmentDialog.type === 'IN' ? 'Restock' : 'Deduction'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
-    </div >
   );
 };
 

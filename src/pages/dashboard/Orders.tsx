@@ -16,8 +16,9 @@ import {
   TrendingUp,
   ArrowRight,
   FileText,
+  Undo2
+} from "lucide-react";
 import { ReturnOrderModal } from "@/components/dashboard/orders/ReturnOrderModal";
-import { Undo2 } from "lucide-react";
 
 // ... existing imports ...
 
