@@ -30,8 +30,8 @@ const Prescriptions = lazy(() => import("./pages/dashboard/Prescriptions"));
 const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
 const AuditLogs = lazy(() => import("./pages/dashboard/AuditLogs"));
 const Customers = lazy(() => import("./pages/dashboard/Customers"));
-const Suppliers = lazy(() => import("./pages/dashboard/Suppliers"));
 const Shortbook = lazy(() => import("./pages/dashboard/Shortbook"));
+const Reports = lazy(() => import("./pages/dashboard/Reports"));
 const EnvDebug = lazy(() => import("./pages/EnvDebug"));
 const AiDebug = lazy(() => import("./pages/AiDebug"));
 
@@ -105,8 +105,8 @@ const App = () => {
                   <Route path="prescriptions" element={<Prescriptions />} />
                   <Route path="analytics" element={<Analytics />} />
                   <Route path="customers" element={<Customers />} />
-                  <Route path="suppliers" element={<Suppliers />} />
                   <Route path="shortbook" element={<Shortbook />} />
+                  <Route path="reports" element={<Reports />} />
                   <Route path="audit-logs" element={<AuditLogs />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="env-debug" element={<EnvDebug />} />

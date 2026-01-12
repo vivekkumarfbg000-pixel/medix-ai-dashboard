@@ -6,7 +6,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, OfflineInventory } from "@/db/db";
 import { toast } from "sonner";
 import { ShoppingCart, RefreshCw, Mic, Trash2, ArrowLeft, Download, ShieldAlert } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { VoiceCommandBar, ParsedItem } from "@/components/dashboard/VoiceCommandBar";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserShops } from "@/hooks/useUserShops";
@@ -20,14 +20,15 @@ const LitePOS = () => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [paymentMode, setPaymentMode] = useState<string>("cash");
     const { currentShop } = useUserShops();
+    const location = useLocation();
 
     const [interactions, setInteractions] = useState<string[]>([]);
     const [checkingSafety, setCheckingSafety] = useState(false);
 
     // Handle Navigation State (from DiaryScan)
     useEffect(() => {
-        if (history.state?.usr?.cartItems) {
-            const incomingItems = history.state.usr.cartItems;
+        if (location.state?.cartItems) {
+            const incomingItems = location.state.cartItems;
 
             // Fuzzy Find Logic to map Incoming Names -> Local Dexie Items
             const processIncoming = async () => {

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserShops } from "@/hooks/useUserShops";
 import { toast } from "sonner";
-import { NotebookPen, Plus, Trash2, Share2, CheckCircle2, AlertCircle } from "lucide-react";
+import { NotebookPen, Plus, Trash2, Share2, CheckCircle2, AlertCircle, Sparkles, FileText, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface ShortbookItem {
@@ -30,6 +30,7 @@ const Shortbook = () => {
     const fetchItems = async () => {
         if (!currentShop?.id) return;
         setLoading(true);
+        // @ts-ignore
         const { data, error } = await supabase
             .from('shortbook_items')
             .select('*')
@@ -51,6 +52,7 @@ const Shortbook = () => {
     const handleAddItem = async () => {
         if (!newName.trim()) return;
 
+        // @ts-ignore
         const { error } = await supabase.from('shortbook_items').insert({
             shop_id: currentShop?.id,
             medicine_name: newName,
@@ -70,12 +72,14 @@ const Shortbook = () => {
     };
 
     const handleDelete = async (id: string) => {
+        // @ts-ignore
         const { error } = await supabase.from('shortbook_items').delete().eq('id', id);
         if (error) toast.error("Failed to delete");
         else fetchItems();
     };
 
     const toggleOrdered = async (item: ShortbookItem) => {
+        // @ts-ignore
         const { error } = await supabase
             .from('shortbook_items')
             .update({ is_ordered: !item.is_ordered })
@@ -102,6 +106,7 @@ const Shortbook = () => {
     };
 
     const clearOrdered = async () => {
+        // @ts-ignore
         const { error } = await supabase
             .from('shortbook_items')
             .delete()
@@ -115,6 +120,106 @@ const Shortbook = () => {
         }
     };
 
+    const handleAutoAddLowStock = async () => {
+        if (!currentShop?.id) return;
+        toast.loading("Scanning inventory for low stock...");
+
+        // 1. Fetch items with stock < 5 (Threshold)
+        const { data: lowStockItems, error } = await supabase
+            .from('inventory')
+            .select('medicine_name, quantity')
+            .eq('shop_id', currentShop.id)
+            .lt('quantity', 5)
+            .limit(20); // Safety limit
+
+        if (error || !lowStockItems) {
+            toast.dismiss();
+            toast.error("Failed to scan inventory");
+            return;
+        }
+
+        if (lowStockItems.length === 0) {
+            toast.dismiss();
+            toast.info("No low stock items found (< 5 qty)");
+            return;
+        }
+
+        // 2. Add to Shortbook
+        let addedCount = 0;
+        for (const item of lowStockItems) {
+            // Simple check if already in list
+            if (items.some(i => i.medicine_name === item.medicine_name && !i.is_ordered)) continue;
+
+            // @ts-ignore
+            await supabase.from('shortbook_items').insert({
+                shop_id: currentShop.id,
+                medicine_name: item.medicine_name,
+                quantity_needed: "10 (Auto)", // Default reorder qty
+                priority: 'high'
+            });
+            addedCount++;
+        }
+
+        toast.dismiss();
+        if (addedCount > 0) {
+            toast.success(`Added ${addedCount} low stock items to Shortbook`);
+            fetchItems();
+        } else {
+            toast.info("Low stock items already in list");
+        }
+    };
+
+    const handlePrintPO = () => {
+        const activeItems = items.filter(i => !i.is_ordered);
+        if (activeItems.length === 0) return toast.info("No items to print");
+
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Purchase Order - ${new Date().toLocaleDateString()}</title>
+                    <style>
+                        body { font-family: sans-serif; padding: 20px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                        th { background-color: #f2f2f2; }
+                        .header { margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>Purchase Order / Shortbook</h1>
+                        <p>Date: ${new Date().toLocaleDateString()}</p>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Medicine Name</th>
+                                <th>Quantity Needed</th>
+                                <th>Priority</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${activeItems.map((item, i) => `
+                                <tr>
+                                    <td>${i + 1}</td>
+                                    <td>${item.medicine_name}</td>
+                                    <td>${item.quantity_needed}</td>
+                                    <td>${item.priority === 'high' ? 'URGENT' : 'Normal'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <script>window.print();</script>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fade-in p-2 md:p-0">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -124,9 +229,12 @@ const Shortbook = () => {
                     </h1>
                     <p className="text-muted-foreground">Digital reorder notebook. Share with suppliers instantly.</p>
                 </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" onClick={clearOrdered}>
-                        Clean Ordered
+                <div className="flex gap-2 flex-wrap">
+                    <Button variant="outline" onClick={handleAutoAddLowStock} className="text-amber-600 border-amber-200 hover:bg-amber-50">
+                        <Sparkles className="w-4 h-4 mr-2" /> Auto-fill Low Stock
+                    </Button>
+                    <Button variant="outline" onClick={handlePrintPO}>
+                        <Printer className="w-4 h-4 mr-2" /> Print PO
                     </Button>
                     <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleShareWhatsApp}>
                         <Share2 className="w-4 h-4 mr-2" /> Share Order
@@ -175,6 +283,11 @@ const Shortbook = () => {
 
             {/* List */}
             <div className="grid gap-3">
+                <div className="flex justify-end">
+                    <Button variant="ghost" size="sm" onClick={clearOrdered} className="text-xs text-muted-foreground hover:text-red-500">
+                        <Trash2 className="w-3 h-3 mr-1" /> Clear Completed
+                    </Button>
+                </div>
                 {items.map((item) => (
                     <Card key={item.id} className={`transition-all ${item.is_ordered ? 'opacity-60 bg-slate-50' : 'hover:shadow-md'}`}>
                         <CardContent className="p-4 flex items-center justify-between">

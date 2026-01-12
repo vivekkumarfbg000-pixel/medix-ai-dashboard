@@ -423,7 +423,7 @@ const DiaryScan = () => {
                             voice_parsed: true
                           }));
 
-                          navigate("/dashboard/lite-pos", { state: { cartItems } });
+                          navigate("/lite-pos", { state: { cartItems } });
                           toast.success("Redirecting to Billing...");
                         }}
                         className="bg-blue-600 hover:bg-blue-700 text-white"
