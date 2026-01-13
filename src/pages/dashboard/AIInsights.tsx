@@ -29,12 +29,10 @@ import { aiService } from "@/services/aiService";
 import VoiceInput from "@/components/common/VoiceInput";
 
 const AIInsights = () => {
-  const [activeTab, setActiveTab] = useState("info");
+  const [activeTab, setActiveTab] = useState("chat"); // Default to Chat as requested
 
   // Smart Search State
   const [searchQuery, setSearchQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Drug Info State
@@ -48,29 +46,23 @@ const AIInsights = () => {
 
   // Chat State
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'bot', text: string, sources?: string[], image?: string | null }[]>([
-    { role: 'bot', text: "Hello! I'm your Clinical Assistant. I can search National Library of Medicine & PubMed for you. Ask me about drug safety, dosage, or alternatives." }
+    { role: 'bot', text: "Hello! I'm your Clinical Pharmacist Assistant. I can help with drug interactions, dosage verification, or finding high-margin substitutes. How can I assist you today?" }
   ]);
   const [currentChatInfo, setCurrentChatInfo] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // --- Handlers ---
-
   const handleSearch = async () => {
     if (!searchQuery) return;
     setLoading(true);
     try {
       const info = await drugService.searchDrug(searchQuery);
       setDrugInfo(info);
-      if (info) {
-        toast.success(`Found clinical data for ${info.name}`);
-      } else {
-        toast.error("No data found. Please check the drug name and try again.");
-      }
-    } catch (error) {
-      toast.error("Failed to fetch drug info");
-    } finally {
-      setLoading(false);
-    }
+      if (info) toast.success(`Found: ${info.name}`);
+      else toast.error("Drug not found.");
+    } catch (e) { toast.error("Search failed"); }
+    finally { setLoading(false); }
   };
 
   const handleAddInteractionDrug = () => {
@@ -85,31 +77,20 @@ const AIInsights = () => {
   };
 
   const analyzeInteractions = async () => {
-    if (interactionDrugs.length < 2) {
-      toast.error("Please add at least 2 drugs to check interactions");
-      return;
-    }
+    if (interactionDrugs.length < 2) return toast.error("Need 2+ drugs");
     setAnalyzingMatrix(true);
     try {
-      // Mocking interaction check if service not fully wired
       const results = await drugService.checkInteractions(interactionDrugs);
       setInteractionResults(results);
-    } catch (e) {
-      toast.error("Analysis failed");
-    } finally {
-      setAnalyzingMatrix(false);
-    }
+    } catch (e) { toast.error("Analysis failed"); }
+    finally { setAnalyzingMatrix(false); }
   };
-
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-      };
+      reader.onloadend = () => setSelectedImage(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
@@ -120,20 +101,18 @@ const AIInsights = () => {
     const userMsg = currentChatInfo;
     const userImage = selectedImage;
 
-    const newMessages = [...chatMessages, {
-      role: 'user' as const,
-      text: userMsg || (userImage ? "Analyzed Prescription/Image" : ""),
+    setChatMessages(prev => [...prev, {
+      role: 'user',
+      text: userMsg || (userImage ? "Analyzed Document" : ""),
       image: userImage
-    }];
+    }]);
 
-    setChatMessages(newMessages);
     setCurrentChatInfo("");
-    setSelectedImage(null); // Clear after sending
+    setSelectedImage(null);
     setChatLoading(true);
 
     try {
       const response = await aiService.chatWithAgent(userMsg, userImage || undefined);
-
       setChatMessages(prev => [...prev, {
         role: 'bot',
         text: response.reply,
@@ -142,7 +121,7 @@ const AIInsights = () => {
     } catch (err) {
       setChatMessages(prev => [...prev, {
         role: 'bot',
-        text: "I'm having trouble connecting to the medical database right now. Please try again."
+        text: "I'm having trouble connecting to the medical database. Please try again later."
       }]);
     } finally {
       setChatLoading(false);
@@ -150,49 +129,171 @@ const AIInsights = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in p-2">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">MedixAI Clinical Intelligence</h1>
-          <p className="text-muted-foreground mt-1">AI-Powered Drug Analysis & Decision Support Engine</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-black p-4 md:p-8 space-y-8 text-slate-100 animate-fade-in">
+
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/10 pb-6">
+        <div className="space-y-2">
+          <h1 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-300 tracking-tight">
+            Clinical General Intelligence
+          </h1>
+          <p className="text-slate-400 text-sm md:text-base max-w-2xl">
+            Next-generation decision support for modern pharmacy teams.
+          </p>
         </div>
-        <Badge variant="outline" className="text-primary border-primary/20 bg-primary/5 px-4 py-1">
-          <Bot className="w-4 h-4 mr-2" />
-          v2.0 Beta
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-full backdrop-blur-md">
+            <Bot className="w-3.5 h-3.5 mr-2" />
+            Cortex v2.0 Live
+          </Badge>
+        </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
-          <TabsTrigger value="info">
-            <Search className="w-4 h-4 mr-2" /> Drug Info
-          </TabsTrigger>
-          <TabsTrigger value="interaction">
-            <Activity className="w-4 h-4 mr-2" /> Interaction Matrix
-          </TabsTrigger>
-          <TabsTrigger value="chat">
-            <MessageSquare className="w-4 h-4 mr-2" /> Pharmacist Chat
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
 
-        {/* --- TAB 1: DRUG INFO --- */}
-        <TabsContent value="info" className="space-y-4">
-          <Card className="glass-card">
+        {/* Navigation Tabs */}
+        <div className="flex justify-center">
+          <TabsList className="bg-slate-900/50 backdrop-blur-xl border border-white/10 p-1.5 h-auto rounded-full shadow-2xl inline-flex">
+            <TabsTrigger
+              value="chat"
+              className="rounded-full px-6 py-2.5 data-[state=active]:bg-blue-600 data-[state=active]:text-white text-slate-400 transition-all duration-300"
+            >
+              <MessageSquare className="w-4 h-4 mr-2" /> Pharmacist Chat
+            </TabsTrigger>
+            <TabsTrigger
+              value="info"
+              className="rounded-full px-6 py-2.5 data-[state=active]:bg-blue-600 data-[state=active]:text-white text-slate-400 transition-all duration-300"
+            >
+              <Search className="w-4 h-4 mr-2" /> Drug Encyclopedia
+            </TabsTrigger>
+            <TabsTrigger
+              value="interaction"
+              className="rounded-full px-6 py-2.5 data-[state=active]:bg-blue-600 data-[state=active]:text-white text-slate-400 transition-all duration-300"
+            >
+              <Activity className="w-4 h-4 mr-2" /> Interaction Matrix
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* --- TAB 1: PHARMACIST CHAT (Now Default & First) --- */}
+        <TabsContent value="chat" className="focus-visible:ring-0">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[700px]">
+            {/* Chat Area */}
+            <Card className="lg:col-span-4 h-full flex flex-col border-white/10 bg-slate-900/40 backdrop-blur-md shadow-2xl rounded-2xl overflow-hidden">
+              {/* Chat Header */}
+              <div className="p-4 border-b border-white/5 bg-slate-900/60 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shadow-lg">
+                  <Bot className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">Clinical AI Assistant</h3>
+                  <p className="text-xs text-blue-300 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Online & Ready
+                  </p>
+                </div>
+              </div>
+
+              {/* Chat History */}
+              <ScrollArea className="flex-1 p-6 space-y-6">
+                {chatMessages.map((msg, idx) => (
+                  <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''} mb-6`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'bot' ? 'bg-slate-800 border border-white/10' : 'bg-blue-600'}`}>
+                      {msg.role === 'bot' ? <Bot className="w-4 h-4 text-blue-400" /> : <div className="text-xs font-bold text-white">ME</div>}
+                    </div>
+                    <div className={`group relative max-w-[80%] p-4 rounded-2xl shadow-sm ${msg.role === 'bot'
+                        ? 'bg-slate-800/80 border border-white/5 text-slate-200 rounded-tl-none'
+                        : 'bg-blue-600 text-white rounded-tr-none'
+                      }`}>
+                      {msg.image && (
+                        <img src={msg.image} alt="Upload" className="max-w-xs rounded-lg mb-3 border border-white/10" />
+                      )}
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+
+                      {/* Action Chips for Bot */}
+                      {msg.role === 'bot' && msg.sources && (
+                        <div className="mt-3 flex gap-2 flex-wrap">
+                          {msg.sources.map((src, i) => (
+                            <Badge key={i} variant="outline" className="text-[10px] border-blue-500/30 text-blue-400 bg-blue-500/5 hover:bg-blue-500/10 cursor-pointer transition-colors">
+                              {src}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div className="flex gap-4 mb-4">
+                    <div className="w-8 h-8 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center">
+                      <Bot className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <div className="bg-slate-800/50 p-4 rounded-2xl rounded-tl-none flex items-center gap-1">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                )}
+              </ScrollArea>
+
+              {/* Input Area */}
+              <div className="p-4 bg-slate-900/80 border-t border-white/5 p-4 md:p-6 backdrop-blur-md">
+                {selectedImage && (
+                  <div className="mb-2 relative inline-block">
+                    <img src={selectedImage} alt="Preview" className="h-16 w-16 rounded-lg object-cover border border-white/20" />
+                    <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <VoiceInput onTranscript={(text) => setCurrentChatInfo(text)} />
+
+                  <Input
+                    placeholder="Ask a clinical question or upload a prescription..."
+                    value={currentChatInfo}
+                    onChange={(e) => setCurrentChatInfo(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleChat()}
+                    className="flex-1 bg-slate-950/50 border-white/10 focus-visible:ring-blue-500/50 text-white placeholder:text-slate-500 h-11"
+                  />
+
+                  <label className="cursor-pointer">
+                    <Input type="file" onChange={handleFileSelect} className="hidden" accept="image/*" />
+                    <div className="h-11 w-11 flex items-center justify-center rounded-md border border-white/10 bg-slate-950/50 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                  </label>
+
+                  <Button onClick={handleChat} disabled={chatLoading} className="h-11 px-6 bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20">
+                    <MessageSquare className="w-5 h-5" />
+                  </Button>
+                </div>
+                <p className="text-[10px] text-center text-slate-600 mt-2">
+                  AI Output can be inaccurate. Always verify clinically.
+                </p>
+              </div>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* --- TAB 2: DRUG INFORMATION --- */}
+        <TabsContent value="info" className="space-y-6">
+          <Card className="bg-slate-900/40 backdrop-blur-md border-white/10">
             <CardHeader>
-              <CardTitle>Semantic Drug Search</CardTitle>
-              <CardDescription>Search by brand, generic name, or symptom</CardDescription>
+              <CardTitle className="text-white">Semantic Drug Search</CardTitle>
+              <CardDescription className="text-slate-400">Search by brand, generic name, or symptom</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
+            <CardContent>
+              <div className="flex gap-3">
                 <Input
-                  placeholder="Search e.g., 'Dolo 650', 'Metformin', 'Augmentin'..."
+                  placeholder="Search e.g., 'Dolo 650', 'Augmentin'..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  className="bg-background text-foreground"
+                  className="bg-slate-950/50 border-white/10 text-white h-11"
                 />
-                <Button onClick={handleSearch} disabled={loading}>
-                  {loading ? <Activity className="animate-spin w-4 h-4" /> : <Search className="w-4 h-4" />}
+                <Button onClick={handleSearch} disabled={loading} className="h-11 w-11 p-0 bg-blue-600 hover:bg-blue-500">
+                  {loading ? <Activity className="animate-spin w-5 h-5" /> : <Search className="w-5 h-5" />}
                 </Button>
               </div>
             </CardContent>
@@ -201,168 +302,108 @@ const AIInsights = () => {
           {/* RESULTS DISPLAY */}
           {drugInfo && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4">
-
               {/* Left Col: Clinical Details */}
               <div className="lg:col-span-2 space-y-6">
-                <Card>
-                  <CardHeader>
+                <Card className="bg-slate-900/40 border-white/10 text-slate-200">
+                  <CardHeader className="border-b border-white/5 pb-4">
                     <div className="flex justify-between items-start">
                       <div>
-                        <CardTitle className="text-2xl text-primary">{drugInfo.name}</CardTitle>
-                        <CardDescription className="text-lg font-medium mt-1">{drugInfo.generic_name}</CardDescription>
+                        <CardTitle className="text-2xl text-blue-400">{drugInfo.name}</CardTitle>
+                        <CardDescription className="text-lg font-medium mt-1 text-slate-400">{drugInfo.generic_name}</CardDescription>
                       </div>
                       <div className="flex gap-2">
-                        {drugInfo.is_h1_drug && <Badge variant="destructive">Schedule H1</Badge>}
-                        {drugInfo.banned_status?.is_banned && <Badge className="bg-red-600 animate-pulse">BANNED</Badge>}
+                        {drugInfo.is_h1_drug && <Badge variant="destructive" className="bg-red-500/20 text-red-300 border-red-500/50">Schedule H1</Badge>}
+                        {drugInfo.banned_status?.is_banned && <Badge className="bg-red-600 animate-pulse text-white">BANNED</Badge>}
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-6 pt-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="p-4 bg-muted/50 rounded-lg">
-                        <h4 className="font-semibold mb-2 flex items-center gap-2"><Info className="w-4 h-4 text-blue-500" /> Indications</h4>
-                        <p className="text-sm text-muted-foreground">{drugInfo.indications}</p>
+                      <div className="p-4 bg-slate-950/50 rounded-xl border border-white/5">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2 text-blue-300"><Info className="w-4 h-4" /> Indications</h4>
+                        <p className="text-sm text-slate-400">{drugInfo.indications}</p>
                       </div>
-                      <div className="p-4 bg-muted/50 rounded-lg">
-                        <h4 className="font-semibold mb-2 flex items-center gap-2"><Activity className="w-4 h-4 text-green-500" /> Dosage (Adult)</h4>
-                        <p className="text-sm text-muted-foreground">{drugInfo.dosage_guidelines.adult}</p>
+                      <div className="p-4 bg-slate-950/50 rounded-xl border border-white/5">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2 text-green-400"><Activity className="w-4 h-4" /> Dosage (Adult)</h4>
+                        <p className="text-sm text-slate-400">{drugInfo.dosage_guidelines.adult}</p>
                       </div>
                     </div>
 
-                    <div className="p-4 border rounded-lg border-destructive/20 bg-destructive/5">
-                      <h4 className="font-semibold mb-2 flex items-center gap-2 text-destructive"><AlertTriangle className="w-4 h-4" /> Safety Warning</h4>
-                      <p className="text-sm">{drugInfo.safety_warning}</p>
-                      <p className="text-xs text-muted-foreground mt-2"><strong>Contraindications:</strong> {drugInfo.contraindications}</p>
+                    <div className="p-4 border rounded-xl border-red-500/20 bg-red-500/5">
+                      <h4 className="font-semibold mb-2 flex items-center gap-2 text-red-400"><AlertTriangle className="w-4 h-4" /> Safety Warning</h4>
+                      <p className="text-sm text-slate-300">{drugInfo.safety_warning}</p>
+                      <p className="text-xs text-slate-500 mt-2"><strong>Contraindications:</strong> {drugInfo.contraindications}</p>
                     </div>
                   </CardContent>
                 </Card>
-
-                {/* Patient Education (Dawa-Gyaan) */}
-                {drugInfo.education_tips && (
-                  <Card className="border-l-4 border-l-blue-500">
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Brain className="w-5 h-5 text-blue-500" /> Patient Counselling (Dawa-Gyaan)
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <strong className="text-sm block mb-1">Dietary Advice</strong>
-                          <ul className="list-disc list-inside text-xs text-muted-foreground">
-                            {drugInfo.education_tips.diet.map((t, i) => <li key={i}>{t}</li>)}
-                          </ul>
-                        </div>
-                        <div>
-                          <strong className="text-sm block mb-1">Lifestyle</strong>
-                          <ul className="list-disc list-inside text-xs text-muted-foreground">
-                            {drugInfo.education_tips.lifestyle.map((t, i) => <li key={i}>{t}</li>)}
-                          </ul>
-                        </div>
-                        <div>
-                          <strong className="text-sm block mb-1 text-orange-500">Warning</strong>
-                          <p className="text-xs text-muted-foreground">{drugInfo.education_tips.warning}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
               </div>
 
-              {/* Right Col: Profit Engine & Side Effects */}
+              {/* Right Col: Profit Engine */}
               <div className="space-y-6">
-
-                {/* Profit Engine Widget */}
-                <Card className="border-green-500/30 bg-green-500/5">
+                <Card className="border-green-500/30 bg-green-500/5 backdrop-blur-sm">
                   <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-green-600" /> Profit Engine
+                    <CardTitle className="text-lg flex items-center gap-2 text-green-400">
+                      <TrendingUp className="w-5 h-5" /> Profit Engine
                     </CardTitle>
-                    <CardDescription>High-margin substitutes available</CardDescription>
+                    <CardDescription className="text-green-500/60">High-margin substitutes</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {drugInfo.substitutes && drugInfo.substitutes.length > 0 ? (
                       drugInfo.substitutes.map((sub, idx) => (
-                        <div key={idx} className="flex justify-between items-center p-3 bg-background rounded-lg border shadow-sm cursor-pointer hover:border-green-500 transition-all">
+                        <div key={idx} className="flex justify-between items-center p-3 bg-slate-900/80 rounded-lg border border-white/5 cursor-pointer hover:border-green-500/50 transition-all group">
                           <div>
-                            <div className="font-bold text-foreground">{sub.name}</div>
-                            <div className="text-xs text-muted-foreground">Generic: {sub.generic_name}</div>
+                            <div className="font-bold text-slate-200 group-hover:text-green-300 transition-colors">{sub.name}</div>
+                            <div className="text-xs text-slate-500">Generic: {sub.generic_name}</div>
                           </div>
                           <div className="text-right">
-                            <div className="text-sm font-bold text-green-600">+{sub.margin_percentage}% Margin</div>
-                            <div className="text-xs text-muted-foreground">Save ₹{sub.savings}</div>
+                            <div className="text-sm font-bold text-green-400">+{sub.margin_percentage}%</div>
+                            <div className="text-xs text-slate-500">Save ₹{sub.savings}</div>
                           </div>
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm text-center text-muted-foreground py-4">No high-margin substitutes found.</p>
+                      <p className="text-sm text-center text-slate-500 py-4">No high-margin substitutes found.</p>
                     )}
                   </CardContent>
                 </Card>
-
-                {/* Side Effects */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Side Effects</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {drugInfo.side_effects.common.map((effect, idx) => (
-                        <Badge key={idx} variant="secondary">{effect}</Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
               </div>
             </div>
           )}
         </TabsContent>
 
-        {/* --- TAB 2: INTERACTION MATRIX --- */}
-        <TabsContent value="interaction" className="space-y-4">
-          <Card className="glass-card">
+        {/* --- TAB 3: INTERACTION MATRIX --- */}
+        <TabsContent value="interaction" className="space-y-6">
+          <Card className="bg-slate-900/40 backdrop-blur-md border-white/10">
             <CardHeader>
-              <CardTitle>Multi-Drug Interaction Matrix</CardTitle>
-              <CardDescription>Visualize conflict severity between multiple medications.</CardDescription>
+              <CardTitle className="text-white flex items-center gap-2"><AlertOctagon className="w-5 h-5 text-amber-500" /> Multi-Drug Interaction Checker</CardTitle>
+              <CardDescription className="text-slate-400">Check for conflicts between multiple medications</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <Input
-                  placeholder="Add a medication (e.g. Warfarin)..."
+                  placeholder="Add drug (e.g., Warfarin)"
                   value={interactionQuery}
                   onChange={(e) => setInteractionQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddInteractionDrug()}
-                  className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-400"
+                  onKeyDown={(e) => e.key === "Enter" && handleAddInteractionDrug()}
+                  className="bg-slate-950/50 border-white/10 text-white h-11"
                 />
-                <Button onClick={handleAddInteractionDrug} variant="secondary">
+                <Button onClick={handleAddInteractionDrug} className="h-11 px-6 bg-slate-800 hover:bg-slate-700">
                   <Plus className="w-4 h-4 mr-2" /> Add
                 </Button>
               </div>
 
-              {interactionDrugs.length > 0 && (
-                <div className="flex flex-wrap gap-2 p-4 bg-muted/30 rounded-lg border border-border/50">
-                  {interactionDrugs.map((drug, idx) => (
-                    <Badge key={idx} variant="secondary" className="pl-3 pr-1 py-1 flex items-center gap-2 text-sm">
-                      {drug}
-                      <button onClick={() => handleRemoveInteractionDrug(drug)} className="hover:text-destructive">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
+              <div className="flex flex-wrap gap-2 min-h-[50px] p-4 bg-slate-950/30 rounded-xl border border-white/5 border-dashed">
+                {interactionDrugs.length === 0 && <span className="text-slate-600 text-sm">No drugs added. Add at least 2.</span>}
+                {interactionDrugs.map((d, i) => (
+                  <Badge key={i} className="bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30 px-3 py-1.5 text-sm gap-2">
+                    {d}
+                    <X className="w-3 h-3 cursor-pointer hover:text-white" onClick={() => handleRemoveInteractionDrug(d)} />
+                  </Badge>
+                ))}
+              </div>
 
-              <Button
-                onClick={analyzeInteractions}
-                className="w-full"
-                disabled={interactionDrugs.length < 2 || analyzingMatrix}
-              >
-                {analyzingMatrix ? (
-                  <><Activity className="w-4 h-4 mr-2 animate-spin" /> Analyzing Conflicts...</>
-                ) : (
-                  <><AlertTriangle className="w-4 h-4 mr-2" /> Analyze Interactions</>
-                )}
+              <Button onClick={analyzeInteractions} disabled={analyzingMatrix || interactionDrugs.length < 2} className="w-full h-11 bg-amber-600 hover:bg-amber-500 text-white font-bold tracking-wide">
+                {analyzingMatrix ? "Analyzing Protocol..." : "Run Interaction Scan"}
               </Button>
 
               {/* Results Section */}
@@ -383,7 +424,7 @@ const AIInsights = () => {
                           }`}>
                           {res.drug1} + {res.drug2}
                         </h4>
-                        <p className="text-sm text-foreground mt-1">{res.description}</p>
+                        <p className="text-sm text-slate-300 mt-1">{res.description}</p>
                       </div>
                     </div>
                   ))}
@@ -393,71 +434,6 @@ const AIInsights = () => {
           </Card>
         </TabsContent>
 
-        {/* --- TAB 3: NLQ CHAT --- */}
-        <TabsContent value="chat">
-          <Card className="h-[600px] flex flex-col glass-card">
-            <CardHeader className="border-b">
-              <CardTitle className="flex items-center gap-2"><Stethoscope className="w-5 h-5 text-primary" /> Clinical Pharmacist Bot</CardTitle>
-            </CardHeader>
-            <ScrollArea className="flex-1 p-4">
-              <div className="space-y-4">
-                {chatMessages.map((msg, idx) => (
-                  <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-3 rounded-lg text-sm ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                      }`}>
-                      {msg.image && (
-                        <img src={msg.image} alt="Upload" className="mb-2 max-w-full rounded-md max-h-[200px] object-cover border border-white/20" />
-                      )}
-                      <p className="whitespace-pre-wrap">{msg.text}</p>
-                      {msg.sources && msg.sources.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-primary/20 text-xs opacity-80">
-                          <strong>Sources:</strong>
-                          <ul className="list-disc list-inside mt-1">
-                            {msg.sources.map((src, i) => <li key={i}>{src}</li>)}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {chatLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-muted p-3 rounded-lg text-sm flex items-center gap-2">
-                      <Activity className="w-3 h-3 animate-spin" /> Analyzing Clinical Data...
-                    </div>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-
-            {selectedImage && (
-              <div className="px-4 pt-2 flex items-center gap-2">
-                <div className="relative group">
-                  <img src={selectedImage} alt="Preview" className="h-16 w-16 object-cover rounded border border-primary/50" />
-                  <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1 shadow-sm hover:scale-110 transition">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-                <span className="text-xs text-muted-foreground">Ready to analyze</span>
-              </div>
-            )}
-
-            <div className="p-4 border-t flex gap-2">
-              <label className="cursor-pointer p-2 hover:bg-muted rounded-full transition text-muted-foreground hover:text-primary">
-                <input type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
-                <Plus className="w-5 h-5" />
-              </label>
-              <Input
-                placeholder="Ask about prescriptions, side effects..."
-                value={currentChatInfo}
-                onChange={e => setCurrentChatInfo(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleChat()}
-                className="bg-background text-foreground"
-              />
-              <Button onClick={handleChat}><MessageSquare className="w-4 h-4" /></Button>
-            </div>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );
