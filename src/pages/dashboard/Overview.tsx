@@ -77,9 +77,7 @@ const Overview = () => {
 
         {/* AI COMMAND CENTRE (Replaces BusinessReportWidget for Growth + Seasonal) */}
         <div className="h-full md:col-span-2">
-          <ErrorBoundary fallback={<div className="p-4 text-red-500">AI Widget Error</div>}>
-            <AICommandCentre />
-          </ErrorBoundary>
+          <AICommandCentre />
         </div>
       </div>
 
@@ -96,6 +94,6 @@ const Overview = () => {
       </div>
     </div>
   );
+};
 
-
-  export default Overview;
+export default Overview;
