@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Upload, FileText, CheckCircle, AlertTriangle, Send, Activity, ArrowRight, Camera, Utensils, Stethoscope } from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertTriangle, Send, Activity, ArrowRight, Camera, Utensils, Stethoscope, Microscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { labService, LabAnalysisReport } from "@/services/labService";
 import { whatsappService } from "@/services/whatsappService";
+import { Input } from "@/components/ui/input";
 
 const LabAnalyzer = () => {
     const [isDragging, setIsDragging] = useState(false);
@@ -41,7 +42,7 @@ const LabAnalyzer = () => {
         setReport(null);
         setProgress(0);
 
-        // Simulate progress
+        // Simulate progress for better UX
         const interval = setInterval(() => {
             setProgress(prev => {
                 if (prev >= 90) return prev;
@@ -56,7 +57,8 @@ const LabAnalyzer = () => {
             toast.success("Analysis Complete! AI Insights Generated.");
         } catch (error) {
             console.error("Lab Analysis Error:", error);
-            toast.error(`Failed to analyze report: ${error.message || "Unknown error"}`);
+            const msg = error instanceof Error ? error.message : "Unknown error";
+            toast.error(`Analysis failed: ${msg}`);
         } finally {
             clearInterval(interval);
             setAnalyzing(false);
@@ -78,43 +80,52 @@ const LabAnalyzer = () => {
     };
 
     return (
-        <div className="space-y-6 animate-fade-in pb-10">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="space-y-8 animate-fade-in pb-10">
+            {/* Professional Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border/40 pb-6">
                 <div>
-                    <h1 className="text-3xl font-bold text-foreground">Lab Report Analyzer</h1>
-                    <p className="text-muted-foreground mt-1">AI-Powered Diagnostics & Interpretation from Lab Reports</p>
+                    <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-indigo-600">
+                        Lab Intelligence
+                    </h1>
+                    <p className="text-muted-foreground mt-1 text-lg">
+                        AI-Powered Interpretation & Clinical Correlation
+                    </p>
                 </div>
-                <Badge className="bg-purple-100 text-purple-700 border-purple-200">
-                    <Activity className="w-4 h-4 mr-1" /> Beta AI-v1
+                <Badge variant="outline" className="border-blue-500/20 bg-blue-500/10 text-blue-500 px-3 py-1">
+                    <Microscope className="w-3.5 h-3.5 mr-2" />
+                    Pathology v2.0
                 </Badge>
             </div>
 
             {!report && (
                 <Card
-                    className={`border-2 border-dashed transition-all duration-300 ${isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}
+                    className={`border-2 border-dashed transition-all duration-300 bg-background/50 backdrop-blur-sm ${isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-primary/50"}`}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                 >
-                    <CardContent className="flex flex-col items-center justify-center p-12 text-center">
-                        <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isDragging ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
-                            {analyzing ? <Activity className="w-8 h-8 animate-pulse" /> : <Upload className="w-8 h-8" />}
+                    <CardContent className="flex flex-col items-center justify-center p-12 text-center h-[400px]">
+                        <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-xl ${isDragging ? "bg-primary/20 text-primary" : "bg-gradient-to-br from-blue-500 to-indigo-600 text-white"}`}>
+                            {analyzing ? <Activity className="w-10 h-10 animate-pulse" /> : <Upload className="w-10 h-10" />}
                         </div>
 
                         {analyzing ? (
                             <div className="w-full max-w-sm space-y-4">
-                                <h3 className="text-lg font-semibold">Analyzing Medical Data...</h3>
-                                <Progress value={progress} className="h-2" />
-                                <p className="text-sm text-muted-foreground">Extracting values • Comparing Ranges • Generating Insights</p>
+                                <h3 className="text-xl font-semibold text-foreground">Analyzing Clinical Markers...</h3>
+                                <Progress value={progress} className="h-2 w-full" />
+                                <p className="text-sm text-muted-foreground">Extracting biomarkers • Correlating ranges • Generating diagnosis</p>
                             </div>
                         ) : (
                             <>
-                                <h3 className="text-lg font-semibold mb-2">Upload or Scan Report</h3>
-                                <p className="text-sm text-muted-foreground mb-6">Supports PDF, JPG, PNG (Max 10MB)</p>
+                                <h3 className="text-2xl font-bold mb-3">Upload Lab Report</h3>
+                                <p className="text-muted-foreground mb-8 max-w-md">
+                                    Drag and drop your PDF or Image report here.
+                                    Our AI instantly extracts values and flags abnormalities.
+                                </p>
                                 <div className="flex flex-col sm:flex-row gap-4 justify-center w-full max-w-md">
-                                    <div className="relative flex-1">
-                                        <Button size="lg" variant="outline" className="w-full gap-2 border-primary/20 hover:bg-primary/5">
-                                            <Upload className="w-4 h-4" /> Upload File
+                                    <div className="relative flex-1 group">
+                                        <Button size="lg" variant="outline" className="w-full gap-2 h-12 border-primary/20 hover:bg-primary/5 group-hover:border-primary/50 transition-all">
+                                            <Upload className="w-4 h-4" /> Choose File
                                         </Button>
                                         <input
                                             type="file"
@@ -123,9 +134,9 @@ const LabAnalyzer = () => {
                                             accept=".pdf,.jpg,.jpeg,.png"
                                         />
                                     </div>
-                                    <div className="relative flex-1">
-                                        <Button size="lg" className="w-full gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/20">
-                                            <Camera className="w-4 h-4" /> Scan Report
+                                    <div className="relative flex-1 group">
+                                        <Button size="lg" className="w-full gap-2 h-12 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-all">
+                                            <Camera className="w-4 h-4" /> Scan with Camera
                                         </Button>
                                         <input
                                             type="file"
@@ -143,111 +154,120 @@ const LabAnalyzer = () => {
             )}
 
             {report && (
-                <div className="space-y-6 animate-in slide-in-from-bottom-4">
+                <div className="space-y-8 animate-slide-up">
                     {/* Summary Header */}
-                    <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-blue-800">
-                                <Activity className="w-5 h-5" /> AI Health Summary
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-lg font-medium text-blue-900 mb-2">{report.summary}</p>
-                            <div className="flex flex-wrap gap-2 mt-3">
-                                {report.diseasePossibility.map((d, i) => (
-                                    <Badge key={i} variant="destructive" className="text-sm">{d}</Badge>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
-
                     <div className="grid lg:grid-cols-3 gap-6">
-                        {/* Detailed Parameters */}
-                        <Card className="lg:col-span-2">
+                        <Card className="lg:col-span-2 border-l-4 border-l-blue-500 shadow-md">
                             <CardHeader>
-                                <CardTitle>Extracted Parameters</CardTitle>
-                                <CardDescription>Values extracted from the uploaded document</CardDescription>
+                                <CardTitle className="flex items-center gap-2 text-primary text-xl">
+                                    <Activity className="w-5 h-5" /> Clinical Summary
+                                </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="space-y-4">
-                                    {report.results.map((res, i) => (
-                                        <div key={i} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                                            <div className="flex-1">
-                                                <p className="font-semibold">{res.parameter}</p>
-                                                <p className="text-xs text-muted-foreground">Range: {res.normalRange} {res.unit}</p>
-                                            </div>
-                                            <div className="text-right flex items-center gap-4">
-                                                <div>
-                                                    <p className={`font-bold text-lg ${res.color}`}>{res.value}</p>
-                                                    <p className="text-xs text-muted-foreground">{res.unit}</p>
-                                                </div>
-                                                <Badge variant={res.status === "Normal" ? "outline" : "destructive"}>
-                                                    {res.status}
-                                                </Badge>
-                                            </div>
-                                        </div>
-                                    ))}
+                                <p className="text-lg leading-relaxed text-foreground/90 mb-4">{report.summary}</p>
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Potential Conditions</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {report.diseasePossibility.map((d, i) => (
+                                            <Badge key={i} variant="destructive" className="px-3 py-1 text-sm shadow-sm">{d}</Badge>
+                                        ))}
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        {/* AI Action Plan */}
+                        {/* Quick Actions / Share */}
+                        <div className="space-y-4">
+                            <Card className="bg-muted/50 border-none">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-base">Patient Communication</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    <Input
+                                        type="tel"
+                                        placeholder="Patient Mobile (+91)"
+                                        className="bg-background"
+                                        value={patientPhone}
+                                        onChange={(e) => setPatientPhone(e.target.value)}
+                                    />
+                                    <Button className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white shadow-sm" onClick={handleShare}>
+                                        <Send className="w-4 h-4 mr-2" /> WhatsApp Report
+                                    </Button>
+                                    <Button variant="outline" className="w-full" onClick={() => setReport(null)}>
+                                        Analyze New Report
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
+
+                    <div className="grid lg:grid-cols-3 gap-6">
+                        {/* Detailed Parameters Table */}
+                        <Card className="lg:col-span-2 overflow-hidden border-none shadow-lg">
+                            <CardHeader className="bg-muted/30 pb-4">
+                                <CardTitle>Biomarker Analysis</CardTitle>
+                                <CardDescription>Extracted values correlated with standard clinical ranges</CardDescription>
+                            </CardHeader>
+                            <div className="bg-background">
+                                {report.results.map((res, i) => (
+                                    <div key={i} className={`flex items-center justify-between p-4 border-b last:border-0 hover:bg-muted/30 transition-colors ${res.status !== 'Normal' ? 'bg-red-50/10' : ''}`}>
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-base">{res.parameter}</p>
+                                            <p className="text-xs text-muted-foreground mt-0.5">Reference: {res.normalRange} {res.unit}</p>
+                                        </div>
+                                        <div className="text-right flex items-center gap-6">
+                                            <div>
+                                                <p className={`font-bold text-lg ${res.status === 'Normal' ? 'text-foreground' : 'text-red-600'}`}>
+                                                    {res.value}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">{res.unit}</p>
+                                            </div>
+                                            <Badge variant={res.status === "Normal" ? "outline" : "destructive"} className={res.status === "Normal" ? "border-green-500/50 text-green-600 bg-green-500/5" : ""}>
+                                                {res.status}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </Card>
+
+                        {/* AI Recommendations */}
                         <div className="space-y-6">
-                            <Card className="border-green-200 bg-green-50/50">
+                            <Card className="border-l-4 border-l-green-500 shadow-md h-full">
                                 <CardHeader>
-                                    <CardTitle className="text-green-800 flex items-center gap-2 text-lg">
-                                        <CheckCircle className="w-5 h-5" /> Recommendations
+                                    <CardTitle className="text-green-700 flex items-center gap-2">
+                                        <CheckCircle className="w-5 h-5" /> Care Plan
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="space-y-4">
+                                <CardContent className="space-y-6">
                                     <div>
-                                        <h4 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
-                                            <Utensils className="w-4 h-4" /> Diet & Nutrition
+                                        <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                                            <Utensils className="w-4 h-4 text-green-600" /> Diet & Nutrition
                                         </h4>
                                         <div className="space-y-2">
                                             {report.recommendations.diet.map((item, i) => (
-                                                <div key={i} className="flex items-center p-2 bg-white/60 rounded-md shadow-sm border border-green-100">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 mr-2 flex-shrink-0" />
-                                                    <span className="text-sm text-green-800">{item}</span>
+                                                <div key={i} className="flex items-start p-2.5 bg-muted/30 rounded-lg text-sm">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5 mr-2.5 flex-shrink-0" />
+                                                    <span className="text-muted-foreground leading-relaxed">{item}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
                                     <div>
-                                        <h4 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
-                                            <Stethoscope className="w-4 h-4" /> Next Steps
+                                        <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                                            <Stethoscope className="w-4 h-4 text-blue-600" /> Clinical Action
                                         </h4>
                                         <div className="space-y-2">
                                             {report.recommendations.nextSteps.map((item, i) => (
-                                                <div key={i} className="flex items-center p-2 bg-white/60 rounded-md shadow-sm border border-green-100">
-                                                    <ArrowRight className="w-3 h-3 text-green-600 mr-2 flex-shrink-0" />
-                                                    <span className="text-sm text-green-800">{item}</span>
+                                                <div key={i} className="flex items-start p-2.5 bg-muted/30 rounded-lg text-sm">
+                                                    <ArrowRight className="w-3.5 h-3.5 text-blue-600 mt-0.5 mr-2 flex-shrink-0" />
+                                                    <span className="text-muted-foreground leading-relaxed">{item}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
                                 </CardContent>
                             </Card>
-
-                            <div className="space-y-3">
-                                <div className="space-y-1">
-                                    <label className="text-sm font-medium">Patient Phone (+91)</label>
-                                    <input
-                                        type="tel"
-                                        placeholder="9876543210"
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                        value={patientPhone}
-                                        onChange={(e) => setPatientPhone(e.target.value)}
-                                    />
-                                </div>
-                                <Button className="w-full h-12 text-lg shadow-lg bg-[#25D366] hover:bg-[#128C7E] text-white" onClick={handleShare}>
-                                    <Send className="w-5 h-5 mr-2" /> Share Report on WhatsApp
-                                </Button>
-                            </div>
-
-                            <Button variant="outline" className="w-full" onClick={() => setReport(null)}>
-                                Analyze Another Report
-                            </Button>
                         </div>
                     </div>
                 </div>
