@@ -32,6 +32,8 @@ const AuditLogs = lazy(() => import("./pages/dashboard/AuditLogs"));
 const Customers = lazy(() => import("./pages/dashboard/Customers"));
 const Shortbook = lazy(() => import("./pages/dashboard/Shortbook"));
 const Reports = lazy(() => import("./pages/dashboard/Reports"));
+const Suppliers = lazy(() => import("./pages/dashboard/Suppliers"));
+const Purchases = lazy(() => import("./pages/dashboard/Purchases"));
 const EnvDebug = lazy(() => import("./pages/EnvDebug"));
 const AiDebug = lazy(() => import("./pages/AiDebug"));
 
@@ -107,6 +109,8 @@ const App = () => {
                   <Route path="customers" element={<Customers />} />
                   <Route path="shortbook" element={<Shortbook />} />
                   <Route path="reports" element={<Reports />} />
+                  <Route path="suppliers" element={<Suppliers />} />
+                  <Route path="purchases" element={<Purchases />} />
                   <Route path="audit-logs" element={<AuditLogs />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="env-debug" element={<EnvDebug />} />
