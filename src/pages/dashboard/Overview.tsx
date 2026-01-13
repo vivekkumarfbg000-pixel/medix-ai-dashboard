@@ -9,7 +9,7 @@ import { QuickActions } from "@/components/dashboard/widgets/QuickActions";
 import { PulseWidget } from "@/components/dashboard/widgets/PulseWidget";
 import { SafetyWidget } from "@/components/dashboard/widgets/SafetyWidget";
 import { RefillAlertsWidget } from "@/components/dashboard/widgets/RefillAlertsWidget";
-import { BusinessReportWidget } from "@/components/dashboard/widgets/BusinessReportWidget";
+import { AICommandCentre } from "@/components/dashboard/widgets/AICommandCentre"; // NEW
 import { SystemHealthWidget } from "@/components/dashboard/widgets/SystemHealthWidget";
 import { DayEndTally } from "@/components/dashboard/widgets/DayEndTally";
 
@@ -69,21 +69,24 @@ const Overview = () => {
       </div>
 
       {/* ROW 2: INTELLIGENCE LAYER (Phase 15 - Unified Front) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[300px]">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* REFILL ALERTS */}
         <div className="h-full">
           <RefillAlertsWidget />
         </div>
 
-        {/* BUSINESS REPORT (AI) */}
-        <div className="h-full">
-          <BusinessReportWidget />
+        {/* AI COMMAND CENTRE (Replaces BusinessReportWidget for Growth + Seasonal) */}
+        <div className="h-full md:col-span-2">
+          <ErrorBoundary fallback={<div className="p-4 text-red-500">AI Widget Error</div>}>
+            <AICommandCentre />
+          </ErrorBoundary>
         </div>
+      </div>
 
-        {/* DAY END TALLY */}
-        <div className="h-full">
-          <DayEndTally />
-        </div>
+      {/* ROW 3: METRICS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <DayEndTally />
+        <SystemHealthWidget />
       </div>
 
       {/* Activity Feed & Detailed Metrics */}
@@ -93,6 +96,6 @@ const Overview = () => {
       </div>
     </div>
   );
-};
 
-export default Overview;
+
+  export default Overview;

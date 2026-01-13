@@ -109,38 +109,47 @@ const Inventory = () => {
   const fetchStaging = async () => {
     if (!currentShop?.id) return;
 
-    // @ts-ignore - Table exists in database
-    const { data, error } = await supabase
-      .from("inventory_staging")
-      .select("*")
-      .eq("status", "pending")
-      .order("created_at", { ascending: false });
+    try {
+      // @ts-ignore - Table exists in database
+      const { data, error } = await supabase
+        .from("inventory_staging")
+        .select("*")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Error fetching drafts:", error);
-    } else {
-      // Mock Enrichment (ABC-VEN Analysis)
-      // In production, this data would come from the N8N analysis engine directly
-      const enrichedData = (data || []).map((item: any) => {
-        // Simple logic: Price > 500 is Class A. Random Velocity.
-        const isExpensive = item.unit_price > 500;
-        const velocity = Math.random() > 0.5 ? 'Fast' : (Math.random() > 0.5 ? 'Slow' : 'Dead');
-        let action = 'None';
+      if (error) {
+        // Graceful fallback if table missing
+        if (error.code === '42P01') {
+          console.warn("inventory_staging table missing");
+          return;
+        }
+        console.error("Error fetching drafts:", error);
+      } else {
+        // Mock Enrichment (ABC-VEN Analysis)
+        // In production, this data would come from the N8N analysis engine directly
+        const enrichedData = (data || []).map((item: any) => {
+          // Simple logic: Price > 500 is Class A. Random Velocity.
+          const isExpensive = item.unit_price > 500;
+          const velocity = Math.random() > 0.5 ? 'Fast' : (Math.random() > 0.5 ? 'Slow' : 'Dead');
+          let action = 'None';
 
-        if (velocity === 'Dead' && isExpensive) action = 'Return';
-        else if (velocity === 'Slow' && !isExpensive) action = 'Discount';
-        else if (velocity === 'Fast') action = 'Reorder';
+          if (velocity === 'Dead' && isExpensive) action = 'Return';
+          else if (velocity === 'Slow' && !isExpensive) action = 'Discount';
+          else if (velocity === 'Fast') action = 'Reorder';
 
-        return {
-          ...item,
-          insights: {
-            classification: isExpensive ? 'A' : 'C',
-            velocity: velocity,
-            action: action
-          }
-        };
-      });
-      setStagingItems(enrichedData as StagingItem[]);
+          return {
+            ...item,
+            insights: {
+              classification: isExpensive ? 'A' : 'C',
+              velocity: velocity,
+              action: action
+            }
+          };
+        });
+        setStagingItems(enrichedData as StagingItem[]);
+      }
+    } catch (e) {
+      console.error("Staging Fetch Error:", e);
     }
   };
 

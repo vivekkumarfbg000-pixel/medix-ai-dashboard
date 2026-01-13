@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, Component, ErrorInfo, ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserShops } from "@/hooks/useUserShops";
 import { toast } from "sonner";
-import { NotebookPen, Plus, Trash2, Share2, CheckCircle2, AlertCircle, Sparkles, FileText, Printer } from "lucide-react";
+import { NotebookPen, Plus, Trash2, Share2, CheckCircle2, AlertCircle, Sparkles, FileText, Printer, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface ShortbookItem {
@@ -17,7 +17,36 @@ interface ShortbookItem {
     created_at: string;
 }
 
-const Shortbook = () => {
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+    constructor(props: { children: ReactNode }) {
+        super(props);
+        this.state = { hasError: false };
+    }
+
+    static getDerivedStateFromError(_: Error) {
+        return { hasError: true };
+    }
+
+    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+        console.error("Shortbook Error:", error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="p-6 text-center border-2 border-red-200 bg-red-50 rounded-lg">
+                    <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-2" />
+                    <h3 className="text-lg font-bold text-red-700">Something went wrong</h3>
+                    <p className="text-red-600 mb-4">The Shortbook component crashed. Please check your database connection.</p>
+                    <Button variant="outline" onClick={() => this.setState({ hasError: false })}>Try Again</Button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
+const ShortbookContent = () => {
     const { currentShop } = useUserShops();
     const [items, setItems] = useState<ShortbookItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -30,31 +59,39 @@ const Shortbook = () => {
     const fetchItems = async () => {
         if (!currentShop?.id) return;
         setLoading(true);
-        // @ts-ignore
-        const { data, error } = await supabase
-            .from('shortbook_items')
-            .select('*')
-            .eq('shop_id', currentShop.id)
-            .order('created_at', { ascending: false });
+        try {
+            const { data, error } = await supabase
+                .from('shortbook_items' as any)
+                .select('*')
+                .eq('shop_id', currentShop.id)
+                .order('created_at', { ascending: false });
 
-        if (error) {
-            toast.error("Failed to load shortbook");
-        } else {
-            setItems(data as any[] || []);
+            if (error) {
+                // If table doesn't exist, don't crash, just log logic error
+                if (error.code === '42P01') {
+                    console.warn("Table shortbook_items not found");
+                } else {
+                    toast.error("Failed to load shortbook");
+                }
+            } else {
+                setItems(data as any[] || []);
+            }
+        } catch (e) {
+            console.error(e);
         }
         setLoading(false);
     };
 
     useEffect(() => {
-        fetchItems();
+        if (currentShop?.id) fetchItems();
     }, [currentShop]);
 
     const handleAddItem = async () => {
         if (!newName.trim()) return;
+        if (!currentShop?.id) return;
 
-        // @ts-ignore
-        const { error } = await supabase.from('shortbook_items').insert({
-            shop_id: currentShop?.id,
+        const { error } = await supabase.from('shortbook_items' as any).insert({
+            shop_id: currentShop.id,
             medicine_name: newName,
             quantity_needed: newQty || "1 Box",
             priority: isHighPriority ? 'high' : 'normal'
@@ -72,16 +109,14 @@ const Shortbook = () => {
     };
 
     const handleDelete = async (id: string) => {
-        // @ts-ignore
-        const { error } = await supabase.from('shortbook_items').delete().eq('id', id);
+        const { error } = await supabase.from('shortbook_items' as any).delete().eq('id', id);
         if (error) toast.error("Failed to delete");
         else fetchItems();
     };
 
     const toggleOrdered = async (item: ShortbookItem) => {
-        // @ts-ignore
         const { error } = await supabase
-            .from('shortbook_items')
+            .from('shortbook_items' as any)
             .update({ is_ordered: !item.is_ordered })
             .eq('id', item.id);
 
@@ -106,9 +141,8 @@ const Shortbook = () => {
     };
 
     const clearOrdered = async () => {
-        // @ts-ignore
         const { error } = await supabase
-            .from('shortbook_items')
+            .from('shortbook_items' as any)
             .delete()
             .eq('shop_id', currentShop?.id)
             .eq('is_ordered', true);
@@ -150,8 +184,7 @@ const Shortbook = () => {
             // Simple check if already in list
             if (items.some(i => i.medicine_name === item.medicine_name && !i.is_ordered)) continue;
 
-            // @ts-ignore
-            await supabase.from('shortbook_items').insert({
+            await supabase.from('shortbook_items' as any).insert({
                 shop_id: currentShop.id,
                 medicine_name: item.medicine_name,
                 quantity_needed: "10 (Auto)", // Default reorder qty
@@ -324,4 +357,10 @@ const Shortbook = () => {
     );
 };
 
-export default Shortbook;
+export default function Shortbook() {
+    return (
+        <ErrorBoundary>
+            <ShortbookContent />
+        </ErrorBoundary>
+    );
+}

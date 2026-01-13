@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mic, ScanBarcode, MessageCircle, ArrowRight, User } from "lucide-react";
+import { Mic, ScanBarcode, MessageCircle, ArrowRight, User, Stethoscope, Sparkles, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -11,33 +11,23 @@ import { formatDistanceToNow } from "date-fns";
 export const QuickActions = () => {
     const navigate = useNavigate();
     const { currentShop } = useUserShops();
-    const [whatsappQueue, setWhatsappQueue] = useState<any[]>([]);
+    const [stats, setStats] = useState({ drafts: 0, lowStock: 0 });
 
     useEffect(() => {
         if (!currentShop?.id) return;
 
-        const fetchQueue = async () => {
-            // Fetch pending orders (assuming source 'whatsapp' or just general pending orders for now)
-            const { data } = await supabase
-                .from('orders')
-                .select('*')
+        const fetchStats = async () => {
+            // 1. Fetch Drafts Cache
+            const { count: draftCount } = await supabase
+                .from('inventory_staging' as any)
+                .select('*', { count: 'exact', head: true })
                 .eq('shop_id', currentShop.id)
-                .eq('status', 'pending')
-                .order('created_at', { ascending: false })
-                .limit(3);
+                .eq('status', 'pending');
 
-            if (data) setWhatsappQueue(data);
+            setStats(prev => ({ ...prev, drafts: draftCount || 0 }));
         };
 
-        fetchQueue();
-
-        // Real-time subscription
-        const channel = supabase
-            .channel('quick-actions-orders')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchQueue)
-            .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
+        fetchStats();
     }, [currentShop]);
 
     return (
@@ -55,7 +45,6 @@ export const QuickActions = () => {
                         onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log("Navigating to Orders");
                             navigate("/dashboard/orders");
                         }}
                     >
@@ -67,7 +56,6 @@ export const QuickActions = () => {
                         onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log("Navigating to Inventory");
                             navigate("/dashboard/inventory");
                         }}
                     >
@@ -76,38 +64,53 @@ export const QuickActions = () => {
                     </Button>
                 </div>
 
-                {/* WhatsApp Queue */}
+                {/* AI Assistant & Smart Actions */}
                 <div className="space-y-3">
                     <div className="flex items-center justify-between text-sm">
                         <span className="font-semibold text-white/90 flex items-center gap-2">
-                            <MessageCircle className="w-4 h-4 text-green-500" /> WhatsApp Queue
+                            <Sparkles className="w-4 h-4 text-purple-400" /> AI Assistant
                         </span>
-                        <span className="bg-green-500/20 text-green-400 text-[10px] px-2 py-0.5 rounded-full font-bold">LIVE</span>
                     </div>
 
-                    <div className="space-y-2">
-                        {whatsappQueue.map((order) => (
-                            <div key={order.id} className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-3 rounded-xl border border-slate-700/50 flex items-center justify-between group hover:border-[#0ea5e9]/50 transition-colors cursor-pointer shadow-sm">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-[#0ea5e9]/20 flex items-center justify-center text-[#38bdf8]">
-                                        <User className="w-5 h-5" />
-                                    </div>
-                                    <div>
-                                        <div className="font-bold text-sm text-white">{order.customer_name || 'Unknown Helper'}</div>
-                                        <div className="text-xs text-white opacity-90">
-                                            {Array.isArray(order.order_items) ? `${order.order_items.length} items` : 'Items'} • {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
-                                        </div>
-                                    </div>
-                                </div>
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:text-[#0ea5e9] hover:bg-transparent">
-                                    <ArrowRight className="w-5 h-5" />
-                                </Button>
+                    {/* Clinical Pharmacist Bot Button */}
+                    <div
+                        onClick={() => navigate("/dashboard/ai-insights")}
+                        className="bg-gradient-to-r from-purple-900/80 to-indigo-900/80 p-3 rounded-xl border border-purple-500/30 flex items-center justify-between group hover:border-purple-400 transition-all cursor-pointer shadow-sm relative overflow-hidden"
+                    >
+                        <div className="absolute inset-0 bg-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex items-center gap-3 relative z-10">
+                            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-300">
+                                <Stethoscope className="w-5 h-5" />
                             </div>
-                        ))}
+                            <div>
+                                <div className="font-bold text-sm text-white">Clinical Pharmacist</div>
+                                <div className="text-xs text-purple-200 opacity-90">
+                                    Ask about conflict & dosage
+                                </div>
+                            </div>
+                        </div>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:text-purple-300 hover:bg-transparent relative z-10">
+                            <ArrowRight className="w-5 h-5" />
+                        </Button>
                     </div>
-                    <Button variant="ghost" size="sm" className="w-full text-xs text-white/70 hover:text-[#0ea5e9]">
-                        View All Pending Orders
-                    </Button>
+
+                    {/* Pending Actions (Drafts) */}
+                    {stats.drafts > 0 && (
+                        <div
+                            onClick={() => navigate("/dashboard/inventory")}
+                            className="bg-slate-800/50 p-3 rounded-xl border border-slate-700 flex items-center justify-between group hover:border-slate-600 transition-all cursor-pointer"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
+                                    <FileText className="w-4 h-4" />
+                                </div>
+                                <div className="text-sm font-medium text-white">
+                                    {stats.drafts} AI Drafts Pending
+                                </div>
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-white" />
+                        </div>
+                    )}
                 </div>
             </CardContent>
         </Card>
