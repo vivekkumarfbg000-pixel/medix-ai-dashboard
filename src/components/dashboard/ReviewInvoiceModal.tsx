@@ -81,7 +81,7 @@ export function ReviewInvoiceModal({
     setIsMatching(true);
 
     try {
-      console.log("Matching items with inventory...", parsedItems);
+      // console.log("Matching items with inventory...", parsedItems);
       const { data: inventory } = await supabase
         .from("inventory")
         .select("id, medicine_name, unit_price, quantity")

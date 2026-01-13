@@ -99,7 +99,7 @@ const Inventory = () => {
       // @ts-ignore
       const validData = data || [];
       if (validData.length > 0) {
-        console.log("Inventory Loaded:", validData.length, "items", validData[0]);
+        // console.log("Inventory Loaded:", validData.length, "items", validData[0]);
       }
       setInventory(validData);
     }
@@ -331,6 +331,7 @@ const Inventory = () => {
     } else {
       // @ts-ignore
       if (data && data.success) {
+        // @ts-ignore
         toast.success(`Stock updated! New Qty: ${data.new_quantity}`);
         fetchInventory();
         setAdjustmentDialog({ ...adjustmentDialog, isOpen: false });
@@ -343,7 +344,7 @@ const Inventory = () => {
 
   const handleAddToShortbook = async (item: InventoryItem) => {
     if (!currentShop?.id) return;
-    const { error } = await supabase.from('shortbook_items').insert({
+    const { error } = await supabase.from('shortbook_items' as any).insert({
       shop_id: currentShop.id,
       medicine_name: item.medicine_name,
       quantity_needed: "10 strips", // Default suggestion
@@ -369,7 +370,8 @@ const Inventory = () => {
   };
 
   // ... imports
-  import Papa from 'papaparse'; // Ensure papaparse is installed or use simple split
+  // ... imports
+
 
   // ... inside Inventory component
 
@@ -383,7 +385,7 @@ const Inventory = () => {
 
       if (e.key === 'Enter') {
         if (barcodeBuffer.length > 3) {
-          console.log("Scanned:", barcodeBuffer);
+          // console.log("Scanned:", barcodeBuffer);
           setSearchQuery(barcodeBuffer); // Simple search for now
           toast.info(`Scanned Code: ${barcodeBuffer}`);
         }
@@ -406,15 +408,23 @@ const Inventory = () => {
       return;
     }
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const rows = results.data;
-        if (rows.length === 0) {
-          toast.error("CSV is empty");
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        if (!text) {
+          toast.error("Empty file");
           return;
         }
+
+        const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
+        if (lines.length < 2) {
+          toast.error("Invalid CSV format: Header missing or empty");
+          return;
+        }
+
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+        const rows = lines.slice(1);
 
         toast.loading(`Importing ${rows.length} items...`);
         let successCount = 0;
@@ -422,22 +432,44 @@ const Inventory = () => {
 
         const chunks = [];
         const CHUNK_SIZE = 50;
-        for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-          chunks.push(rows.slice(i, i + CHUNK_SIZE));
+
+        // Parse Logic
+        const parsedData = rows.map(line => {
+          // Handle quotes if needed, but for simple usage simple split is okay for now
+          // For robust parsing without lib, we assume standard CSV without comma in values for now
+          const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+          const row: any = {};
+          headers.forEach((h, i) => {
+            row[h] = values[i];
+          });
+          return row;
+        });
+
+        for (let i = 0; i < parsedData.length; i += CHUNK_SIZE) {
+          chunks.push(parsedData.slice(i, i + CHUNK_SIZE));
         }
 
         for (const chunk of chunks) {
-          const formattedData = chunk.map((row: any) => ({
-            shop_id: currentShop.id,
-            medicine_name: row['Medicine Name'] || row['name'] || 'Unknown',
-            batch_number: row['Batch'] || row['batch'] || null,
-            quantity: parseInt(row['Qty'] || row['quantity'] || '0'),
-            unit_price: parseFloat(row['MRP'] || row['price'] || '0'),
-            expiry_date: row['Expiry'] || row['expiry'] || null,
-            barcode: row['Barcode'] || row['barcode'] || null,
-            manufacturer: row['Manufacturer'] || null,
-            source: 'bulk_csv'
-          }));
+          const formattedData = chunk.map((row: any) => {
+            // Map common CSV headers to DB columns
+            const name = row['medicine name'] || row['name'] || row['medicine'] || 'Unknown';
+            const quantity = parseInt(row['qty'] || row['quantity'] || row['stock'] || '0');
+            const price = parseFloat(row['mrp'] || row['price'] || row['unit price'] || '0');
+
+            return {
+              shop_id: currentShop.id,
+              medicine_name: name,
+              batch_number: row['batch'] || row['batch number'] || null,
+              quantity: isNaN(quantity) ? 0 : quantity,
+              unit_price: isNaN(price) ? 0 : price,
+              expiry_date: row['expiry'] || row['expiry date'] || null,
+              barcode: row['barcode'] || null,
+              manufacturer: row['manufacturer'] || null,
+              source: 'bulk_csv'
+            };
+          }).filter((item: any) => item.medicine_name !== 'Unknown');
+
+          if (formattedData.length === 0) continue;
 
           // @ts-ignore
           const { error } = await supabase.from('inventory').insert(formattedData);
@@ -451,13 +483,14 @@ const Inventory = () => {
 
         toast.dismiss();
         if (successCount > 0) toast.success(`Successfully imported ${successCount} medicines!`);
-        if (errorCount > 0) toast.warning(`Failed to import ${errorCount} items. Check format.`);
+        if (errorCount > 0) toast.warning(`Failed to import ${errorCount} items.`);
         fetchInventory();
-      },
-      error: (err) => {
+
+      } catch (err: any) {
         toast.error("Failed to parse CSV: " + err.message);
       }
-    });
+    };
+    reader.readAsText(file);
 
     e.target.value = ''; // Reset input
   };
@@ -630,7 +663,6 @@ const Inventory = () => {
                       type="file"
                       id="inventory-upload"
                       className="hidden"
-                      accept="image/*"
                       accept="image/*"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];

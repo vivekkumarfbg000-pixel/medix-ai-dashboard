@@ -14,16 +14,19 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { whatsappService } from "@/services/whatsappService";
 import { aiService } from "@/services/aiService";
 
+import { CustomerSearch, Customer } from "@/components/dashboard/CustomerSearch";
+import { SalesReturnModal } from "@/components/dashboard/SalesReturnModal";
+
 const LitePOS = () => {
     const [cart, setCart] = useState<{ item: OfflineInventory; qty: number }[]>([]);
     const [search, setSearch] = useState("");
     const [isSyncing, setIsSyncing] = useState(false);
     const [paymentMode, setPaymentMode] = useState<string>("cash");
+    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null); // New State
     const { currentShop } = useUserShops();
-    const location = useLocation();
-
     const [interactions, setInteractions] = useState<string[]>([]);
     const [checkingSafety, setCheckingSafety] = useState(false);
+    const location = useLocation();
 
     // Handle Navigation State (from DiaryScan)
     useEffect(() => {
@@ -205,14 +208,9 @@ const LitePOS = () => {
                 e.preventDefault();
                 document.getElementById("lite-search-input")?.focus();
             }
-
-            // Mobile/Hardware Keys (Volume Buttons often map to specific keys on some devices, 
-            // but standard Android Volume keys are hard to capture in Web. 
-            // We'll support 'Enter' for barcode scanners primarily)
         };
 
         const handleVolumeKeys = (e: any) => {
-            // Experimental: Some WebViews expose volume keys
             if (e.key === "AudioVolumeUp" || e.key === "AudioVolumeDown") {
                 e.preventDefault();
                 triggerVoice();
@@ -240,7 +238,7 @@ const LitePOS = () => {
         fn();
     };
 
-    // Swipe Logic (Basic Implementation)
+    // Swipe Logic
     const [touchStart, setTouchStart] = useState<number | null>(null);
     const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
@@ -263,7 +261,6 @@ const LitePOS = () => {
             toast.info("Item removed");
         }
     };
-
     // --- CHECKOUT LOGIC ---
     const { canModify } = useUserRole(currentShop?.id);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -274,6 +271,12 @@ const LitePOS = () => {
             return;
         }
         if (cart.length === 0) return;
+
+        // Validation for Credit
+        if (paymentMode === 'credit' && !selectedCustomer) {
+            toast.error("Please select a customer for Udhaar!");
+            return;
+        }
 
         setIsCheckingOut(true);
         const invoiceNumber = `LITE-${Date.now().toString().slice(-6)}`;
@@ -289,26 +292,47 @@ const LitePOS = () => {
 
         try {
             // 1. Create Order in Supabase
-            const { error } = await supabase.from('orders').insert({
+            const { data: orderData, error } = await supabase.from('orders').insert({
                 shop_id: currentShop.id,
-                customer_name: "Walk-in (Lite)",
+                customer_name: paymentMode === 'credit' ? selectedCustomer?.name : "Walk-in (Lite)",
                 total_amount: total,
                 status: 'approved',
                 source: 'lite_pos',
                 payment_mode: paymentMode,
-                payment_status: 'paid', // LitePOS is instant pay usually
+                payment_status: paymentMode === 'credit' ? 'unpaid' : 'paid', // Credit is unpaid
                 invoice_number: invoiceNumber,
                 order_items: orderItems as any
-            });
+            }).select().single();
 
             if (error) throw error;
 
-            // 2. (Optional) Sync to local Dexie for offline history? (Skipping for now to prioritize online)
+            // 2. If Credit, Update Ledger & Customer Balance
+            if (paymentMode === 'credit' && selectedCustomer) {
+                // Add Ledger Entry
+                const { error: ledgerError } = await supabase.from('customer_ledger').insert({
+                    shop_id: currentShop.id,
+                    customer_id: selectedCustomer.id,
+                    transaction_type: 'DEBIT',
+                    amount: total,
+                    description: `Udhaar Purchase: ${invoiceNumber}`,
+                    // reference_id: orderData.id // Optional if column exists
+                });
+
+                if (ledgerError) console.error("Ledger Error", ledgerError);
+
+                // Update Customer Balance
+                const newBalance = (selectedCustomer.credit_balance || 0) + total;
+                await supabase.from('customers').update({
+                    credit_balance: newBalance
+                }).eq('id', selectedCustomer.id);
+            }
 
             toast.success(`Order ${invoiceNumber} Saved!`, {
-                description: `₹${total} Collected`
+                description: paymentMode === 'credit' ? `Added ₹${total} to ${selectedCustomer?.name}'s Khata` : `₹${total} Collected`
             });
             setCart([]); // Clear Cart
+            setSelectedCustomer(null); // Reset Customer
+            setPaymentMode("cash"); // Reset Mode
         } catch (err: any) {
             toast.error("Checkout Failed", { description: err.message });
             console.error(err);
@@ -392,6 +416,8 @@ const LitePOS = () => {
                     <span className="text-xs text-blue-100">{currentShop?.name || "No Shop"}</span>
                 </div>
                 <div className="flex items-center gap-2">
+                    <SalesReturnModal /> {/* Added Professional Return Modal */}
+
                     <Button
                         size="sm"
                         variant="secondary"
@@ -506,19 +532,39 @@ const LitePOS = () => {
                             <span>Total</span>
                             <span className="text-emerald-600 dark:text-emerald-400">₹{calculateTotal()}</span>
                         </div>
+
                         {/* Payment Mode Selector */}
-                        <div className="grid grid-cols-3 gap-2">
-                            {["cash", "upi", "card"].map((mode) => (
+                        <div className="grid grid-cols-4 gap-2">
+                            {["cash", "upi", "card", "credit"].map((mode) => (
                                 <Button
                                     key={mode}
                                     variant={paymentMode === mode ? "default" : "outline"}
-                                    className={`capitalize h-8 text-xs ${paymentMode === mode ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                                    className={`capitalize h-8 text-xs ${paymentMode === mode ?
+                                        (mode === 'credit' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700')
+                                        : ''}`}
                                     onClick={() => setPaymentMode(mode)}
                                 >
                                     {mode}
                                 </Button>
                             ))}
                         </div>
+
+                        {/* Customer Selector (Visible only if Credit is selected) */}
+                        {paymentMode === 'credit' && (
+                            <div className="bg-red-50 p-2 rounded-lg border border-red-100">
+                                <p className="text-xs text-red-600 mb-1 font-medium">Customer Required for Udhaar</p>
+                                <CustomerSearch
+                                    selectedCustomer={selectedCustomer}
+                                    onSelect={setSelectedCustomer}
+                                />
+                                {selectedCustomer && (
+                                    <div className="text-xs mt-1 text-slate-500">
+                                        Current Due: <span className="font-bold text-red-600">₹{selectedCustomer.credit_balance}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         <div className="flex gap-2">
                             <Button
                                 size="lg"
@@ -533,7 +579,7 @@ const LitePOS = () => {
                                 size="lg"
                                 className="h-14 font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-lg flex flex-col items-center justify-center leading-none px-6"
                                 onClick={() => withHaptic(handleFastCheckout)}
-                                disabled={isCheckingOut || cart.length === 0}
+                                disabled={isCheckingOut || cart.length === 0 || paymentMode === 'credit'}
                                 title="Skip details, just cash"
                             >
                                 <span className="text-xs uppercase opacity-80 mb-1">Fast Cash</span>
@@ -541,11 +587,12 @@ const LitePOS = () => {
                             </Button>
                             <Button
                                 size="lg"
-                                className="flex-1 h-14 text-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-transform shadow-lg"
+                                className={`flex-1 h-14 text-xl font-bold text-white active:scale-95 transition-transform shadow-lg ${paymentMode === 'credit' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                                    }`}
                                 onClick={() => withHaptic(handleCheckout)}
-                                disabled={isCheckingOut || cart.length === 0}
+                                disabled={isCheckingOut || cart.length === 0 || (paymentMode === 'credit' && !selectedCustomer)}
                             >
-                                {isCheckingOut ? "Saving..." : "Checkout & Cash (₹)"}
+                                {isCheckingOut ? "Saving..." : (paymentMode === 'credit' ? "Confirm Udhaar" : "Checkout (₹)")}
                             </Button>
                         </div>
                     </div>

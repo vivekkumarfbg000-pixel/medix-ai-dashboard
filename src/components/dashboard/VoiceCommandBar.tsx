@@ -108,7 +108,7 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
 
           if (response) {
             // Prefer n8n parsed items, fallback to local parsing if only text is returned
-            console.log("Voice Response:", response); // Debug Log
+            // console.log("Voice Response:", response); // Debug Log
             const transcription = response.transcription || response.text || (response.items ? "Voice Order Processed" : "");
             const items = response.items || parseTranscription(transcription);
 
