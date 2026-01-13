@@ -6,9 +6,8 @@ import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 
 // Widgets
 import { QuickActions } from "@/components/dashboard/widgets/QuickActions";
-import { PulseWidget } from "@/components/dashboard/widgets/PulseWidget";
 import { SafetyWidget } from "@/components/dashboard/widgets/SafetyWidget";
-import { RefillAlertsWidget } from "@/components/dashboard/widgets/RefillAlertsWidget";
+import { RefillAlertsWidget } from "@/components/dashboard/ai/RefillAlertsWidget";
 import { AICommandCentre } from "@/components/dashboard/widgets/AICommandCentre"; // NEW
 import { SystemHealthWidget } from "@/components/dashboard/widgets/SystemHealthWidget";
 import { DayEndTally } from "@/components/dashboard/widgets/DayEndTally";
@@ -41,7 +40,7 @@ const Overview = () => {
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-foreground tracking-tight">Command Center</h1>
           <p className="text-muted-foreground mt-1 text-sm font-medium">
-            Good Morning, Vivek. Your pharmacy is <span className="text-green-600 font-bold">98% Efficient</span> today.
+            Good Morning, Vivek. You have <span className="text-indigo-600 font-bold">5 Refills Due</span> today.
           </p>
         </div>
         <Button className="w-fit shadow-glow bg-primary hover:bg-primary/90 text-white rounded-full px-6">
@@ -57,9 +56,9 @@ const Overview = () => {
           <QuickActions />
         </div>
 
-        {/* MIDDLE COLUMN: PULSE (50%) */}
+        {/* MIDDLE COLUMN: SMART REFILL ENGINE (50%) - Replaces Pulse */}
         <div className="lg:col-span-2 h-full min-h-[400px]">
-          <PulseWidget />
+          <RefillAlertsWidget />
         </div>
 
         {/* RIGHT COLUMN: SAFETY (25%) */}
@@ -68,15 +67,10 @@ const Overview = () => {
         </div>
       </div>
 
-      {/* ROW 2: INTELLIGENCE LAYER (Phase 15 - Unified Front) */}
+      {/* ROW 2: INTELLIGENCE LAYER */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* REFILL ALERTS */}
-        <div className="h-full">
-          <RefillAlertsWidget />
-        </div>
-
-        {/* AI COMMAND CENTRE (Replaces BusinessReportWidget for Growth + Seasonal) */}
-        <div className="h-full md:col-span-2">
+        {/* AI COMMAND CENTRE (Full Width for Growth) */}
+        <div className="h-full md:col-span-3">
           <AICommandCentre />
         </div>
       </div>
