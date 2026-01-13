@@ -631,27 +631,47 @@ const Inventory = () => {
                       id="inventory-upload"
                       className="hidden"
                       accept="image/*"
+                      accept="image/*"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
                         e.target.value = '';
                         const toastId = toast.loading("Uploading to AI Vision Engine...");
                         try {
-                          const base64 = await new Promise<string>((resolve, reject) => {
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              const result = reader.result as string;
-                              const b64 = result.includes(',') ? result.split(',')[1] : result;
-                              resolve(b64);
-                            };
-                            reader.onerror = (error) => reject(error);
-                            reader.readAsDataURL(file);
-                          });
-
                           // @ts-ignore
                           const { aiService } = await import("@/services/aiService");
-                          await aiService.analyzeDocument(file, 'inventory_list');
-                          toast.success("Scan Complete! Drafts created.");
+                          const result = await aiService.analyzeDocument(file, 'inventory_list');
+
+                          // Handle Fallback: If AI returns data but doesn't save to DB, save manually
+                          if (result && (result.items || Array.isArray(result))) {
+                            const itemsToSave = Array.isArray(result) ? result : (result.items || []);
+
+                            if (itemsToSave.length > 0) {
+                              const formattedItems = itemsToSave.map((item: any) => ({
+                                shop_id: currentShop?.id,
+                                medicine_name: item.medicine_name || item.name || "Unknown",
+                                batch_number: item.batch_number || item.batch || null,
+                                expiry_date: item.expiry_date || item.expiry || null,
+                                quantity: parseInt(item.quantity || item.qty || '0'),
+                                unit_price: parseFloat(item.unit_price || item.mrp || item.price || '0'),
+                                status: 'pending',
+                                source: 'scan'
+                              }));
+
+                              // @ts-ignore
+                              const { error } = await supabase.from('inventory_staging').insert(formattedItems);
+                              if (error) {
+                                console.error("Manual Staging Save Error:", error);
+                                // Don't throw, maybe N8N saved it?
+                              } else {
+                                toast.dismiss(toastId);
+                                toast.success(`Scanned ${formattedItems.length} items!`);
+                                fetchStaging(); // Refresh UI
+                                return;
+                              }
+                            }
+                          }
+
                           fetchStaging();
                         } catch (err: any) {
                           console.error("Scan Error:", err);
