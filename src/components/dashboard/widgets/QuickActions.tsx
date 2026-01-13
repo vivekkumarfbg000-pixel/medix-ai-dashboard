@@ -1,17 +1,16 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mic, ScanBarcode, MessageCircle, ArrowRight, User, Stethoscope, Sparkles, FileText } from "lucide-react";
+import { Mic, ScanBarcode, ArrowRight, Stethoscope, Sparkles, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useUserShops } from "@/hooks/useUserShops";
 import { useEffect, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
 
 export const QuickActions = () => {
     const navigate = useNavigate();
     const { currentShop } = useUserShops();
-    const [stats, setStats] = useState({ drafts: 0, lowStock: 0 });
+    const [stats, setStats] = useState({ drafts: 0 });
 
     useEffect(() => {
         if (!currentShop?.id) return;
@@ -32,83 +31,90 @@ export const QuickActions = () => {
 
     return (
         <Card className="h-full border-none shadow-none bg-transparent">
-            <CardHeader className="pb-2 px-0">
-                <CardTitle className="text-lg font-bold flex items-center gap-2 text-white">
-                    ⚡ Quick Actions
+            <CardHeader className="pb-4 px-0">
+                <CardTitle className="text-lg font-bold flex items-center gap-2 text-foreground/90">
+                    <span className="bg-primary/10 p-1.5 rounded-lg text-primary"><Sparkles className="w-4 h-4" /></span>
+                    Smart Actions
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6 px-0">
-                {/* Daily Tools */}
-                <div className="grid grid-cols-2 gap-4 relative z-50">
+                {/* Daily Tools Grid */}
+                <div className="grid grid-cols-2 gap-4">
                     <Button
-                        className="h-24 flex flex-col gap-2 bg-[#0284c7] hover:bg-[#0369a1] text-white border-none shadow-lg hover:shadow-xl transition-all rounded-xl active:scale-95 cursor-pointer"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            navigate("/dashboard/orders");
-                        }}
+                        className="h-28 flex flex-col items-start justify-between p-4 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white border-0 shadow-lg shadow-blue-900/20 rounded-2xl transition-all duration-300 hover:scale-[1.02] active:scale-95 group relative overflow-hidden"
+                        onClick={() => navigate("/dashboard/orders")}
                     >
-                        <Mic className="w-8 h-8" />
-                        <span className="text-sm font-bold">New Sale</span>
+                        <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <Mic className="w-16 h-16" />
+                        </div>
+                        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                            <Mic className="w-5 h-5" />
+                        </div>
+                        <div className="text-left">
+                            <span className="text-lg font-bold block">New Sale</span>
+                            <span className="text-[10px] opacity-80 font-normal">Voice or Manual</span>
+                        </div>
                     </Button>
+
                     <Button
-                        className="h-24 flex flex-col gap-2 bg-[#0f172a] hover:bg-[#1e293b] text-white border border-slate-700 shadow-lg hover:shadow-xl transition-all rounded-xl active:scale-95 cursor-pointer"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            navigate("/dashboard/inventory");
-                        }}
+                        className="h-28 flex flex-col items-start justify-between p-4 bg-gradient-to-br from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white border border-slate-700/50 shadow-lg rounded-2xl transition-all duration-300 hover:scale-[1.02] active:scale-95 group relative overflow-hidden"
+                        onClick={() => navigate("/dashboard/inventory")}
                     >
-                        <ScanBarcode className="w-8 h-8 text-[#0ea5e9]" />
-                        <span className="text-sm font-bold">Add Stock</span>
+                        <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <ScanBarcode className="w-16 h-16" />
+                        </div>
+                        <div className="w-10 h-10 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center backdrop-blur-sm">
+                            <ScanBarcode className="w-5 h-5" />
+                        </div>
+                        <div className="text-left">
+                            <span className="text-lg font-bold block">Add Stock</span>
+                            <span className="text-[10px] text-slate-300 font-normal">Scan & Upload</span>
+                        </div>
                     </Button>
                 </div>
 
-                {/* AI Assistant & Smart Actions */}
+                {/* AI & Clinical Tools */}
                 <div className="space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                        <span className="font-semibold text-white/90 flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-purple-400" /> AI Assistant
-                        </span>
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pl-1">
+                        Clinical Support
                     </div>
 
-                    {/* Clinical Pharmacist Bot Button */}
+                    {/* Clinical Pharmacist Bot Button - Premium Look */}
                     <div
                         onClick={() => navigate("/dashboard/ai-insights")}
-                        className="bg-gradient-to-r from-purple-900/80 to-indigo-900/80 p-3 rounded-xl border border-purple-500/30 flex items-center justify-between group hover:border-purple-400 transition-all cursor-pointer shadow-sm relative overflow-hidden"
+                        className="relative group cursor-pointer"
                     >
-                        <div className="absolute inset-0 bg-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <div className="flex items-center gap-3 relative z-10">
-                            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-300">
-                                <Stethoscope className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <div className="font-bold text-sm text-white">Clinical Pharmacist</div>
-                                <div className="text-xs text-purple-200 opacity-90">
-                                    Ask about conflict & dosage
+                        <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl blur opacity-25 group-hover:opacity-40 transition-opacity duration-300" />
+                        <div className="relative bg-gradient-to-r from-purple-900/90 to-indigo-900/90 hover:from-purple-800/90 hover:to-indigo-800/90 border border-purple-500/30 p-4 rounded-xl flex items-center justify-between transition-all duration-300 hover:border-purple-400/50 shadow-inner">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center shadow-lg text-white">
+                                    <Stethoscope className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-white text-base">Clinical Pharmacist</h4>
+                                    <p className="text-xs text-purple-200/80">AI Interaction & Dosage Check</p>
                                 </div>
                             </div>
+                            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
+                                <ArrowRight className="w-4 h-4 text-white" />
+                            </div>
                         </div>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:text-purple-300 hover:bg-transparent relative z-10">
-                            <ArrowRight className="w-5 h-5" />
-                        </Button>
                     </div>
 
-                    {/* Pending Actions (Drafts) */}
+                    {/* Pending Drafts Action */}
                     {stats.drafts > 0 && (
                         <div
                             onClick={() => navigate("/dashboard/inventory")}
-                            className="bg-slate-800/50 p-3 rounded-xl border border-slate-700 flex items-center justify-between group hover:border-slate-600 transition-all cursor-pointer"
+                            className="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 p-3 rounded-xl flex items-center gap-3 cursor-pointer transition-colors group"
                         >
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
-                                    <FileText className="w-4 h-4" />
-                                </div>
-                                <div className="text-sm font-medium text-white">
-                                    {stats.drafts} AI Drafts Pending
-                                </div>
+                            <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
+                                <FileText className="w-4 h-4" />
                             </div>
-                            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-white" />
+                            <div className="flex-1">
+                                <div className="font-semibold text-amber-600 dark:text-amber-400 text-sm">Resume Invoice Drafts</div>
+                                <div className="text-xs text-muted-foreground">{stats.drafts} items pending review</div>
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-amber-500 opacity-50 group-hover:opacity-100 transition-opacity" />
                         </div>
                     )}
                 </div>
