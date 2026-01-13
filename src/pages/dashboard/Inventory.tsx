@@ -368,6 +368,100 @@ const Inventory = () => {
     }
   };
 
+  // ... imports
+  import Papa from 'papaparse'; // Ensure papaparse is installed or use simple split
+
+  // ... inside Inventory component
+
+  // Feature: Barcode Scanning
+  const [barcodeBuffer, setBarcodeBuffer] = useState("");
+  useEffect(() => {
+    // Hidden global listener for handheld scanners
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Most scanners act as keyboards sending text + Enter
+      if (e.target instanceof HTMLInputElement) return; // Ignore if typing in an input
+
+      if (e.key === 'Enter') {
+        if (barcodeBuffer.length > 3) {
+          console.log("Scanned:", barcodeBuffer);
+          setSearchQuery(barcodeBuffer); // Simple search for now
+          toast.info(`Scanned Code: ${barcodeBuffer}`);
+        }
+        setBarcodeBuffer("");
+      } else {
+        setBarcodeBuffer(prev => prev + e.key);
+      }
+    };
+    window.addEventListener('keypress', handleKeyPress);
+    return () => window.removeEventListener('keypress', handleKeyPress);
+  }, [barcodeBuffer]);
+
+  // Feature: Bulk CSV Upload
+  const handleBulkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!currentShop?.id) {
+      toast.error("No Shop Selected");
+      return;
+    }
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const rows = results.data;
+        if (rows.length === 0) {
+          toast.error("CSV is empty");
+          return;
+        }
+
+        toast.loading(`Importing ${rows.length} items...`);
+        let successCount = 0;
+        let errorCount = 0;
+
+        const chunks = [];
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+          chunks.push(rows.slice(i, i + CHUNK_SIZE));
+        }
+
+        for (const chunk of chunks) {
+          const formattedData = chunk.map((row: any) => ({
+            shop_id: currentShop.id,
+            medicine_name: row['Medicine Name'] || row['name'] || 'Unknown',
+            batch_number: row['Batch'] || row['batch'] || null,
+            quantity: parseInt(row['Qty'] || row['quantity'] || '0'),
+            unit_price: parseFloat(row['MRP'] || row['price'] || '0'),
+            expiry_date: row['Expiry'] || row['expiry'] || null,
+            barcode: row['Barcode'] || row['barcode'] || null,
+            manufacturer: row['Manufacturer'] || null,
+            source: 'bulk_csv'
+          }));
+
+          // @ts-ignore
+          const { error } = await supabase.from('inventory').insert(formattedData);
+          if (error) {
+            console.error("Bulk Insert Error:", error);
+            errorCount += chunk.length;
+          } else {
+            successCount += chunk.length;
+          }
+        }
+
+        toast.dismiss();
+        if (successCount > 0) toast.success(`Successfully imported ${successCount} medicines!`);
+        if (errorCount > 0) toast.warning(`Failed to import ${errorCount} items. Check format.`);
+        fetchInventory();
+      },
+      error: (err) => {
+        toast.error("Failed to parse CSV: " + err.message);
+      }
+    });
+
+    e.target.value = ''; // Reset input
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* ... Headers ... */}
@@ -376,7 +470,24 @@ const Inventory = () => {
           <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Inventory Management</h1>
           <p className="text-muted-foreground mt-1">Manage stocks, handle AI drafts, and track expiry.</p>
         </div>
+
+        {/* Bulk Actions Toolbar */}
+        <div className="flex gap-2">
+          <Button variant="outline" className="border-dashed" onClick={() => document.getElementById('csv-upload')?.click()}>
+            <Upload className="w-4 h-4 mr-2" /> Import CSV
+          </Button>
+          <input
+            id="csv-upload"
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleBulkUpload}
+          />
+
+          <a href="/sample_inventory.csv" download className="hidden">Download Template</a>
+        </div>
       </div>
+// ... existing tabs code ...
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
