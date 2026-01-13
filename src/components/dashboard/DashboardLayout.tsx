@@ -98,11 +98,17 @@ export function DashboardLayout() {
               </Button>
             </div>
 
-            <div className="flex-1 flex justify-center max-w-2xl px-4">
+            {/* Center: Search/Voice (Desktop) */}
+            <div className="flex-1 flex justify-center max-w-2xl px-4 hidden md:flex">
               <VoiceCommandBar onTranscriptionComplete={handleTranscriptionComplete} compact />
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
+              {/* Mobile Voice Trigger (Visible only on mobile) */}
+              <div className="md:hidden">
+                <VoiceCommandBar onTranscriptionComplete={handleTranscriptionComplete} compact />
+              </div>
+
               <ThemeToggle />
               {/* <SyncStatus /> */}
               <ActiveUsers roomId={currentShop?.id || "default"} />
