@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { Mic, MicOff, Loader2, Volume2 } from "lucide-react";
+import { Mic, MicOff, Loader2, Volume2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -139,7 +139,7 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
       mediaRecorder.start();
       setIsRecording(true);
       updateAudioLevel();
-      toast.info("Recording... Speak now");
+      toast.info("Listening...", { description: "Speak clearly now" });
     } catch (error: any) {
       console.error("Microphone access error:", error);
       toast.error(`Could not access microphone: ${error.message || "Permission denied"}`);
@@ -158,33 +158,40 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
   };
 
   return (
-    <div className={cn("voice-bar transition-all", compact ? "bg-transparent p-0 border-0 shadow-none w-full" : "")}>
+    <div className={cn(
+      "voice-bar transition-all duration-500 ease-out",
+      compact ? "bg-transparent p-0 border-0 shadow-none w-full" : "glass-card p-2 rounded-full border border-primary/20 bg-background/60 shadow-lg backdrop-blur-md"
+    )}>
       <div className={cn("flex items-center gap-4", compact && "gap-2")}>
-        <div className="flex items-center gap-2">
-          <Volume2 className="w-5 h-5 text-primary" />
-          <span className={cn("font-semibold text-foreground", compact && "hidden xl:block")}>Voice Billing</span>
-        </div>
+        {!compact && (
+          <div className="pl-4 flex items-center gap-2">
+            <div className="bg-primary/10 p-2 rounded-full hidden sm:block">
+              <Sparkles className="w-4 h-4 text-primary" />
+            </div>
+            <span className="font-semibold text-foreground hidden xl:block pr-2">AI Voice Assistant</span>
+          </div>
+        )}
 
         <div className={cn("flex-1 flex items-center justify-center gap-3", compact && "justify-start")}>
-          <span className={cn("text-sm text-muted-foreground hidden sm:block", compact && "text-xs truncate max-w-[200px] hidden lg:block")}>
+          <span className={cn("text-sm text-muted-foreground hidden sm:block transition-all", compact && "text-xs truncate max-w-[200px] hidden lg:block", isRecording && "text-primary font-medium")}>
             {isRecording
-              ? "Listening... Say '2 Crocin, 1 Paracetamol, contact 98765'"
+              ? "Listening... Speak your order"
               : isProcessing
-                ? "Processing your voice command..."
-                : "Click the mic to start voice billing"}
+                ? "Analyzing voice data..."
+                : "Tap microphone to start"}
           </span>
 
           {/* Audio level indicator */}
           {isRecording && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 h-8 items-end">
               {[...Array(5)].map((_, i) => (
                 <div
                   key={i}
                   className={cn(
-                    "w-1 rounded-full transition-all duration-75",
-                    audioLevel > i * 0.2 ? "bg-primary" : "bg-muted"
+                    "w-1.5 rounded-full transition-all duration-75",
+                    audioLevel > i * 0.2 ? "bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" : "bg-muted h-2"
                   )}
-                  style={{ height: `${12 + audioLevel * 20}px` }}
+                  style={{ height: `${Math.max(8, 12 + audioLevel * (30 + i * 5))}px` }}
                 />
               ))}
             </div>
@@ -195,20 +202,23 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
           variant={isRecording ? "destructive" : "default"}
           size="lg"
           className={cn(
-            "rounded-full shadow-lg transition-all",
-            compact ? "w-10 h-10" : "w-14 h-14",
-            isRecording && "animate-pulse ring-4 ring-destructive/30",
-            isProcessing && "opacity-50 cursor-not-allowed"
+            "rounded-full shadow-lg transition-all duration-300 relative overflow-hidden",
+            compact ? "w-10 h-10" : "w-12 h-12",
+            isRecording && "animate-pulse ring-4 ring-destructive/30 scale-110",
+            isProcessing && "opacity-80 disabled:opacity-80"
           )}
           onClick={isRecording ? stopRecording : startRecording}
           disabled={isProcessing}
         >
           {isProcessing ? (
-            <Loader2 className="w-6 h-6 animate-spin" />
+            <Loader2 className="w-5 h-5 animate-spin" />
           ) : isRecording ? (
-            <MicOff className="w-6 h-6" />
+            <div className="relative">
+              <span className="absolute inset-0 rounded-full animate-ping bg-white/50 opacity-75"></span>
+              <MicOff className="w-5 h-5 relative z-10" />
+            </div>
           ) : (
-            <Mic className={cn(compact ? "w-4 h-4" : "w-6 h-6")} />
+            <Mic className={cn(compact ? "w-4 h-4" : "w-5 h-5")} />
           )}
         </Button>
       </div>
