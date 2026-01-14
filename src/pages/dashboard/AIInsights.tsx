@@ -27,6 +27,9 @@ import {
 import { drugService, ClinicalDrugInfo, InteractionResult } from "@/services/drugService";
 import { aiService } from "@/services/aiService";
 import VoiceInput from "@/components/common/VoiceInput";
+import { useUserShops } from "@/hooks/useUserShops";
+import { supabase } from "@/integrations/supabase/client";
+import { ArrowRight } from "lucide-react";
 
 const AIInsights = () => {
   const [activeTab, setActiveTab] = useState("chat"); // Default to Chat as requested
@@ -128,6 +131,76 @@ const AIInsights = () => {
     }
   };
 
+  // --- Cross-Selling State ---
+  const { currentShop } = useUserShops();
+  const [crossSellRules, setCrossSellRules] = useState<{ itemA: string, itemB: string, confidence: number, support: number }[]>([]);
+  const [analyzingGrowth, setAnalyzingGrowth] = useState(false);
+
+  const analyzeCrossSelling = async () => {
+    if (!currentShop?.id) return;
+    setAnalyzingGrowth(true);
+    try {
+      // 1. Fetch History
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('order_items')
+        .eq('shop_id', currentShop.id)
+        .order('created_at', { ascending: false })
+        .limit(500); // Analyze last 500 orders
+
+      if (!orders) return;
+
+      // 2. Generate Pairs
+      const pairCounts: Record<string, number> = {};
+      const itemCounts: Record<string, number> = {};
+
+      orders.forEach(order => {
+        const items: any[] = Array.isArray(order.order_items) ? order.order_items : [];
+        if (items.length < 2) return;
+
+        // Extract unique product names in this order
+        const uniqueItems = [...new Set(items.map(i => i.name || i.medicine_name).filter(Boolean))];
+
+        uniqueItems.forEach(item => {
+          itemCounts[item] = (itemCounts[item] || 0) + 1;
+        });
+
+        // Generate Pairs (A > B)
+        for (let i = 0; i < uniqueItems.length; i++) {
+          for (let j = i + 1; j < uniqueItems.length; j++) {
+            const [a, b] = [uniqueItems[i], uniqueItems[j]].sort(); // Alphabetical sort to avoid duplicates
+            const key = `${a}|${b}`;
+            pairCounts[key] = (pairCounts[key] || 0) + 1;
+          }
+        }
+      });
+
+      // 3. Calculate Confidence
+      const rules: any[] = [];
+      Object.entries(pairCounts).forEach(([key, count]) => {
+        if (count < 2) return; // Min Support: 2 occurrences
+        const [a, b] = key.split('|');
+
+        // Confidence A -> B
+        const confA = (count / itemCounts[a]) * 100;
+        // Confidence B -> A
+        const confB = (count / itemCounts[b]) * 100;
+
+        if (confA > 20) rules.push({ itemA: a, itemB: b, confidence: confA, support: count });
+        else if (confB > 20) rules.push({ itemA: b, itemB: a, confidence: confB, support: count });
+      });
+
+      setCrossSellRules(rules.sort((a, b) => b.confidence - a.confidence).slice(0, 10)); // Top 10
+      toast.success("Growth Analysis Complete");
+
+    } catch (e) {
+      console.error(e);
+      toast.error("Analysis Failed");
+    } finally {
+      setAnalyzingGrowth(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-black p-4 md:p-8 space-y-8 text-slate-100 animate-fade-in">
 
@@ -153,7 +226,7 @@ const AIInsights = () => {
 
         {/* Navigation Tabs */}
         <div className="flex justify-center">
-          <TabsList className="bg-slate-900/50 backdrop-blur-xl border border-white/10 p-1.5 h-auto rounded-full shadow-2xl inline-flex">
+          <TabsList className="bg-slate-900/50 backdrop-blur-xl border border-white/10 p-1.5 h-auto rounded-full shadow-2xl inline-flex flex-wrap gap-2 justify-center">
             <TabsTrigger
               value="chat"
               className="rounded-full px-6 py-2.5 data-[state=active]:bg-blue-600 data-[state=active]:text-white text-slate-400 transition-all duration-300"
@@ -171,6 +244,12 @@ const AIInsights = () => {
               className="rounded-full px-6 py-2.5 data-[state=active]:bg-blue-600 data-[state=active]:text-white text-slate-400 transition-all duration-300"
             >
               <Activity className="w-4 h-4 mr-2" /> Interaction Matrix
+            </TabsTrigger>
+            <TabsTrigger
+              value="growth"
+              className="rounded-full px-6 py-2.5 data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-slate-400 transition-all duration-300"
+            >
+              <TrendingUp className="w-4 h-4 mr-2" /> Growth Engine
             </TabsTrigger>
           </TabsList>
         </div>
@@ -201,8 +280,8 @@ const AIInsights = () => {
                       {msg.role === 'bot' ? <Bot className="w-4 h-4 text-blue-400" /> : <div className="text-xs font-bold text-white">ME</div>}
                     </div>
                     <div className={`group relative max-w-[80%] p-4 rounded-2xl shadow-sm ${msg.role === 'bot'
-                        ? 'bg-slate-800/80 border border-white/5 text-slate-200 rounded-tl-none'
-                        : 'bg-blue-600 text-white rounded-tr-none'
+                      ? 'bg-slate-800/80 border border-white/5 text-slate-200 rounded-tl-none'
+                      : 'bg-blue-600 text-white rounded-tr-none'
                       }`}>
                       {msg.image && (
                         <img src={msg.image} alt="Upload" className="max-w-xs rounded-lg mb-3 border border-white/10" />
@@ -434,9 +513,54 @@ const AIInsights = () => {
           </Card>
         </TabsContent>
 
+        {/* --- TAB 4: GROWTH ENGINE --- */}
+        <TabsContent value="growth" className="space-y-6">
+          <Card className="bg-slate-900/40 backdrop-blur-md border-white/10">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-emerald-400">
+                <TrendingUp className="w-5 h-5" /> Smart Cross-Sell Engine
+              </CardTitle>
+              <CardDescription className="text-slate-400">
+                AI-generated recommendations based on your store's purchase history.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {crossSellRules.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-500 mb-4">No analysis data available yet.</p>
+                  <Button size="lg" onClick={analyzeCrossSelling} disabled={analyzingGrowth} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                    {analyzingGrowth ? <Activity className="w-4 h-4 mr-2 animate-spin" /> : <Brain className="w-4 h-4 mr-2" />}
+                    Analyze Purchase Patterns
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {crossSellRules.map((rule, idx) => (
+                    <div key={idx} className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex items-center justify-between hover:bg-emerald-500/10 transition-colors">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm text-slate-300">
+                          If customer buys <span className="font-bold text-white">{rule.itemA}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-lg font-bold text-emerald-300">
+                          <ArrowRight className="w-4 h-4" /> Suggest {rule.itemB}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-emerald-400">{Math.round(rule.confidence)}%</div>
+                        <div className="text-[10px] uppercase tracking-wider text-emerald-600">Confidence</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
       </Tabs>
     </div>
   );
 };
 
 export default AIInsights;
+
