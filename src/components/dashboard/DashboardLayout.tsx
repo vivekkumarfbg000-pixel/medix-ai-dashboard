@@ -58,14 +58,21 @@ export function DashboardLayout() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-medical-canvas">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground">Loading...</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-medical-canvas space-y-4">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-xl font-bold text-primary">M</span>
+          </div>
+        </div>
+        <div className="text-center">
+          <h2 className="text-lg font-semibold text-foreground">Loading PharmaAssist...</h2>
+          <p className="text-sm text-muted-foreground animate-pulse">Initializing Secure Dashboard</p>
         </div>
       </div>
     );
   }
+
 
   if (!user) return null;
 

@@ -95,28 +95,28 @@ const App = () => {
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/lite-pos" element={<LitePOS />} />
                 <Route path="/dashboard" element={<DashboardLayout />}>
-                  <Route index element={<Overview />} />
-                  <Route path="inventory" element={<Inventory />} />
-                  <Route path="diary-scan" element={<DiaryScan />} />
-                  <Route path="lab-analyzer" element={<LabAnalyzer />} />
-                  <Route path="compliance" element={<Compliance />} />
-                  <Route path="orders" element={<Orders />} />
-                  <Route path="ai-insights" element={<AIInsights />} />
-                  <Route path="forecasting" element={<Forecasting />} />
-                  <Route path="alerts" element={<Alerts />} />
-                  <Route path="marketplace" element={<Marketplace />} />
-                  <Route path="prescriptions" element={<Prescriptions />} />
-                  <Route path="analytics" element={<Analytics />} />
-                  <Route path="customers" element={<Customers />} />
-                  <Route path="shortbook" element={<Shortbook />} />
-                  <Route path="reports" element={<Reports />} />
-                  <Route path="suppliers" element={<Suppliers />} />
-                  <Route path="purchases" element={<Purchases />} />
-                  <Route path="audit-logs" element={<AuditLogs />} />
-                  <Route path="schedule-h1" element={<ScheduleH1 />} />
-                  <Route path="settings" element={<Settings />} />
-                  <Route path="env-debug" element={<EnvDebug />} />
-                  <Route path="ai-debug" element={<AiDebug />} />
+                  <Route index element={<ErrorBoundary><Overview /></ErrorBoundary>} />
+                  <Route path="inventory" element={<ErrorBoundary><Inventory /></ErrorBoundary>} />
+                  <Route path="diary-scan" element={<ErrorBoundary><DiaryScan /></ErrorBoundary>} />
+                  <Route path="lab-analyzer" element={<ErrorBoundary><LabAnalyzer /></ErrorBoundary>} />
+                  <Route path="compliance" element={<ErrorBoundary><Compliance /></ErrorBoundary>} />
+                  <Route path="orders" element={<ErrorBoundary><Orders /></ErrorBoundary>} />
+                  <Route path="ai-insights" element={<ErrorBoundary><AIInsights /></ErrorBoundary>} />
+                  <Route path="forecasting" element={<ErrorBoundary><Forecasting /></ErrorBoundary>} />
+                  <Route path="alerts" element={<ErrorBoundary><Alerts /></ErrorBoundary>} />
+                  <Route path="marketplace" element={<ErrorBoundary><Marketplace /></ErrorBoundary>} />
+                  <Route path="prescriptions" element={<ErrorBoundary><Prescriptions /></ErrorBoundary>} />
+                  <Route path="analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
+                  <Route path="customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
+                  <Route path="shortbook" element={<ErrorBoundary><Shortbook /></ErrorBoundary>} />
+                  <Route path="reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
+                  <Route path="suppliers" element={<ErrorBoundary><Suppliers /></ErrorBoundary>} />
+                  <Route path="purchases" element={<ErrorBoundary><Purchases /></ErrorBoundary>} />
+                  <Route path="audit-logs" element={<ErrorBoundary><AuditLogs /></ErrorBoundary>} />
+                  <Route path="schedule-h1" element={<ErrorBoundary><ScheduleH1 /></ErrorBoundary>} />
+                  <Route path="settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
+                  <Route path="env-debug" element={<ErrorBoundary><EnvDebug /></ErrorBoundary>} />
+                  <Route path="ai-debug" element={<ErrorBoundary><AiDebug /></ErrorBoundary>} />
                 </Route >
                 <Route path="*" element={<NotFound />} />
               </Routes >
