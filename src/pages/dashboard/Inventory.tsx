@@ -20,6 +20,9 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Plus, Search, Package, AlertTriangle, Filter, Sparkles, Check, X, RefreshCw, Upload, Trash2, NotebookPen, TrendingUp } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
+import { useSearchParams } from "react-router-dom";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FileText as FileTextIcon } from "lucide-react";
 
 interface InventoryItem {
   id: string;
@@ -78,7 +81,6 @@ const Inventory = () => {
     unit_price: 0,
     expiry_date: "",
     manufacturer: "",
-    category: "",
     category: "",
     hsn_code: "",
     gst_rate: 12,
@@ -276,7 +278,6 @@ const Inventory = () => {
       expiry_date: newItem.expiry_date || null,
       manufacturer: newItem.manufacturer,
       category: newItem.category,
-      category: newItem.category,
       schedule_h1: complianceResult.is_h1,
       rack_number: newItem.rack_number,
       shelf_number: newItem.shelf_number,
@@ -298,11 +299,88 @@ const Inventory = () => {
     }
   };
 
-  const filteredInventory = inventory.filter(item =>
-    item.medicine_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.generic_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.category?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  /* Expiry Filter Logic */
+  const [searchParams] = useSearchParams();
+  const filterType = searchParams.get("filter");
+  const isExpiryFilter = filterType === "expiring";
+
+  /* Bulk Actions State */
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
+  const [supplierName, setSupplierName] = useState("");
+
+  const filteredInventory = inventory.filter(item => {
+    // 1. Text Search
+    const matchesSearch = item.medicine_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.generic_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.category?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // 2. Expiry Filter (90 Days)
+    if (isExpiryFilter) {
+      if (!item.expiry_date) return false;
+      const days = differenceInDays(new Date(item.expiry_date), new Date());
+      return days < 90 && matchesSearch;
+    }
+
+    return matchesSearch;
+  });
+
+  const handleSelectToggle = (id: string) => {
+    if (selectedItems.includes(id)) {
+      setSelectedItems(selectedItems.filter(i => i !== id));
+    } else {
+      setSelectedItems([...selectedItems, id]);
+    }
+  };
+
+  const handleCreateReturnNote = async () => {
+    if (!supplierName) {
+      toast.error("Please enter a Supplier Name for the text note.");
+      return;
+    }
+
+    const itemsToReturn = inventory.filter(i => selectedItems.includes(i.id));
+    const totalValue = itemsToReturn.reduce((acc, i) => acc + (i.quantity * (i.cost_price || i.unit_price * 0.7)), 0); // Est cost
+
+    // 1. Create Return Header
+    // @ts-ignore
+    const { data: returnData, error: headerError } = await supabase.from('purchase_returns').insert({
+      shop_id: currentShop?.id,
+      supplier_name: supplierName,
+      total_estimated_value: totalValue,
+      status: 'draft'
+    }).select().single();
+
+    if (headerError) {
+      toast.error("Failed to create Return Note");
+      console.error(headerError);
+      return;
+    }
+
+    // 2. Create Items
+    const returnItems = itemsToReturn.map(i => ({
+      return_id: returnData.id,
+      inventory_id: i.id,
+      medicine_name: i.medicine_name,
+      batch_number: i.batch_number,
+      quantity: i.quantity,
+      reason: 'expired'
+    }));
+
+    // @ts-ignore
+    const { error: itemsError } = await supabase.from('purchase_return_items').insert(returnItems);
+
+    if (itemsError) {
+      toast.error("Failed to add items to Note");
+    } else {
+      toast.success("Return Note Created!");
+      setIsReturnDialogOpen(false);
+      setIsSelectMode(false);
+      setSelectedItems([]);
+      // Ideally redirect to "Purchases -> Returns" tab, but for now just show success
+    }
+  };
 
   /* New State for Stock Adjustment */
   const [adjustmentDialog, setAdjustmentDialog] = useState<{
@@ -476,6 +554,10 @@ const Inventory = () => {
               expiry_date: row['expiry'] || row['expiry date'] || null,
               barcode: row['barcode'] || null,
               manufacturer: row['manufacturer'] || null,
+              rack_number: row['rack'] || row['rack no'] || null,
+              shelf_number: row['shelf'] || row['shelf no'] || null,
+              gst_rate: parseFloat(row['gst'] || row['gst rate'] || '0'),
+              hsn_code: row['hsn'] || row['hsn code'] || null,
               source: 'bulk_csv'
             };
           }).filter((item: any) => item.medicine_name !== 'Unknown');
@@ -511,24 +593,65 @@ const Inventory = () => {
       {/* ... Headers ... */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Inventory Management</h1>
-          <p className="text-muted-foreground mt-1">Manage stocks, handle AI drafts, and track expiry.</p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-foreground">
+            {isExpiryFilter ? "⚠️ Expiry Management" : "Inventory Management"}
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {isExpiryFilter ? "Identify and return near-expiry stock (90 Days Monitor)" : "Manage stocks, handle AI drafts, and track expiry."}
+          </p>
         </div>
 
         {/* Bulk Actions Toolbar */}
-        <div className="flex gap-2">
-          <Button variant="outline" className="border-dashed" onClick={() => document.getElementById('csv-upload')?.click()}>
-            <Upload className="w-4 h-4 mr-2" /> Import CSV
-          </Button>
-          <input
-            id="csv-upload"
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={handleBulkUpload}
-          />
+        <div className="flex gap-2 items-center">
+          {/* Default Actions */}
+          {!isSelectMode && !isExpiryFilter && (
+            <>
+              <Button variant="outline" className="border-dashed" onClick={() => document.getElementById('csv-upload')?.click()}>
+                <Upload className="w-4 h-4 mr-2" /> Import CSV
+              </Button>
+              <input
+                id="csv-upload"
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleBulkUpload}
+              />
+            </>
+          )}
 
-          <a href="/sample_inventory.csv" download className="hidden">Download Template</a>
+          {/* Expiry Actions */}
+          {(isExpiryFilter || isSelectMode) && (
+            <div className="flex gap-2 animate-in fade-in slide-in-from-right-5">
+              {selectedItems.length > 0 ? (
+                <Dialog open={isReturnDialogOpen} onOpenChange={setIsReturnDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="destructive" className="shadow-lg animate-pulse">
+                      <FileTextIcon className="w-4 h-4 mr-2" />
+                      Return {selectedItems.length} Items
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader><DialogTitle>Create Return Note</DialogTitle></DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Supplier Name</Label>
+                        <Input placeholder="Example: Mahaveer Pharma" value={supplierName} onChange={e => setSupplierName(e.target.value)} />
+                      </div>
+                      <div className="p-4 bg-slate-50 rounded border text-sm text-muted-foreground">
+                        Generating a Return Note will create a formal record for {selectedItems.length} items.
+                        You can then print/share this with the supplier.
+                      </div>
+                      <Button className="w-full" onClick={handleCreateReturnNote}>Generate Return Note</Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              ) : (
+                <Button variant={isSelectMode ? "secondary" : "outline"} onClick={() => setIsSelectMode(!isSelectMode)}>
+                  {isSelectMode ? "Cancel Selection" : "Select Multiple"}
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 // ... existing tabs code ...
@@ -639,14 +762,22 @@ const Inventory = () => {
                   {filteredInventory.map((item) => {
                     const status = getExpiryStatus(item.expiry_date);
                     return (
-                      <div key={item.id} className="medical-card group relative hover:shadow-xl transition-all duration-300 flex flex-col justify-between">
+                      <div key={item.id} className={`medical-card group relative hover:shadow-xl transition-all duration-300 flex flex-col justify-between ${selectedItems.includes(item.id) ? 'ring-2 ring-primary bg-primary/5' : ''}`}>
                         <div>
                           <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <h3 className={`font-semibold text-lg ${!item.medicine_name ? 'text-red-500' : ''}`}>
-                                {item.medicine_name || "Unknown Item (Data Error)"}
-                              </h3>
-                              <p className="text-xs text-muted-foreground font-mono">{item.batch_number || "No Batch"}</p>
+                            <div className="flex gap-2 items-start">
+                              {isSelectMode && (
+                                <Checkbox
+                                  checked={selectedItems.includes(item.id)}
+                                  onCheckedChange={() => handleSelectToggle(item.id)}
+                                />
+                              )}
+                              <div>
+                                <h3 className={`font-semibold text-lg ${!item.medicine_name ? 'text-red-500' : ''}`}>
+                                  {item.medicine_name || "Unknown Item (Data Error)"}
+                                </h3>
+                                <p className="text-xs text-muted-foreground font-mono">{item.batch_number || "No Batch"}</p>
+                              </div>
                             </div>
                             <Badge variant={item.quantity < 10 ? "destructive" : "secondary"}>{item.quantity} units</Badge>
                           </div>
