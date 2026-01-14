@@ -19,6 +19,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Plus, Search, Package, AlertTriangle, Filter, Sparkles, Check, X, RefreshCw, Upload, Trash2, NotebookPen, TrendingUp } from "lucide-react";
+import { AddMedicineDialog } from "@/components/dashboard/inventory/AddMedicineDialog";
+import { StockAdjustmentDialog } from "@/components/dashboard/inventory/StockAdjustmentDialog";
+import { InventoryDrafts } from "@/components/dashboard/inventory/InventoryDrafts";
+import { aiService } from "@/services/aiService";
+import { logger } from "@/utils/logger";
 import { format, differenceInDays } from "date-fns";
 import { useSearchParams } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -66,29 +71,15 @@ interface StagingItem {
 
 const Inventory = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [stagingItems, setStagingItems] = useState<StagingItem[]>([]);
+  // stagingItems removed
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const { currentShop } = useUserShops();
   const { canModify } = useUserRole(currentShop?.id);
   const [activeTab, setActiveTab] = useState("stock");
 
-  const [newItem, setNewItem] = useState({
-    medicine_name: "",
-    generic_name: "",
-    batch_number: "",
-    quantity: 0,
-    unit_price: 0,
-    expiry_date: "",
-    manufacturer: "",
-    category: "",
-    hsn_code: "",
-    gst_rate: 12,
-    salt_composition: "",
-    rack_number: "",
-    shelf_number: ""
-  });
+  /* Add Item State */
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
   /* Debug Logging */
   const fetchInventory = async () => {
@@ -115,52 +106,7 @@ const Inventory = () => {
     setLoading(false);
   };
 
-  const fetchStaging = async () => {
-    if (!currentShop?.id) return;
-
-    try {
-      // @ts-ignore - Table exists in database
-      const { data, error } = await supabase
-        .from("inventory_staging")
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        // Graceful fallback if table missing
-        if (error.code === '42P01') {
-          console.warn("inventory_staging table missing");
-          return;
-        }
-        console.error("Error fetching drafts:", error);
-      } else {
-        // Mock Enrichment (ABC-VEN Analysis)
-        // In production, this data would come from the N8N analysis engine directly
-        const enrichedData = (data || []).map((item: any) => {
-          // Simple logic: Price > 500 is Class A. Random Velocity.
-          const isExpensive = item.unit_price > 500;
-          const velocity = Math.random() > 0.5 ? 'Fast' : (Math.random() > 0.5 ? 'Slow' : 'Dead');
-          let action = 'None';
-
-          if (velocity === 'Dead' && isExpensive) action = 'Return';
-          else if (velocity === 'Slow' && !isExpensive) action = 'Discount';
-          else if (velocity === 'Fast') action = 'Reorder';
-
-          return {
-            ...item,
-            insights: {
-              classification: isExpensive ? 'A' : 'C',
-              velocity: velocity,
-              action: action
-            }
-          };
-        });
-        setStagingItems(enrichedData as StagingItem[]);
-      }
-    } catch (e) {
-      console.error("Staging Fetch Error:", e);
-    }
-  };
+  // fetchStaging removed
 
   useEffect(() => {
     if (currentShop?.id) {
@@ -171,7 +117,6 @@ const Inventory = () => {
     const channel = supabase
       .channel('inventory-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, fetchInventory)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_staging' }, fetchStaging)
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -186,119 +131,7 @@ const Inventory = () => {
     return "safe";
   };
 
-  const handleApproveDraft = async (item: StagingItem) => {
-    if (!currentShop?.id) {
-      toast.error("No Shop Selected. Please switch shops or reload.");
-      return;
-    }
-
-    if (!item.medicine_name || !item.medicine_name.trim()) {
-      toast.error("Cannot approve item with empty name.");
-      return;
-    }
-
-    // 1. Move to Main Inventory
-    const { error: insertError } = await supabase.from("inventory").insert({
-      shop_id: currentShop.id, // reliable shop_id
-      medicine_name: item.medicine_name,
-      batch_number: item.batch_number,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      expiry_date: item.expiry_date,
-      source: 'ai_scan'
-    } as any);
-
-    if (insertError) {
-      toast.error("Failed to approve item: " + insertError.message);
-      console.error(insertError);
-      return;
-    }
-
-    // 2. Mark as Approved in Staging
-    // @ts-ignore - Table exists in database
-    await supabase.from("inventory_staging").update({ status: 'approved' }).eq('id', item.id);
-
-    toast.success(`Approved ${item.medicine_name}`);
-    fetchStaging();
-    fetchInventory();
-  };
-
-  const handleRejectDraft = async (id: string) => {
-    // @ts-ignore - Table exists in database
-    await supabase.from("inventory_staging").update({ status: 'rejected' }).eq('id', id);
-    toast.info("Draft rejected");
-    fetchStaging();
-  };
-
-  const handleAddItem = async () => {
-    if (!currentShop?.id) {
-      toast.error("No Shop Selected. Please reload.");
-      return;
-    }
-
-    if (!newItem.medicine_name.trim()) {
-      toast.error("Medicine name is required");
-      return;
-    }
-
-    // --- "Satya-Check" (Compliance Shield) ---
-    const toastId = toast.loading("Satya-Check: Verifying compliance with CDSCO...");
-
-    let complianceResult = { is_banned: false, is_h1: false, reason: "", warning_level: "SAFE" };
-    try {
-      const checkQuery = newItem.generic_name || newItem.medicine_name;
-      // @ts-ignore
-      complianceResult = await import("@/services/aiService").then(m => m.aiService.checkCompliance(checkQuery));
-    } catch (e) {
-      console.warn("Compliance check offline, proceeding with caution.");
-    }
-
-    toast.dismiss(toastId);
-
-    if (complianceResult.is_banned) {
-      toast.error(`BLOCKED: ${newItem.medicine_name} is a BANNED DRUG!`, {
-        description: complianceResult.reason || "CDSCO Regulatory Ban detected.",
-        duration: 5000,
-      });
-      return;
-    }
-
-    if (complianceResult.is_h1 && !newItem.medicine_name.toLowerCase().includes('h1')) {
-      toast.info("Note: This is a Schedule H1 Drug", {
-        description: "It has been auto-tagged for the Compliance Register."
-      });
-    }
-
-    const { error } = await supabase.from("inventory").insert({
-      shop_id: currentShop.id, // reliable shop_id
-      medicine_name: newItem.medicine_name,
-      generic_name: newItem.generic_name,
-      batch_number: newItem.batch_number,
-      quantity: newItem.quantity,
-      unit_price: newItem.unit_price,
-      expiry_date: newItem.expiry_date || null,
-      manufacturer: newItem.manufacturer,
-      category: newItem.category,
-      schedule_h1: complianceResult.is_h1,
-      rack_number: newItem.rack_number,
-      shelf_number: newItem.shelf_number,
-      gst_rate: newItem.gst_rate,
-      hsn_code: newItem.hsn_code
-    } as any);
-
-    if (error) {
-      toast.error("Failed to add item: " + error.message);
-      console.error(error);
-    } else {
-      toast.success("Item added successfully");
-      setIsAddDialogOpen(false);
-      setNewItem({
-        medicine_name: "", generic_name: "", batch_number: "", quantity: 0, unit_price: 0,
-        expiry_date: "", manufacturer: "", category: "", hsn_code: "", gst_rate: 12, salt_composition: "", rack_number: "", shelf_number: ""
-      });
-      fetchInventory();
-    }
-  };
+  // handleApproveDraft and handleRejectDraft removed
 
   /* Expiry Filter Logic */
   const [searchParams] = useSearchParams();
@@ -390,47 +223,7 @@ const Inventory = () => {
     type: 'IN' | 'OUT';
   }>({ isOpen: false, item: null, type: 'IN' });
 
-  const [adjustmentForm, setAdjustmentForm] = useState({ quantity: 1, reason: "" });
-
-  const handleOpenAdjustment = (item: InventoryItem, type: 'IN' | 'OUT') => {
-    setAdjustmentDialog({ isOpen: true, item, type });
-    setAdjustmentForm({ quantity: 1, reason: "" });
-  };
-
-  const handleExecuteAdjustment = async () => {
-    if (!adjustmentDialog.item) return;
-
-    const qtyChange = adjustmentDialog.type === 'IN' ? adjustmentForm.quantity : -adjustmentForm.quantity;
-    const reason = adjustmentForm.reason || (adjustmentDialog.type === 'IN' ? "Restock" : "Manual Deduction");
-
-    const toastId = toast.loading("Updating Stock...");
-
-    // @ts-ignore
-    const { data, error } = await supabase.rpc('adjust_inventory_stock', {
-      p_inventory_id: adjustmentDialog.item.id,
-      p_quantity_change: qtyChange,
-      p_movement_type: adjustmentDialog.type,
-      p_reason: reason
-    });
-
-    toast.dismiss(toastId);
-
-    if (error) {
-      console.error(error);
-      toast.error("Failed to update stock: " + error.message);
-    } else {
-      // @ts-ignore
-      if (data && data.success) {
-        // @ts-ignore
-        toast.success(`Stock updated! New Qty: ${data.new_quantity}`);
-        fetchInventory();
-        setAdjustmentDialog({ ...adjustmentDialog, isOpen: false });
-      } else {
-        // @ts-ignore
-        toast.error(data?.error || "Update failed");
-      }
-    }
-  };
+  // adjustmentForm and handleExecuteAdjustment removed
 
   const handleAddToShortbook = async (item: InventoryItem) => {
     if (!currentShop?.id) return;
@@ -451,8 +244,8 @@ const Inventory = () => {
 
     const { error } = await supabase.from("inventory").delete().eq("id", id);
     if (error) {
-      toast.error("Failed to delete item");
-      console.error(error);
+      toast.error("Failed to add item: " + error.message);
+      logger.error(error);
     } else {
       toast.success("Item deleted");
       fetchInventory();
@@ -655,19 +448,16 @@ const Inventory = () => {
           )}
         </div>
       </div>
-// ... existing tabs code ...
-
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-          <TabsTrigger value="stock" className="gap-2">
+        <TabsList className="grid w-full grid-cols-3 h-auto p-1">
+          <TabsTrigger value="stock" className="gap-2 py-2">
             <Package className="w-4 h-4" /> Live Stock
           </TabsTrigger>
-          <TabsTrigger value="drafts" className="gap-2 relative">
+          <TabsTrigger value="drafts" className="gap-2 relative py-2">
             <Sparkles className="w-4 h-4 text-purple-500" />
             AI Drafts
-            {stagingItems.length > 0 && <span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span></span>}
           </TabsTrigger>
-          <TabsTrigger value="audit" className="gap-2">
+          <TabsTrigger value="audit" className="gap-2 py-2">
             <History className="w-4 h-4" /> Audit Logs
           </TabsTrigger>
         </TabsList>
@@ -693,66 +483,16 @@ const Inventory = () => {
             </Card>
 
             {canModify && (
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button size="lg" className="shadow-lg"><Plus className="w-4 h-4 mr-2" /> Add Manual</Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Add New Medicine</DialogTitle>
-                    <DialogDescription>Enter details manually.</DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Medicine Name</Label>
-                        <Input value={newItem.medicine_name} onChange={(e) => setNewItem({ ...newItem, medicine_name: e.target.value })} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Quantity</Label>
-                        <Input type="number" value={newItem.quantity} onChange={(e) => setNewItem({ ...newItem, quantity: parseInt(e.target.value) || 0 })} />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>MRP</Label>
-                      <Input type="number" step="0.01" value={newItem.unit_price} onChange={(e) => setNewItem({ ...newItem, unit_price: parseFloat(e.target.value) || 0 })} />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Rack No.</Label>
-                      <Input value={newItem.rack_number} onChange={(e) => setNewItem({ ...newItem, rack_number: e.target.value })} placeholder="e.g. A1" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Shelf No.</Label>
-                      <Input value={newItem.shelf_number} onChange={(e) => setNewItem({ ...newItem, shelf_number: e.target.value })} placeholder="e.g. 2" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>GST Rate (%)</Label>
-                      <select
-                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                        value={newItem.gst_rate}
-                        onChange={(e) => setNewItem({ ...newItem, gst_rate: parseFloat(e.target.value) })}
-                      >
-                        <option value="0">0% (Nil)</option>
-                        <option value="5">5%</option>
-                        <option value="12">12%</option>
-                        <option value="18">18%</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>HSN Code</Label>
-                      <Input value={newItem.hsn_code} onChange={(e) => setNewItem({ ...newItem, hsn_code: e.target.value })} />
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end gap-3"><Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button><Button onClick={handleAddItem}>Save</Button></div>
-                </DialogContent>
-              </Dialog>
+              <>
+                <Button size="lg" className="shadow-lg" onClick={() => setIsAddDialogOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" /> Add Manual
+                </Button>
+                <AddMedicineDialog
+                  open={isAddDialogOpen}
+                  onOpenChange={setIsAddDialogOpen}
+                  onSuccess={fetchInventory}
+                />
+              </>
             )}
           </div>
 
@@ -803,10 +543,10 @@ const Inventory = () => {
                         {/* Stock Actions */}
                         {canModify && (
                           <div className="flex gap-2 mt-auto pt-3 border-t items-center">
-                            <Button variant="outline" size="sm" className="flex-1 text-green-600 hover:text-green-700 hover:bg-green-50 h-8" onClick={() => handleOpenAdjustment(item, 'IN')}>
+                            <Button variant="outline" size="sm" className="flex-1 text-green-600 hover:text-green-700 hover:bg-green-50 h-8" onClick={() => setAdjustmentDialog({ isOpen: true, item, type: 'IN' })}>
                               <Plus className="w-3 h-3 mr-1" /> Stock In
                             </Button>
-                            <Button variant="outline" size="sm" className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 h-8" onClick={() => handleOpenAdjustment(item, 'OUT')}>
+                            <Button variant="outline" size="sm" className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 h-8" onClick={() => setAdjustmentDialog({ isOpen: true, item, type: 'OUT' })}>
                               <X className="w-3 h-3 mr-1" /> Out
                             </Button>
                             <Button variant="outline" size="sm" className="flex-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8" onClick={() => handleAddToShortbook(item)}>
@@ -828,182 +568,21 @@ const Inventory = () => {
 
         {/* ... Drafts Tab Content ... */}
         <TabsContent value="drafts" className="space-y-4">
-          <Card className="border-purple-200 bg-purple-50/30">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 rounded-full bg-purple-100 text-purple-600"><Sparkles className="w-6 h-6" /></div>
-                <div>
-                  <h3 className="font-bold text-lg text-purple-900">AI Drafts</h3>
-                  <p className="text-sm text-purple-700">Items identified by Gemini Vision. Review before adding to stock.</p>
-                </div>
-              </div>
-
-              {/* Upload Section */}
-              <div className="flex flex-col gap-4">
-                <div className="flex justify-between items-center bg-white p-4 rounded-lg border shadow-sm">
-                  <div>
-                    <h3 className="font-semibold text-lg">Upload Invoice / Medicine Strip</h3>
-                    <p className="text-sm text-muted-foreground">Upload an image to auto-detect items (Batch & Expiry).</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="file"
-                      id="inventory-upload"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        e.target.value = '';
-                        const toastId = toast.loading("Uploading to AI Vision Engine...");
-                        try {
-                          // @ts-ignore
-                          const { aiService } = await import("@/services/aiService");
-                          const result = await aiService.analyzeDocument(file, 'inventory_list');
-
-                          // Handle Fallback: If AI returns data but doesn't save to DB, save manually
-                          if (result && (result.items || Array.isArray(result))) {
-                            const itemsToSave = Array.isArray(result) ? result : (result.items || []);
-
-                            if (itemsToSave.length > 0) {
-                              const formattedItems = itemsToSave.map((item: any) => ({
-                                shop_id: currentShop?.id,
-                                medicine_name: item.medicine_name || item.name || "Unknown",
-                                batch_number: item.batch_number || item.batch || null,
-                                expiry_date: item.expiry_date || item.expiry || null,
-                                quantity: parseInt(item.quantity || item.qty || '0'),
-                                unit_price: parseFloat(item.unit_price || item.mrp || item.price || '0'),
-                                status: 'pending',
-                                source: 'scan'
-                              }));
-
-                              // @ts-ignore
-                              const { error } = await supabase.from('inventory_staging').insert(formattedItems);
-                              if (error) {
-                                console.error("Manual Staging Save Error:", error);
-                                // Don't throw, maybe N8N saved it?
-                              } else {
-                                toast.dismiss(toastId);
-                                toast.success(`Scanned ${formattedItems.length} items!`);
-                                fetchStaging(); // Refresh UI
-                                return;
-                              }
-                            }
-                          }
-
-                          fetchStaging();
-                        } catch (err: any) {
-                          console.error("Scan Error:", err);
-                          toast.error(err.message || "Scan Failed. Check N8N connection.");
-                        } finally {
-                          toast.dismiss(toastId);
-                        }
-                      }}
-                    />
-                    <Button onClick={() => document.getElementById('inventory-upload')?.click()}>
-                      <Upload className="w-4 h-4 mr-2" /> Upload Scan
-                    </Button>
-                  </div>
-                </div>
-
-                {stagingItems.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground/60 border-2 border-dashed border-purple-200 rounded-lg">
-                    No pending drafts. Upload an image above to start.
-                  </div>
-                ) : (
-                  <div className="grid gap-4">
-                    {stagingItems.map(item => (
-                      <div key={item.id} className="flex items-center justify-between p-4 bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow">
-                        <div className="space-y-1">
-                          <h4 className="font-semibold text-lg">{item.medicine_name}</h4>
-                          <div className="flex gap-4 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1"><Package className="w-3 h-3" /> Qty: {item.quantity}</span>
-                            <span>MRP: ₹{item.unit_price}</span>
-                            {item.expiry_date && <span>Exp: {item.expiry_date}</span>}
-                          </div>
-                          {item.insights && (
-                            <div className="flex gap-2 mt-2">
-                              <Badge variant="outline" className={item.insights.classification === 'A' ? 'border-red-500 text-red-600' : 'border-slate-400'}>
-                                Class {item.insights.classification}
-                              </Badge>
-                              <Badge variant="secondary" className={
-                                item.insights.velocity === 'Fast' ? 'bg-green-100 text-green-700' :
-                                  item.insights.velocity === 'Dead' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                              }>
-                                {item.insights.velocity} Mover
-                              </Badge>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          {/* AI Action Buttons */}
-                          {item.insights?.action === 'Return' && (
-                            <Button size="sm" variant="outline" className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100">
-                              <Trash2 className="w-3 h-3 mr-1" /> Return to Vendor
-                            </Button>
-                          )}
-                          {item.insights?.action === 'Discount' && (
-                            <Button size="sm" variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100">
-                              <TrendingUp className="w-3 h-3 mr-1" /> Apply 10% Off
-                            </Button>
-                          )}
-
-                          <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => handleRejectDraft(item.id)}>
-                            <X className="w-4 h-4 mr-1" /> Reject
-                          </Button>
-                          <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleApproveDraft(item)}>
-                            <Check className="w-4 h-4 mr-1" /> Approve
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <InventoryDrafts
+            shopId={currentShop?.id || ""}
+            onRefreshRequest={fetchInventory}
+          />
         </TabsContent>
-      </Tabs >
+      </Tabs>
 
       {/* Stock Adjustment Dialog */}
-      < Dialog open={adjustmentDialog.isOpen} onOpenChange={(open) => setAdjustmentDialog({ ...adjustmentDialog, isOpen: open })}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{adjustmentDialog.type === 'IN' ? 'Stock In (Restock)' : 'Stock Out (Deduction)'}</DialogTitle>
-            <DialogDescription>
-              Adjusting stock for: <strong>{adjustmentDialog.item?.medicine_name}</strong>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Quantity</Label>
-              <Input
-                type="number"
-                min="1"
-                value={adjustmentForm.quantity}
-                onChange={(e) => setAdjustmentForm({ ...adjustmentForm, quantity: Math.abs(parseInt(e.target.value)) || 1 })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Reason (Optional)</Label>
-              <Input
-                placeholder={adjustmentDialog.type === 'IN' ? "e.g., Vendor Delivery" : "e.g., Damaged, Expired"}
-                value={adjustmentForm.reason}
-                onChange={(e) => setAdjustmentForm({ ...adjustmentForm, reason: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setAdjustmentDialog({ ...adjustmentDialog, isOpen: false })}>Cancel</Button>
-            <Button
-              variant={adjustmentDialog.type === 'IN' ? 'default' : 'destructive'}
-              onClick={handleExecuteAdjustment}
-            >
-              Confirm {adjustmentDialog.type === 'IN' ? 'Restock' : 'Deduction'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog >
+      <StockAdjustmentDialog
+        open={adjustmentDialog.isOpen}
+        onOpenChange={(open) => setAdjustmentDialog({ ...adjustmentDialog, isOpen: open })}
+        item={adjustmentDialog.item}
+        mode={adjustmentDialog.type}
+        onSuccess={fetchInventory}
+      />
     </div >
   );
 };

@@ -103,7 +103,7 @@ export const RefillAlertsWidget = () => {
             return;
         }
 
-        const message = `Hi ${candidate.customer_name}, this is a reminder from ${currentShop?.name || 'PharmaAssist'}. Your refil for ${candidate.medication_summary} is due on ${format(new Date(candidate.refill_date), 'MMM dd')}. Reply 'YES' to refill now! 💊`;
+        const message = `Hi ${candidate.customer_name}, this is a reminder from ${currentShop?.name || 'MedixAI.Shop'}. Your refill for ${candidate.medication_summary} is due on ${format(new Date(candidate.refill_date), 'MMM dd')}. Reply 'YES' to refill now! 💊`;
 
         // Use WhatsApp Service or direct link
         const url = `https://wa.me/${candidate.customer_phone}?text=${encodeURIComponent(message)}`;

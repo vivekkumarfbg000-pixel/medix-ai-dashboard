@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles, TrendingUp, Calendar, Zap, RefreshCw, ArrowRight, Snowflake, Sun, CloudRain } from "lucide-react";
 import { toast } from "sonner";
 import { useUserShops } from "@/hooks/useUserShops";
+import { aiService } from "@/services/aiService";
 
 interface SeasonalInsight {
     season: string;
@@ -24,9 +25,8 @@ export const AICommandCentre = () => {
     // 1. Fetch AI Predictions (Growth Engine)
     const fetchPredictions = async () => {
         if (!currentShop?.id) return;
-        // @ts-ignore
         const { data, error } = await supabase
-            .from('restock_predictions')
+            .from('restock_predictions' as any)
             .select('*')
             .order('confidence_score', { ascending: false })
             .limit(3);
@@ -96,18 +96,15 @@ export const AICommandCentre = () => {
                 .limit(100);
 
             // Call Service
-            // @ts-ignore
-            const { aiService } = await import("@/services/aiService");
+            // Call Service
             const aiResponse = await aiService.getInventoryForecast(salesHistory || []);
 
             if (aiResponse && aiResponse.forecast) {
                 // Clear old
-                // @ts-ignore
-                await supabase.from('restock_predictions').delete().eq('shop_id', currentShop.id);
+                await supabase.from('restock_predictions' as any).delete().eq('shop_id', currentShop.id);
 
                 // Save new
-                // @ts-ignore
-                await supabase.from('restock_predictions').insert(aiResponse.forecast.map((item: any) => ({
+                await supabase.from('restock_predictions' as any).insert(aiResponse.forecast.map((item: any) => ({
                     shop_id: currentShop.id,
                     medicine_name: item.product,
                     current_stock: item.current_stock || 0,

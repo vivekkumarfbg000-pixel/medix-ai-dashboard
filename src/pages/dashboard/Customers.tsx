@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Search, Plus, User, MessageCircle, Wallet, History, ArrowUpRight, ArrowDownLeft, Users } from "lucide-react";
+import { Search, Plus, User, MessageCircle, Wallet, History, ArrowUpRight, ArrowDownLeft, Users, Store } from "lucide-react";
 import { format } from "date-fns";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -25,7 +25,16 @@ interface Customer {
 }
 
 const Customers = () => {
-    // ... (rest of state)
+    const { currentShop } = useUserShops();
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [search, setSearch] = useState("");
+    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    const [ledgerEntries, setLedgerEntries] = useState<any[]>([]);
+    const [ledgerLoading, setLedgerLoading] = useState(false);
+    const [isAddOpen, setIsAddOpen] = useState(false);
+    const [transaction, setTransaction] = useState({ type: 'CREDIT', amount: '', description: '' });
+    const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", email: "" });
 
     const fetchCustomers = async () => {
         setLoading(true);

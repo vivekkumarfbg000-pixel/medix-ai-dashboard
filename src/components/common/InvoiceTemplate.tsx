@@ -9,6 +9,8 @@ interface InvoiceProps {
         phone: string;
         gstin: string;
         dl_number: string;
+        invoice_footer_text?: string;
+        terms_and_conditions?: string;
     };
 }
 
@@ -107,7 +109,13 @@ export const InvoiceTemplate = React.forwardRef<HTMLDivElement, InvoiceProps>(({
 
             {/* Footer */}
             <div className="text-center text-xs text-gray-400 mt-12 pt-8 border-t">
-                <p>Thank you for your business!</p>
+                {shopDetails?.terms_and_conditions && (
+                    <div className="mb-4 text-gray-500 whitespace-pre-wrap">
+                        <p className="font-bold">Terms & Conditions:</p>
+                        <p>{shopDetails.terms_and_conditions}</p>
+                    </div>
+                )}
+                <p>{shopDetails?.invoice_footer_text || "Thank you for your business!"}</p>
                 <p className="mt-1">Computer Generated Invoice. No Signature Required.</p>
                 <p className="mt-4 font-mono">Powered by MedixAI</p>
             </div>

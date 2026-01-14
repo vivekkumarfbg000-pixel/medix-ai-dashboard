@@ -26,6 +26,7 @@ import {
   Package
 } from "lucide-react";
 import { whatsappService } from "@/services/whatsappService";
+import { logger } from "@/utils/logger";
 import type { ParsedItem } from "./VoiceCommandBar";
 
 interface ReviewInvoiceModalProps {
@@ -66,7 +67,7 @@ export function ReviewInvoiceModal({
 
   const matchWithInventory = async () => {
     if (!shopId) {
-      console.warn("No Shop ID found for matching inventory");
+      logger.warn("No Shop ID found for matching inventory");
       // Fallback: Just show items as unmatched
       setItems(parsedItems.map((item, i) => ({
         id: `temp-${i}`,
@@ -81,7 +82,7 @@ export function ReviewInvoiceModal({
     setIsMatching(true);
 
     try {
-      // console.log("Matching items with inventory...", parsedItems);
+      // logger.log("Matching items with inventory...", parsedItems);
       const { data: inventory } = await supabase
         .from("inventory")
         .select("id, medicine_name, unit_price, quantity")
@@ -123,7 +124,7 @@ export function ReviewInvoiceModal({
         setCustomerPhone(contact);
       }
     } catch (error) {
-      console.error("Error matching inventory:", error);
+      logger.error("Error matching inventory:", error);
     } finally {
       setIsMatching(false);
     }
@@ -234,13 +235,13 @@ export function ReviewInvoiceModal({
           }
         });
       } catch (webhookError) {
-        console.log("Invoice webhook not configured yet:", webhookError);
+        logger.log("Invoice webhook not configured yet:", webhookError);
       }
 
       toast.success("Sale confirmed! Invoice generated.");
       onOpenChange(false);
     } catch (error) {
-      console.error("Error processing sale:", error);
+      logger.error("Error processing sale:", error);
       toast.error("Failed to process sale");
     } finally {
       setIsProcessing(false);

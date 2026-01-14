@@ -9,9 +9,11 @@ import { QuickActions } from "@/components/dashboard/widgets/QuickActions";
 import { SafetyWidget } from "@/components/dashboard/widgets/SafetyWidget";
 import { AICommandCentre } from "@/components/dashboard/widgets/AICommandCentre"; // NEW
 import { DayEndTally } from "@/components/dashboard/widgets/DayEndTally";
+import { AddMedicineDialog } from "@/components/dashboard/inventory/AddMedicineDialog";
 
 const Overview = () => {
   const [loading, setLoading] = useState(true);
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
   useEffect(() => {
     // Simulate initial data load or real fetch
@@ -41,10 +43,14 @@ const Overview = () => {
             Good Morning, Vivek.
           </p>
         </div>
-        <Button className="w-fit shadow-glow bg-primary hover:bg-primary/90 text-white rounded-full px-6">
+        <Button
+          className="w-fit shadow-glow bg-primary hover:bg-primary/90 text-white rounded-full px-6"
+          onClick={() => setIsAddOpen(true)}
+        >
           <Pill className="w-4 h-4 mr-2" />
           Add Manual Entry
         </Button>
+        <AddMedicineDialog open={isAddOpen} onOpenChange={setIsAddOpen} />
       </div>
 
       {/* ROW 1: CORE OPS (2-COLUMN LAYOUT) */}

@@ -20,7 +20,11 @@ import {
   Mail,
   Building,
   MapPin,
-  Phone
+  MapPin,
+  Phone,
+  FileText,
+  Database,
+  Download
 } from "lucide-react";
 import {
   Dialog,
@@ -37,6 +41,13 @@ interface ShopData {
   name: string;
   address: string | null;
   phone: string | null;
+}
+
+interface ShopSettingsData {
+  gstin: string;
+  dl_number: string;
+  invoice_footer_text: string;
+  terms_and_conditions: string;
 }
 
 const Settings = () => {
@@ -58,6 +69,13 @@ const Settings = () => {
     lowStockAlerts: true,
     orderNotifications: true,
     refillReminders: true
+  });
+
+  const [shopSettings, setShopSettings] = useState<ShopSettingsData>({
+    gstin: "",
+    dl_number: "",
+    invoice_footer_text: "",
+    terms_and_conditions: ""
   });
 
   useEffect(() => {
@@ -82,6 +100,22 @@ const Settings = () => {
 
           if (error) throw error;
           if (shopData) setShop(shopData);
+
+          // Fetch Settings
+          const { data: settingsData } = await supabase
+            .from("shop_settings")
+            .select("*")
+            .eq("shop_id", profile.shop_id)
+            .maybeSingle();
+
+          if (settingsData) {
+            setShopSettings({
+              gstin: settingsData.gstin || "",
+              dl_number: settingsData.dl_number || "",
+              invoice_footer_text: settingsData.invoice_footer_text || "",
+              terms_and_conditions: settingsData.terms_and_conditions || ""
+            });
+          }
         }
       } catch (e) {
         console.error("Error fetching shop:", e);
@@ -97,21 +131,74 @@ const Settings = () => {
   const handleSaveShop = async () => {
     if (!shop) return;
     setSaving(true);
-    const { error } = await supabase
-      .from("shops")
-      .update({
-        name: shop.name,
-        address: shop.address,
-        phone: shop.phone
-      })
-      .eq("id", shop.id);
 
-    if (error) {
+    try {
+      // 1. Update Shop Core
+      const { error: shopError } = await supabase
+        .from("shops")
+        .update({
+          name: shop.name,
+          address: shop.address,
+          phone: shop.phone
+        })
+        .eq("id", shop.id);
+
+      if (shopError) throw shopError;
+
+      // 2. Upsert Settings
+      const { error: settingsError } = await supabase
+        .from("shop_settings")
+        .upsert({
+          shop_id: shop.id,
+          gstin: shopSettings.gstin,
+          dl_number: shopSettings.dl_number,
+          invoice_footer_text: shopSettings.invoice_footer_text,
+          terms_and_conditions: shopSettings.terms_and_conditions
+        });
+
+      if (settingsError) throw settingsError;
+
+      toast.success("All settings updated successfully");
+    } catch (error: any) {
       toast.error(`Failed to save: ${error.message}`);
-    } else {
-      toast.success("Shop settings updated successfully");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
+  };
+
+  const handleBackup = async () => {
+    if (!shop) return;
+    const toastId = toast.loading("Generating Backup...");
+
+    try {
+      const { data: inventory } = await supabase.from('inventory').select('*').eq('shop_id', shop.id);
+      const { data: customers } = await supabase.from('customers').select('*').eq('shop_id', shop.id);
+      const { data: orders } = await supabase.from('orders').select('*').eq('shop_id', shop.id).limit(1000); // Limit for safety
+
+      const backupData = {
+        timestamp: new Date().toISOString(),
+        shop: { ...shop, settings: shopSettings },
+        inventory,
+        customers,
+        orders,
+      };
+
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `medix_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success("Backup downloaded successfully");
+    } catch (e) {
+      toast.error("Backup failed");
+    } finally {
+      toast.dismiss(toastId);
+    }
   };
 
   const updateShopField = (field: keyof ShopData, value: string) => {
@@ -259,6 +346,69 @@ const Settings = () => {
                   />
                 </div>
               ))}
+            </CardContent>
+          </Card>
+
+          {/* Invoice Customization */}
+          <Card className="border-slate-200 shadow-sm overflow-hidden">
+            <CardHeader className="bg-slate-50 border-b border-slate-100 pb-4">
+              <CardTitle className="flex items-center gap-2 text-slate-800">
+                <FileText className="w-5 h-5 text-indigo-600" />
+                Invoice Customization
+              </CardTitle>
+              <CardDescription>Details that appear on your printed receipts.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <Label className="text-slate-600">GSTIN</Label>
+                  <Input
+                    value={shopSettings.gstin}
+                    onChange={(e) => setShopSettings({ ...shopSettings, gstin: e.target.value })}
+                    placeholder="e.g. 29AAAAA0000A1Z5"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-600">Drug License (DL) No.</Label>
+                  <Input
+                    value={shopSettings.dl_number}
+                    onChange={(e) => setShopSettings({ ...shopSettings, dl_number: e.target.value })}
+                    placeholder="e.g. KA-BNG-1234"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-600">Terms & Conditions</Label>
+                <Input
+                  value={shopSettings.terms_and_conditions}
+                  onChange={(e) => setShopSettings({ ...shopSettings, terms_and_conditions: e.target.value })}
+                  placeholder="e.g. No returns after 7 days"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-600">Footer Text</Label>
+                <Input
+                  value={shopSettings.invoice_footer_text}
+                  onChange={(e) => setShopSettings({ ...shopSettings, invoice_footer_text: e.target.value })}
+                  placeholder="e.g. Thank you for visiting!"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Data Management */}
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="bg-slate-50 border-b border-slate-100 pb-4">
+              <CardTitle className="flex items-center gap-2 text-slate-800">
+                <Database className="w-5 h-5 text-indigo-600" />
+                Data Management
+              </CardTitle>
+              <CardDescription>Backup your data locally.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              <Button onClick={handleBackup} variant="outline" className="w-full sm:w-auto">
+                <Download className="w-4 h-4 mr-2" /> Download Full Backup (JSON)
+              </Button>
             </CardContent>
           </Card>
         </div>

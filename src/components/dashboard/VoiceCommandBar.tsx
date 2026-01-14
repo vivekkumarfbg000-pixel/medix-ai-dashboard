@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { aiService } from "@/services/aiService";
+import { logger } from "@/utils/logger";
 
 interface VoiceCommandBarProps {
   onTranscriptionComplete: (transcription: string, parsedItems: ParsedItem[]) => void;
@@ -108,7 +109,7 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
 
           if (response) {
             // Prefer n8n parsed items, fallback to local parsing if only text is returned
-            // console.log("Voice Response:", response); // Debug Log
+            // logger.log("Voice Response:", response); // Debug Log
             const transcription = response.transcription || response.text || (response.items ? "Voice Order Processed" : "");
             const items = response.items || parseTranscription(transcription);
 
@@ -125,7 +126,7 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
           }
 
         } catch (error) {
-          console.error("Transcription error:", error);
+          logger.error("Transcription error:", error);
           toast.error("Failed to process voice command. Please try again.");
         } finally {
           setIsProcessing(false);
@@ -141,7 +142,7 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
       updateAudioLevel();
       toast.info("Listening...", { description: "Speak clearly now" });
     } catch (error: any) {
-      console.error("Microphone access error:", error);
+      logger.error("Microphone access error:", error);
       toast.error(`Could not access microphone: ${error.message || "Permission denied"}`);
     }
   };

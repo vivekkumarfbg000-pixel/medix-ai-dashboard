@@ -1,5 +1,6 @@
 
-import { aiService } from "./aiService";
+import { logger } from "@/utils/logger";
+import { aiService } from "@/services/aiService";
 
 export interface LabTestResult {
     parameter: string;
@@ -27,13 +28,13 @@ export interface LabAnalysisReport {
 class LabService {
     async analyzeReport(file: File): Promise<LabAnalysisReport> {
         try {
-            console.log("Starting Lab Analysis via aiService...");
+            logger.log("Starting Lab Analysis via aiService...");
 
             // Use the unified aiService which handles the correct endpoint (analyze-report)
             // and formatting expected by the backend.
             const data = await aiService.analyzeDocument(file, 'lab_report');
 
-            console.log("[LabService] Raw Response:", data);
+            logger.log("[LabService] Raw Response:", data);
 
             // Parse raw analysis if it's a string
             let rawAnalysis = data.raw_analysis || {};
@@ -55,7 +56,7 @@ class LabService {
             };
 
         } catch (error: any) {
-            console.error("Lab Analysis Failed:", error);
+            logger.error("Lab Analysis Failed:", error);
             throw error;
         }
     }

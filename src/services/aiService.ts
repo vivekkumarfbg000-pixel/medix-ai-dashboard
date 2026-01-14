@@ -37,6 +37,13 @@ interface ChatResponse {
     sources?: string[];
 }
 
+export interface ComplianceResult {
+    is_banned: boolean;
+    is_h1: boolean;
+    reason?: string;
+    warning_level?: string;
+}
+
 /**
  * Helper to clean and parse JSON from n8n (handling Markdown wrapping)
  */
@@ -314,7 +321,7 @@ export const aiService = {
     /**
      * Compliance & Banned Drug Check
      */
-    async checkCompliance(drugName: string): Promise<any> {
+    async checkCompliance(drugName: string): Promise<ComplianceResult> {
         logger.log("[N8N Request] Compliance:", { drugName });
         const response = await fetch(ENDPOINTS.COMPLIANCE, {
             method: "POST",
