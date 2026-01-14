@@ -92,21 +92,28 @@ const Settings = () => {
           .maybeSingle();
 
         if (profile?.shop_id) {
-          const { data: shopData, error } = await supabase
+          console.log("Found profile, fetching shop:", profile.shop_id);
+          const { data: shopData, error: shopError } = await supabase
             .from("shops")
             .select("*")
             .eq("id", profile.shop_id)
             .single();
 
-          if (error) throw error;
+          if (shopError) {
+            console.error("Shop fetch error:", shopError);
+            toast.error(`Shop Load Error: ${shopError.message} (${shopError.code})`);
+            throw shopError;
+          }
           if (shopData) setShop(shopData);
 
           // Fetch Settings
-          const { data: settingsData } = await supabase
+          const { data: settingsData, error: settingsError } = await supabase
             .from("shop_settings")
             .select("*")
             .eq("shop_id", profile.shop_id)
             .maybeSingle();
+
+          if (settingsError) console.error("Settings fetch error:", settingsError);
 
           if (settingsData) {
             setShopSettings({
@@ -116,10 +123,13 @@ const Settings = () => {
               terms_and_conditions: settingsData.terms_and_conditions || ""
             });
           }
+        } else {
+          console.warn("No profile or shop_id found for user:", user.id);
+          toast.error("Profile not linked to any shop.");
         }
-      } catch (e) {
-        console.error("Error fetching shop:", e);
-        toast.error("Could not load shop details");
+      } catch (e: any) {
+        console.error("Error fetching shop details:", e);
+        toast.error(`Detailed Error: ${e.message || "Unknown error"}`);
       } finally {
         setLoading(false);
       }
