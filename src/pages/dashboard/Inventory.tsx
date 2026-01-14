@@ -22,7 +22,8 @@ import { Plus, Search, Package, AlertTriangle, Filter, Sparkles, Check, X, Refre
 import { format, differenceInDays } from "date-fns";
 import { useSearchParams } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FileText as FileTextIcon } from "lucide-react";
+import { FileText as FileTextIcon, History } from "lucide-react";
+import AuditLogs from "@/pages/dashboard/AuditLogs";
 
 interface InventoryItem {
   id: string;
@@ -666,7 +667,13 @@ const Inventory = () => {
             AI Drafts
             {stagingItems.length > 0 && <span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span></span>}
           </TabsTrigger>
+          <TabsTrigger value="audit" className="gap-2">
+            <History className="w-4 h-4" /> Audit Logs
+          </TabsTrigger>
         </TabsList>
+        <TabsContent value="audit" className="space-y-6">
+          <AuditLogs embedded={true} />
+        </TabsContent>
 
         <TabsContent value="stock" className="space-y-6">
           <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
@@ -956,10 +963,10 @@ const Inventory = () => {
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
+      </Tabs >
 
       {/* Stock Adjustment Dialog */}
-      <Dialog open={adjustmentDialog.isOpen} onOpenChange={(open) => setAdjustmentDialog({ ...adjustmentDialog, isOpen: open })}>
+      < Dialog open={adjustmentDialog.isOpen} onOpenChange={(open) => setAdjustmentDialog({ ...adjustmentDialog, isOpen: open })}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{adjustmentDialog.type === 'IN' ? 'Stock In (Restock)' : 'Stock Out (Deduction)'}</DialogTitle>
@@ -996,7 +1003,7 @@ const Inventory = () => {
             </Button>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog >
     </div >
   );
 };

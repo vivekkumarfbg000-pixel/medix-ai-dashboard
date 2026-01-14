@@ -38,8 +38,6 @@ import { cn } from "@/lib/utils";
 const mainNavItems = [
   { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
   { title: "Inventory", url: "/dashboard/inventory", icon: Package },
-  { title: "Purchase Entry", url: "/dashboard/purchases", icon: Truck }, // New
-  { title: "Suppliers", url: "/dashboard/suppliers", icon: Store },      // New
   { title: "Diary Scan", url: "/dashboard/diary-scan", icon: FileText },
   { title: "Lab Reports", url: "/dashboard/lab-analyzer", icon: Activity },
   { title: "Compliance", url: "/dashboard/compliance", icon: ShieldAlert },

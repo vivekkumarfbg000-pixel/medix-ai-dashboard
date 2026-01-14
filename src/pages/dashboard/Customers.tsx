@@ -147,10 +147,21 @@ const Customers = () => {
         window.open(`https://wa.me/${finalPhone}?text=${text}`, '_blank');
     };
 
+
     const filtered = customers.filter(c =>
         c.name.toLowerCase().includes(search.toLowerCase()) ||
         (c.phone && c.phone.includes(search))
     );
+
+    if (!currentShop) {
+        return (
+            <div className="flex h-[50vh] flex-col items-center justify-center p-8 text-center animate-fade-in">
+                <Store className="mb-4 h-12 w-12 text-muted-foreground/50" />
+                <h2 className="text-xl font-semibold">No Shop Selected</h2>
+                <p className="text-muted-foreground">Please select a shop from the dashboard to view Smart Khata.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6 animate-fade-in">
