@@ -20,21 +20,12 @@ interface Customer {
     email?: string;
     credit_balance: number;
     total_spent: number;
+    credit_limit?: number;
+    is_blocked?: boolean;
 }
 
 const Customers = () => {
-    const { currentShop } = useUserShops();
-    const [customers, setCustomers] = useState<Customer[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState("");
-    const [isAddOpen, setIsAddOpen] = useState(false);
-    const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", email: "" });
-
-    // Ledger State
-    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-    const [ledgerEntries, setLedgerEntries] = useState<any[]>([]);
-    const [ledgerLoading, setLedgerLoading] = useState(false);
-    const [transaction, setTransaction] = useState({ type: 'CREDIT', amount: '', description: '' });
+    // ... (rest of state)
 
     const fetchCustomers = async () => {
         setLoading(true);
@@ -280,7 +271,7 @@ const Customers = () => {
             {/* LEDGER SHEET (Slide-over) */}
             <Sheet open={!!selectedCustomer} onOpenChange={(open) => !open && setSelectedCustomer(null)}>
                 <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
-                    {selectedCustomer && (
+                    {selectedCustomer && (<>
                         <div className="space-y-6">
                             <SheetHeader>
                                 <SheetTitle className="flex items-center gap-2 text-xl">
@@ -357,10 +348,56 @@ const Customers = () => {
                                 </div>
                             </div>
                         </div>
-                    )}
+                        {/* Settings Tab */}
+                        <div className="pt-4 border-t">
+                            <h3 className="font-bold text-sm mb-3">Account Settings</h3>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-base">Credit Limit (₹)</Label>
+                                        <p className="text-xs text-muted-foreground">Max allowed balance</p>
+                                    </div>
+                                    <Input
+                                        type="number"
+                                        className="w-32"
+                                        value={selectedCustomer.credit_limit || ''}
+                                        onChange={async (e) => {
+                                            const val = parseFloat(e.target.value);
+                                            const newLimit = isNaN(val) ? null : val;
+                                            // Optimistic Update
+                                            setSelectedCustomer({ ...selectedCustomer, credit_limit: newLimit });
+                                            // Real Update
+                                            await supabase.from('customers').update({ credit_limit: newLimit }).eq('id', selectedCustomer.id);
+                                        }}
+                                        placeholder="No Limit"
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-base text-red-600">Block Customer</Label>
+                                        <p className="text-xs text-muted-foreground">Prevent new credit sales</p>
+                                    </div>
+                                    <Button
+                                        variant={selectedCustomer.is_blocked ? "destructive" : "outline"}
+                                        size="sm"
+                                        onClick={async () => {
+                                            const newVal = !selectedCustomer.is_blocked;
+                                            setSelectedCustomer({ ...selectedCustomer, is_blocked: newVal });
+                                            await supabase.from('customers').update({ is_blocked: newVal }).eq('id', selectedCustomer.id);
+                                            if (newVal) toast.warning("Customer Blocked!");
+                                            else toast.success("Customer Unblocked");
+                                        }}
+                                    >
+                                        {selectedCustomer.is_blocked ? "Blocked 🚫" : "Active ✅"}
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </>)}
                 </SheetContent>
             </Sheet>
-        </div>
+        </div >
     );
 }
 
