@@ -273,9 +273,23 @@ const LitePOS = () => {
         if (cart.length === 0) return;
 
         // Validation for Credit
-        if (paymentMode === 'credit' && !selectedCustomer) {
-            toast.error("Please select a customer for Udhaar!");
-            return;
+        if (paymentMode === 'credit') {
+            if (!selectedCustomer) {
+                toast.error("Please select a customer for Udhaar!");
+                return;
+            }
+            if (selectedCustomer.is_blocked) {
+                toast.error(`🚫 Action Blocked: ${selectedCustomer.name} is blocked from new credit.`);
+                return;
+            }
+
+            const predictedBalance = (selectedCustomer.credit_balance || 0) + calculateTotal();
+            if (selectedCustomer.credit_limit && predictedBalance > selectedCustomer.credit_limit) {
+                toast.error(`⚠️ Limit Exceeded! Max allowed: ₹${selectedCustomer.credit_limit}. Current Due: ₹${selectedCustomer.credit_balance}`);
+                if (!confirm(`Customer will exceed credit limit (₹${selectedCustomer.credit_limit}). Proceed anyway?`)) {
+                    return;
+                }
+            }
         }
 
         setIsCheckingOut(true);

@@ -123,51 +123,108 @@ const Forecasting = () => {
 
   const seasonalAlerts = getSeasonalAlerts();
 
+  /* Rate of Sale (ROS) Engine */
   const runAIAnalysis = async () => {
     if (!currentShop?.id) return;
     setLoading(true);
+    const toastId = toast.loading("Analyzing Sales Velocity...");
 
     try {
-      const { data: salesHistory } = await supabase
+      // 1. Fetch Sales History (Last 30 Days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { data: orders, error: orderError } = await supabase
         .from('orders')
-        .select('*')
-        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+        .select('order_items, created_at')
+        .eq('shop_id', currentShop.id)
+        .gte('created_at', thirtyDaysAgo.toISOString());
+
+      if (orderError) throw orderError;
+
+      // 2. Fetch Current Inventory
+      const { data: inventory, error: invError } = await supabase
+        .from('inventory')
+        .select('id, medicine_name, quantity, unit_price')
         .eq('shop_id', currentShop.id);
 
-      // Dynamic Import with Safety Check
-      // @ts-ignore
-      let aiServiceModule;
-      try {
-        aiServiceModule = await import("@/services/aiService");
-      } catch (err) {
-        throw new Error("AI Service unavailable");
-      }
+      if (invError) throw invError;
 
-      const aiResponse = await aiServiceModule.aiService.getInventoryForecast(salesHistory || []);
+      // 3. Aggregate Sales (Map <MedicineName, QtySold>)
+      const salesMap = new Map<string, number>();
+      orders?.forEach(order => {
+        const items = order.order_items as any[];
+        if (Array.isArray(items)) {
+          items.forEach(item => {
+            const name = item.name || item.medicine_name;
+            if (name) {
+              const qty = parseInt(item.qty || item.quantity || 0);
+              salesMap.set(name, (salesMap.get(name) || 0) + qty);
+            }
+          });
+        }
+      });
 
-      if (aiResponse && aiResponse.forecast) {
-        await supabase.from('restock_predictions').delete().eq('shop_id', currentShop.id);
+      // 4. Calculate ROS & Predictions
+      const predictions = inventory?.map(item => {
+        const totalSold = salesMap.get(item.medicine_name) || 0;
+        const avgDailySales = totalSold / 30; // Simple Moving Average
+        const currentStock = item.quantity;
 
-        await supabase.from('restock_predictions').insert(aiResponse.forecast.map((item: any) => ({
+        // Forecast Logic
+        const safetyStockDays = 14; // buffer
+        const leadTimeDays = 2; // time to restock
+
+        let predictedRestock = 0;
+        let status = "Healthy";
+        let confidence = 0.9;
+
+        if (avgDailySales > 0) {
+          const daysCover = currentStock / avgDailySales;
+          const reorderPoint = avgDailySales * (leadTimeDays + safetyStockDays);
+
+          if (currentStock < reorderPoint) {
+            predictedRestock = Math.ceil(reorderPoint - currentStock);
+            status = "Low Stock";
+          }
+        } else {
+          status = "Dead Stock";
+          confidence = 0.5; // Low confidence if no sales
+        }
+
+        return {
           shop_id: currentShop.id,
-          medicine_name: item.product,
-          current_stock: item.current_stock || 0,
-          avg_daily_sales: item.predicted_daily_sales || 5,
-          predicted_quantity: item.suggested_restock || 50,
-          confidence_score: item.confidence || 0.85,
-          reason: item.reason || "AI Demand Forecast"
-        })));
+          medicine_name: item.medicine_name,
+          current_stock: currentStock,
+          avg_daily_sales: parseFloat(avgDailySales.toFixed(2)),
+          predicted_quantity: predictedRestock,
+          confidence_score: confidence,
+          reason: status
+        };
+      });
 
-        await fetchPredictions();
-        toast.success("AI Forecast Complete");
-      } else {
-        throw new Error("Invalid AI Response");
+      // 5. Save to DB (Clear old first)
+      await supabase.from('restock_predictions').delete().eq('shop_id', currentShop.id);
+
+      if (predictions && predictions.length > 0) {
+        // Filter only relevant predictions to save space (e.g. only reorders or active items)
+        const vitalPredictions = predictions.filter(p => p.predicted_quantity > 0 || p.avg_daily_sales > 0);
+
+        if (vitalPredictions.length > 0) {
+          const { error: saveError } = await supabase.from('restock_predictions').insert(vitalPredictions);
+          if (saveError) throw saveError;
+        }
       }
-    } catch (e) {
-      console.error(e);
-      toast.error("Forecasting Engine Failed", { description: "Using fallback logic." });
+
+      toast.success(`Analysis Complete. Processed ${orders?.length} orders.`);
+      fetchPredictions(); // Refresh UI
+
+    } catch (e: any) {
+      console.error("Forecasting Error:", e);
+      toast.error("Analysis Failed: " + e.message);
     } finally {
       setLoading(false);
+      toast.dismiss(toastId);
     }
   };
 

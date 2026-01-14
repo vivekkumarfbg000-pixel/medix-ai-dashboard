@@ -23,10 +23,12 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 export interface Customer {
-    id: any; // Using any to handle string/number mismatch gracefully
+    id: any;
     name: string;
     phone: string;
     credit_balance: number;
+    credit_limit?: number;
+    is_blocked?: boolean;
 }
 
 interface CustomerSearchProps {
@@ -51,7 +53,7 @@ export function CustomerSearch({ onSelect, selectedCustomer }: CustomerSearchPro
     const fetchCustomers = async () => {
         const { data } = await supabase
             .from("customers")
-            .select("id, name, phone, credit_balance")
+            .select("id, name, phone, credit_balance, credit_limit, is_blocked")
             .eq("shop_id", currentShop?.id)
             .limit(50);
 

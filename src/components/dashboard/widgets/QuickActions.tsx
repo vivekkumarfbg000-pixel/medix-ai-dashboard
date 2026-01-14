@@ -133,6 +133,21 @@ export const QuickActions = () => {
                         </div>
                     </div>
 
+                    {/* Expiry Warning Widget */}
+                    <div
+                        onClick={() => navigate("/dashboard/inventory?filter=expiring")}
+                        className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 p-3 rounded-xl flex items-center gap-3 cursor-pointer transition-colors group"
+                    >
+                        <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform animate-pulse">
+                            <FileText className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1">
+                            <div className="font-semibold text-red-600 dark:text-red-400 text-sm">Expiry Alert</div>
+                            <div className="text-xs text-muted-foreground">Review expiring stock</div>
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-red-500 opacity-50 group-hover:opacity-100 transition-opacity" />
+                    </div>
+
                     {/* Pending Drafts Action */}
                     {stats.drafts > 0 && (
                         <div
