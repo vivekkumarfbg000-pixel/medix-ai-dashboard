@@ -14,10 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useUserShops } from "@/hooks/useUserShops";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useSessionEnforcement } from "@/hooks/useSessionEnforcement"; // [NEW]
 import { ThemeToggle } from "../common/ThemeToggle";
 import { SyncStatus } from "../common/SyncStatus";
 
 export function DashboardLayout() {
+  useSessionEnforcement(); // [NEW] Enforce single device login
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -112,7 +114,7 @@ export function DashboardLayout() {
               <ThemeToggle />
               {/* <SyncStatus /> */}
               <ActiveUsers roomId={currentShop?.id || "default"} />
-              <Button variant="ghost" size="icon" className="relative">
+              <Button variant="ghost" size="icon" className="relative" onClick={() => navigate("/dashboard/alerts")}>
                 <Bell className="w-5 h-5" />
                 <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs bg-destructive">3</Badge>
               </Button>

@@ -71,6 +71,38 @@ export const QuickActions = () => {
                             <span className="text-[10px] text-slate-300 font-normal">Scan & Upload</span>
                         </div>
                     </Button>
+
+                    <Button
+                        className="h-28 flex flex-col items-start justify-between p-4 bg-gradient-to-br from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white border-0 shadow-lg shadow-emerald-900/20 rounded-2xl transition-all duration-300 hover:scale-[1.02] active:scale-95 group relative overflow-hidden"
+                        onClick={() => navigate("/dashboard/diary-scan")}
+                    >
+                        <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <FileText className="w-16 h-16" />
+                        </div>
+                        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                            <FileText className="w-5 h-5" />
+                        </div>
+                        <div className="text-left">
+                            <span className="text-lg font-bold block">Diary Scan</span>
+                            <span className="text-[10px] opacity-80 font-normal">Digitize Handwritten</span>
+                        </div>
+                    </Button>
+
+                    <Button
+                        className="h-28 flex flex-col items-start justify-between p-4 bg-gradient-to-br from-indigo-600 to-violet-700 hover:from-indigo-500 hover:to-violet-600 text-white border-0 shadow-lg shadow-indigo-900/20 rounded-2xl transition-all duration-300 hover:scale-[1.02] active:scale-95 group relative overflow-hidden"
+                        onClick={() => navigate("/dashboard/lab-analyzer")}
+                    >
+                        <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <Stethoscope className="w-16 h-16" />
+                        </div>
+                        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                            <Stethoscope className="w-5 h-5" />
+                        </div>
+                        <div className="text-left">
+                            <span className="text-lg font-bold block">Lab Report</span>
+                            <span className="text-[10px] opacity-80 font-normal">Analyze Results</span>
+                        </div>
+                    </Button>
                 </div>
 
                 {/* AI & Clinical Tools */}

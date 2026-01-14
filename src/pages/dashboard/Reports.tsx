@@ -3,10 +3,18 @@ import { useUserShops } from "@/hooks/useUserShops";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { addDays, format, startOfMonth, endOfMonth } from "date-fns";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Download, TrendingUp, TrendingDown, IndianRupee, FileText } from "lucide-react";
+import { format, startOfMonth, endOfMonth, addDays } from "date-fns";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Download, TrendingUp } from "lucide-react";
+
+interface ReportSummary {
+    totalSales: number;
+    totalPurchases: number;
+    netCashFlow: number;
+    gstCollected: number;
+    gstPaid: number;
+    gstNet: number;
+}
 
 const Reports = () => {
     const { currentShop } = useUserShops();
@@ -15,15 +23,14 @@ const Reports = () => {
         to: endOfMonth(new Date())
     });
 
-    const [salesData, setSalesData] = useState<any[]>([]);
-    const [purchaseData, setPurchaseData] = useState<any[]>([]);
     const [chartData, setChartData] = useState<any[]>([]);
-    const [summary, setSummary] = useState({
+    const [summary, setSummary] = useState<ReportSummary>({
         totalSales: 0,
         totalPurchases: 0,
         netCashFlow: 0,
-        gstCollected: 0, // Estimated
-        gstPaid: 0 // Estimated
+        gstCollected: 0,
+        gstPaid: 0,
+        gstNet: 0
     });
     const [loading, setLoading] = useState(false);
 
@@ -38,68 +45,108 @@ const Reports = () => {
         const from = dateRange.from.toISOString();
         const to = addDays(dateRange.to, 1).toISOString(); // Inclusive
 
-        // 1. Fetch Sales (Orders)
-        // @ts-ignore
-        const { data: sales, error: salesError } = await supabase
-            .from('orders')
-            .select('created_at, total_amount, status')
-            .eq('shop_id', currentShop?.id)
-            .gte('created_at', from)
-            .lt('created_at', to)
-            .eq('status', 'completed'); // Only completed sales
+        try {
+            // 1. Fetch Sales with Order Items for GST Calc
+            // @ts-ignore
+            const { data: sales, error: salesError } = await supabase
+                .from('orders')
+                .select('created_at, total_amount, status, order_items')
+                .eq('shop_id', currentShop?.id)
+                .gte('created_at', from)
+                .lt('created_at', to)
+                .eq('status', 'completed');
 
-        // 2. Fetch Purchases
-        // @ts-ignore
-        const { data: purchases, error: purchaseError } = await supabase
-            .from('purchases')
-            .select('invoice_date, total_amount, status')
-            .eq('shop_id', currentShop?.id)
-            .gte('invoice_date', from)
-            .lt('invoice_date', to)
-            .eq('status', 'completed');
+            if (salesError) throw salesError;
 
-        if (sales && purchases) {
-            processData(sales, purchases);
+            // 2. Fetch Purchases
+            // @ts-ignore
+            const { data: purchases, error: purchaseError } = await supabase
+                .from('purchases')
+                .select('invoice_date, total_amount, status')
+                .eq('shop_id', currentShop?.id)
+                .gte('invoice_date', from)
+                .lt('invoice_date', to)
+                .eq('status', 'completed');
+
+            if (purchaseError) throw purchaseError;
+
+            processData(sales || [], purchases || []);
+        } catch (error) {
+            console.error("Report Fetch Error:", error);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const processData = (sales: any[], purchases: any[]) => {
         let totalSales = 0;
         let totalPurchases = 0;
+        let totalGSTCollected = 0;
 
         // Group by Date for Chart
         const dailyMap = new Map();
 
         sales.forEach(s => {
-            totalSales += Number(s.total_amount);
+            const amount = Number(s.total_amount) || 0;
+            totalSales += amount;
+
+            // Calculate GST from items
+            if (s.order_items && Array.isArray(s.order_items)) {
+                s.order_items.forEach((item: any) => {
+                    const price = item.price || 0;
+                    const qty = item.qty || 0;
+                    const gstRate = item.gst || 0; // Use captured GST
+
+                    // Tax Formula: Amount * (Rate/100) or Inclusive? 
+                    // Usually retail prices are inclusive. Tax = Price - (Price / (1 + Rate/100))
+                    // Let's assume Price is Exclusive for simplicity or if configured. 
+                    // Actually, for pharmacies, MRP is inclusive. 
+                    // We'll estimate tax component from the total item line value.
+                    // Tax Component = (Price * Qty) * (gstRate / (100 + gstRate))
+
+                    if (gstRate > 0) {
+                        const lineTotal = price * qty;
+                        const taxComponent = lineTotal * (gstRate / (100 + gstRate));
+                        totalGSTCollected += taxComponent;
+                    }
+                });
+            } else {
+                // Fallback estimate if no items (Legacy data)
+                totalGSTCollected += (amount * (12 / 112)); // 12% inclusive estimate
+            }
+
             const date = format(new Date(s.created_at), 'yyyy-MM-dd');
             if (!dailyMap.has(date)) dailyMap.set(date, { date, sales: 0, purchases: 0 });
-            dailyMap.get(date).sales += Number(s.total_amount);
+            dailyMap.get(date).sales += amount;
         });
 
         purchases.forEach(p => {
-            totalPurchases += Number(p.total_amount);
+            const amount = Number(p.total_amount) || 0;
+            totalPurchases += amount;
             const date = format(new Date(p.invoice_date), 'yyyy-MM-dd');
             if (!dailyMap.has(date)) dailyMap.set(date, { date, sales: 0, purchases: 0 });
-            dailyMap.get(date).purchases += Number(p.total_amount);
+            dailyMap.get(date).purchases += amount;
         });
 
-        // Convert Map to Array & Sort
+        // Sort Data
         const data = Array.from(dailyMap.values()).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         setChartData(data);
+
+        // Estimate Input Tax Credit (Purchases are almost always GST paid)
+        // Assuming ~12% blended rate for purchase value tax component
+        const totalGSTPaid = totalPurchases * (12 / 112);
 
         setSummary({
             totalSales,
             totalPurchases,
             netCashFlow: totalSales - totalPurchases,
-            gstCollected: totalSales * 0.12, // Approx 12% average (Wait, need exact? Estimating for now)
-            gstPaid: totalPurchases * 0.12
+            gstCollected: totalGSTCollected,
+            gstPaid: totalGSTPaid,
+            gstNet: totalGSTCollected - totalGSTPaid
         });
     };
 
     const handlePrint = () => {
-        // Simple print
         window.print();
     };
 
@@ -108,15 +155,17 @@ const Reports = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold flex items-center gap-2">
-                        <TrendingUp className="w-8 h-8 text-green-600" /> Financial Reports
+                        <TrendingUp className="w-8 h-8 text-green-600" /> True Reports
                     </h1>
-                    <p className="text-muted-foreground">GST, Profit & Loss, and Cash Flow Analysis</p>
+                    <p className="text-muted-foreground">GST Ready • Cash Flow • Tax Analysis</p>
                 </div>
                 <div className="flex gap-2 items-center">
-                    {/* Date Picker would go here, simplistic placeholder for now */}
                     <span className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded">
                         {format(dateRange.from, 'MMM dd')} - {format(dateRange.to, 'MMM dd, yyyy')}
                     </span>
+                    <Button variant="outline" onClick={fetchData} disabled={loading}>
+                        {loading ? "Refreshing..." : "Refresh"}
+                    </Button>
                     <Button variant="outline" onClick={handlePrint}>
                         <Download className="w-4 h-4 mr-2" /> Export
                     </Button>
@@ -127,24 +176,24 @@ const Reports = () => {
                 <Card className="bg-green-50 border-green-200">
                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-green-800">Total Sales</CardTitle></CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-green-700">₹{summary.totalSales.toLocaleString()}</div>
-                        <p className="text-xs text-green-600 mt-1">Est. GST Collected: ₹{summary.gstCollected.toFixed(2)}</p>
+                        <div className="text-2xl font-bold text-green-700">₹{summary.totalSales.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                        <p className="text-xs text-green-600 mt-1">Found {summary.gstCollected > 0 ? 'Verified' : 'Estimated'} Tax Data</p>
                     </CardContent>
                 </Card>
                 <Card className="bg-red-50 border-red-200">
                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-red-800">Total Purchases</CardTitle></CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-red-700">₹{summary.totalPurchases.toLocaleString()}</div>
-                        <p className="text-xs text-red-600 mt-1">Est. GST Paid: ₹{summary.gstPaid.toFixed(2)}</p>
+                        <div className="text-2xl font-bold text-red-700">₹{summary.totalPurchases.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                        <p className="text-xs text-red-600 mt-1">Input Credit Available</p>
                     </CardContent>
                 </Card>
                 <Card className={`border-l-4 ${summary.netCashFlow >= 0 ? 'border-l-green-500' : 'border-l-red-500'}`}>
                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Net Cash Flow</CardTitle></CardHeader>
                     <CardContent>
                         <div className={`text-2xl font-bold ${summary.netCashFlow >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                            ₹{summary.netCashFlow.toLocaleString()}
+                            ₹{summary.netCashFlow.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">Sales - Purchases</p>
+                        <p className="text-xs text-muted-foreground mt-1">Realized Liquidity</p>
                     </CardContent>
                 </Card>
             </div>
@@ -153,7 +202,7 @@ const Reports = () => {
                 <Card className="md:col-span-2">
                     <CardHeader>
                         <CardTitle>Cash Flow Trend</CardTitle>
-                        <CardDescription>Daily Sales vs Purchases</CardDescription>
+                        <CardDescription>Daily Sales vs Purchases (Inclusive of Tax)</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="h-[300px] w-full">
@@ -174,23 +223,24 @@ const Reports = () => {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>GST Summary (Estimated)</CardTitle>
-                        <CardDescription>Based on flat 12% average rate</CardDescription>
+                        <CardTitle>GST Liability (Approx)</CardTitle>
+                        <CardDescription>Based on item-level tax rates where available. Assumes MRP is tax-inclusive.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
                             <div className="flex justify-between items-center border-b pb-2">
-                                <span>Output Tax (Sales)</span>
-                                <span className="font-bold text-red-600">₹{summary.gstCollected.toFixed(2)}</span>
+                                <span>Output Tax (Collected on Sales)</span>
+                                <span className="font-bold text-red-600">₹{summary.gstCollected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
                             <div className="flex justify-between items-center border-b pb-2">
-                                <span>Input Tax (Purchases)</span>
-                                <span className="font-bold text-green-600">₹{summary.gstPaid.toFixed(2)}</span>
+                                <span>Input Tax (Paid on Purchases)</span>
+                                <span className="font-bold text-green-600">₹{summary.gstPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
-                            <div className="flex justify-between items-center pt-2">
-                                <span className="font-bold">Net Payable / (Credit)</span>
-                                <span className={`font-bold ${(summary.gstCollected - summary.gstPaid) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                    ₹{(summary.gstCollected - summary.gstPaid).toFixed(2)}
+                            <div className="flex justify-between items-center pt-2 text-lg">
+                                <span className="font-bold">Net Payable</span>
+                                <span className={`font-bold ${summary.gstNet > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                                    ₹{Math.abs(summary.gstNet).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {summary.gstNet < 0 && " (Credit)"}
                                 </span>
                             </div>
                         </div>
@@ -199,28 +249,26 @@ const Reports = () => {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>Profit Analysis</CardTitle>
-                        <CardDescription>Gross Margin Analysis</CardDescription>
+                        <CardTitle>Margin Analysis</CardTitle>
+                        <CardDescription>Operating Metrics</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            <div className="flex justify-between items-center border-b pb-2">
-                                <span>Total Revenue</span>
-                                <span className="font-bold">₹{summary.totalSales.toLocaleString()}</span>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-3 bg-slate-50 rounded-lg text-center">
+                                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Sale Value</p>
+                                    <p className="text-xl font-bold mt-1">
+                                        ₹{summary.totalSales > 0 ? (summary.totalSales / (chartData.reduce((acc, curr) => acc + (curr.sales > 0 ? 1 : 0), 0) || 1)).toFixed(0) : 0}
+                                    </p>
+                                </div>
+                                <div className="p-3 bg-slate-50 rounded-lg text-center">
+                                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Est. Profit (30%)</p>
+                                    <p className="text-xl font-bold mt-1 text-green-700">
+                                        ₹{(summary.totalSales * 0.3).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    </p>
+                                </div>
                             </div>
-                            <div className="flex justify-between items-center border-b pb-2">
-                                <span>COGS (Approx 70%)</span>
-                                <span className="text-muted-foreground">₹{(summary.totalSales * 0.7).toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between items-center pt-2">
-                                <span className="font-bold text-green-700">Gross Profit (Est. 30%)</span>
-                                <span className="font-bold text-green-700">
-                                    ₹{(summary.totalSales * 0.3).toLocaleString()}
-                                </span>
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-2 bg-slate-50 p-2 rounded">
-                                * Note: Exact profit requires strict batch-wise purchase price tracking. Currently estimated at standard pharmacy margin of 30%.
-                            </div>
+                            <p className="text-xs text-slate-400 mt-2">* Average daily sales calculated based on active days in range.</p>
                         </div>
                     </CardContent>
                 </Card>

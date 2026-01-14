@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { Plus, Search, Truck, Phone, Trash2, Pencil } from "lucide-react";
 
-export default function Suppliers() {
+export default function Suppliers({ embedded = false }: { embedded?: boolean }) {
     const { currentShop } = useUserShops();
     const [suppliers, setSuppliers] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -81,14 +81,19 @@ export default function Suppliers() {
     );
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold flex items-center gap-2">
-                        <Truck className="w-8 h-8 text-blue-600" /> Supplier Directory
-                    </h1>
-                    <p className="text-muted-foreground">Manage your wholesalers and distributors.</p>
+        <div className={`space-y-6 animate-fade-in ${embedded ? 'p-0' : ''}`}>
+            {!embedded && (
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold flex items-center gap-2">
+                            <Truck className="w-8 h-8 text-blue-600" /> Supplier Directory
+                        </h1>
+                        <p className="text-muted-foreground">Manage your wholesalers and distributors.</p>
+                    </div>
                 </div>
+            )}
+
+            <div className="flex justify-end mb-4">
                 <Button onClick={() => setIsDialogOpen(true)} size="lg" className="shadow-lg bg-blue-600 hover:bg-blue-700">
                     <Plus className="w-4 h-4 mr-2" /> Add Supplier
                 </Button>

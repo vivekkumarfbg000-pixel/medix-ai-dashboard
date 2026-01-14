@@ -6,8 +6,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Settings as SettingsIcon, Store, Bell, Shield, Save, Eye, EyeOff, Loader2 } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Settings as SettingsIcon,
+  Store,
+  Bell,
+  Shield,
+  Save,
+  Eye,
+  EyeOff,
+  Loader2,
+  LogOut,
+  Smartphone,
+  Mail,
+  Building,
+  MapPin,
+  Phone
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 
 interface ShopData {
   id: string;
@@ -20,7 +43,8 @@ const Settings = () => {
   const [shop, setShop] = useState<ShopData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  
+  const [userEmail, setUserEmail] = useState("");
+
   // Password change state
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -28,6 +52,7 @@ const Settings = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
 
+  // Notifications - In a real app, save to user_metadata or separate table
   const [notifications, setNotifications] = useState({
     expiryAlerts: true,
     lowStockAlerts: true,
@@ -40,6 +65,7 @@ const Settings = () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
+        setUserEmail(user.email || "");
 
         const { data: profile } = await supabase
           .from("profiles")
@@ -54,17 +80,12 @@ const Settings = () => {
             .eq("id", profile.shop_id)
             .single();
 
-          if (error) {
-            console.error("Error fetching shop:", error);
-            toast.error("Could not load shop details");
-          }
-
-          if (shopData) {
-            setShop(shopData);
-          }
+          if (error) throw error;
+          if (shopData) setShop(shopData);
         }
       } catch (e) {
-        console.error("Error in fetchShop:", e);
+        console.error("Error fetching shop:", e);
+        toast.error("Could not load shop details");
       } finally {
         setLoading(false);
       }
@@ -75,7 +96,6 @@ const Settings = () => {
 
   const handleSaveShop = async () => {
     if (!shop) return;
-
     setSaving(true);
     const { error } = await supabase
       .from("shops")
@@ -87,18 +107,15 @@ const Settings = () => {
       .eq("id", shop.id);
 
     if (error) {
-      console.error("Save error:", error);
-      toast.error(`Failed to save settings: ${error.message}`);
+      toast.error(`Failed to save: ${error.message}`);
     } else {
-      toast.success("Settings saved successfully");
+      toast.success("Shop settings updated successfully");
     }
     setSaving(false);
   };
 
   const updateShopField = (field: keyof ShopData, value: string) => {
-    if (shop) {
-      setShop({ ...shop, [field]: value });
-    }
+    if (shop) setShop({ ...shop, [field]: value });
   };
 
   const handleChangePassword = async () => {
@@ -106,252 +123,228 @@ const Settings = () => {
       toast.error("Password must be at least 6 characters");
       return;
     }
-    
     if (newPassword !== confirmPassword) {
       toast.error("Passwords do not match");
       return;
     }
 
     setChangingPassword(true);
-    
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword
-    });
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
 
     if (error) {
-      console.error("Password change error:", error);
-      toast.error(`Failed to change password: ${error.message}`);
+      toast.error(`Error: ${error.message}`);
     } else {
-      toast.success("Password changed successfully");
+      toast.success("Password updated!");
       setPasswordDialogOpen(false);
       setNewPassword("");
       setConfirmPassword("");
     }
-    
     setChangingPassword(false);
   };
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        {[1, 2, 3].map(i => (
-          <Card key={i} className="animate-pulse">
-            <CardContent className="p-6">
-              <div className="h-32 bg-muted rounded" />
-            </CardContent>
-          </Card>
-        ))}
+      <div className="space-y-6 max-w-5xl mx-auto p-6">
+        <div className="h-48 bg-muted rounded-2xl animate-pulse" />
+        <div className="h-64 bg-muted rounded-2xl animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-3xl">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage your shop and notification preferences
-        </p>
+    <div className="space-y-8 animate-fade-in pb-12 max-w-5xl mx-auto">
+      {/* Premium Header */}
+      <div className="relative rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-8 shadow-xl overflow-hidden text-white">
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-overlay"></div>
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+              <SettingsIcon className="w-8 h-8 text-slate-400" />
+              Settings & Preferences
+            </h1>
+            <p className="text-slate-300 max-w-xl text-lg opacity-90">
+              Manage your pharmacy profile, notifications, and improved security.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+            <span className="text-sm font-medium">System Online</span>
+          </div>
+        </div>
       </div>
 
-      {/* Shop Details */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Store className="w-5 h-5 text-primary" />
-            Shop Details
-          </CardTitle>
-          <CardDescription>
-            Update your medical shop information
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="shop-name">Shop Name</Label>
-            <Input
-              id="shop-name"
-              value={shop?.name || ""}
-              onChange={(e) => updateShopField('name', e.target.value)}
-              placeholder="Enter shop name"
-              disabled={!shop}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="address">Address</Label>
-            <Input
-              id="address"
-              value={shop?.address || ""}
-              onChange={(e) => updateShopField('address', e.target.value)}
-              placeholder="Enter shop address"
-              disabled={!shop}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number</Label>
-            <Input
-              id="phone"
-              value={shop?.phone || ""}
-              onChange={(e) => updateShopField('phone', e.target.value)}
-              placeholder="Enter phone number"
-              disabled={!shop}
-            />
-          </div>
-          <Button onClick={handleSaveShop} disabled={saving || !shop}>
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-      {/* Notification Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="w-5 h-5 text-primary" />
-            Notifications
-          </CardTitle>
-          <CardDescription>
-            Configure which alerts you want to receive
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Expiry Alerts</p>
-              <p className="text-sm text-muted-foreground">
-                Get notified when medicines are about to expire
-              </p>
-            </div>
-            <Switch
-              checked={notifications.expiryAlerts}
-              onCheckedChange={(checked) =>
-                setNotifications({ ...notifications, expiryAlerts: checked })
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Low Stock Alerts</p>
-              <p className="text-sm text-muted-foreground">
-                Get notified when stock falls below reorder level
-              </p>
-            </div>
-            <Switch
-              checked={notifications.lowStockAlerts}
-              onCheckedChange={(checked) =>
-                setNotifications({ ...notifications, lowStockAlerts: checked })
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Order Notifications</p>
-              <p className="text-sm text-muted-foreground">
-                Get notified for new WhatsApp orders
-              </p>
-            </div>
-            <Switch
-              checked={notifications.orderNotifications}
-              onCheckedChange={(checked) =>
-                setNotifications({ ...notifications, orderNotifications: checked })
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Refill Reminders</p>
-              <p className="text-sm text-muted-foreground">
-                Get reminded about patient refills
-              </p>
-            </div>
-            <Switch
-              checked={notifications.refillReminders}
-              onCheckedChange={(checked) =>
-                setNotifications({ ...notifications, refillReminders: checked })
-              }
-            />
-          </div>
-        </CardContent>
-      </Card>
+        {/* Left Column: Profile & Main Settings */}
+        <div className="lg:col-span-2 space-y-6">
 
-      {/* Security */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-primary" />
-            Security
-          </CardTitle>
-          <CardDescription>
-            Manage your account security settings
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline">Change Password</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Change Password</DialogTitle>
-                <DialogDescription>
-                  Enter your new password below. Password must be at least 6 characters.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
+          {/* Shop Details Card */}
+          <Card className="border-slate-200 shadow-sm overflow-hidden">
+            <CardHeader className="bg-slate-50 border-b border-slate-100 pb-4">
+              <CardTitle className="flex items-center gap-2 text-slate-800">
+                <Store className="w-5 h-5 text-indigo-600" />
+                Pharmacy Profile
+              </CardTitle>
+              <CardDescription>Public information regarding your medical shop.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label htmlFor="new-password">New Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="new-password"
-                      type={showPassword ? "text" : "password"}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Enter new password"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm Password</Label>
+                  <Label className="text-slate-600 flex items-center gap-2"><Building className="w-4 h-4" /> Shop Name</Label>
                   <Input
-                    id="confirm-password"
-                    type={showPassword ? "text" : "password"}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm new password"
+                    value={shop?.name || ""}
+                    onChange={(e) => updateShopField('name', e.target.value)}
+                    className="bg-slate-50/50 border-slate-200 focus:border-indigo-500 transition-all font-medium"
                   />
                 </div>
-                <Button 
-                  onClick={handleChangePassword} 
-                  disabled={changingPassword || !newPassword || !confirmPassword}
-                  className="w-full"
+                <div className="space-y-2">
+                  <Label className="text-slate-600 flex items-center gap-2"><Phone className="w-4 h-4" /> Contact Number</Label>
+                  <Input
+                    value={shop?.phone || ""}
+                    onChange={(e) => updateShopField('phone', e.target.value)}
+                    className="bg-slate-50/50 border-slate-200 focus:border-indigo-500 transition-all"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-600 flex items-center gap-2"><MapPin className="w-4 h-4" /> Address</Label>
+                <Input
+                  value={shop?.address || ""}
+                  onChange={(e) => updateShopField('address', e.target.value)}
+                  className="bg-slate-50/50 border-slate-200 focus:border-indigo-500 transition-all"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <Button
+                  onClick={handleSaveShop}
+                  disabled={saving || !shop}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200"
                 >
-                  {changingPassword ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Changing...
-                    </>
-                  ) : (
-                    "Update Password"
-                  )}
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                  Save Changes
                 </Button>
               </div>
-            </DialogContent>
-          </Dialog>
-          <p className="text-sm text-muted-foreground">
-            We recommend using a strong, unique password for your account.
-          </p>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+
+          {/* Notifications Card */}
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100 pb-4">
+              <CardTitle className="flex items-center gap-2 text-slate-800">
+                <Bell className="w-5 h-5 text-amber-500" />
+                Alert Preferences
+              </CardTitle>
+              <CardDescription>Customize what you want to be notified about.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0 divide-y divide-slate-100">
+              {[
+                { id: 'expiryAlerts', label: 'Expiry Alerts', desc: 'Notify when medicines expire soon (60 days)', color: 'bg-red-100 text-red-600' },
+                { id: 'lowStockAlerts', label: 'Low Stock Warnings', desc: 'Notify when inventory drops below reorder level', color: 'bg-amber-100 text-amber-600' },
+                { id: 'orderNotifications', label: 'Order Updates', desc: 'Receive alerts for new digital parchas', color: 'bg-blue-100 text-blue-600' },
+              ].map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-6 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex gap-4">
+                    <div className={`p-2 rounded-lg ${item.color}`}>
+                      <Bell className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-800">{item.label}</p>
+                      <p className="text-sm text-slate-500">{item.desc}</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={(notifications as any)[item.id]}
+                    onCheckedChange={(c) => setNotifications(prev => ({ ...prev, [item.id]: c }))}
+                  />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column: Security & Session */}
+        <div className="space-y-6">
+          <Card className="border-slate-200 shadow-sm h-fit">
+            <CardHeader className="bg-slate-50 border-b border-slate-100">
+              <CardTitle className="flex items-center gap-2 text-slate-800">
+                <Shield className="w-5 h-5 text-emerald-600" />
+                Security & Session
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-100 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-full text-emerald-600 shadow-sm">
+                      <Smartphone className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-emerald-900">Current Session</p>
+                      <p className="text-xs text-emerald-700">Active Device</p>
+                    </div>
+                  </div>
+                  <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs uppercase text-slate-400 font-bold tracking-wider">Account Email</Label>
+                  <div className="flex items-center gap-2 text-slate-700 font-medium">
+                    <Mail className="w-4 h-4" /> {userEmail || "Loading..."}
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="w-full border-slate-200 hover:bg-slate-50">
+                    Change Password
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Update Password</DialogTitle>
+                    <DialogDescription>Enter a strong new password.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="New Password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                      />
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Confirm Password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                      />
+                    </div>
+                    <Button onClick={handleChangePassword} disabled={changingPassword} className="w-full">
+                      {changingPassword ? "Updating..." : "Update Password"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Button
+                variant="destructive"
+                className="w-full bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 shadow-none"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  window.location.href = "/auth";
+                }}
+              >
+                <LogOut className="w-4 h-4 mr-2" /> Log Out
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+      </div>
     </div>
   );
 };

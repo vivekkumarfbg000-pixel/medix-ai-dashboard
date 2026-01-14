@@ -46,7 +46,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
     }
 }
 
-const ShortbookContent = () => {
+const ShortbookContent = ({ embedded = false }: { embedded?: boolean }) => {
     const { currentShop } = useUserShops();
     const [items, setItems] = useState<ShortbookItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -254,26 +254,33 @@ const ShortbookContent = () => {
     };
 
     return (
-        <div className="space-y-6 animate-fade-in p-2 md:p-0">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl lg:text-3xl font-bold text-foreground flex items-center gap-2">
-                        <NotebookPen className="w-8 h-8 text-blue-600" /> Shortbook
-                    </h1>
-                    <p className="text-muted-foreground">Digital reorder notebook. Share with suppliers instantly.</p>
+        <div className={`space-y-6 animate-fade-in ${embedded ? 'p-0' : 'p-2 md:p-0'}`}>
+            {!embedded && (
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl lg:text-3xl font-bold text-foreground flex items-center gap-2">
+                            <NotebookPen className="w-8 h-8 text-blue-600" /> Shortbook
+                        </h1>
+                        <p className="text-muted-foreground">Digital reorder notebook. Share with suppliers instantly.</p>
+                    </div>
                 </div>
-                <div className="flex gap-2 flex-wrap">
-                    <Button variant="outline" onClick={handleAutoAddLowStock} className="text-amber-600 border-amber-200 hover:bg-amber-50">
-                        <Sparkles className="w-4 h-4 mr-2" /> Auto-fill Low Stock
-                    </Button>
-                    <Button variant="outline" onClick={handlePrintPO}>
-                        <Printer className="w-4 h-4 mr-2" /> Print PO
-                    </Button>
-                    <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleShareWhatsApp}>
-                        <Share2 className="w-4 h-4 mr-2" /> Share Order
-                    </Button>
+            )}
+
+            {embedded && (
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                        <NotebookPen className="w-5 h-5 text-indigo-600" /> Shortbook & Quick Reorder
+                    </h3>
+                    <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={handleAutoAddLowStock} className="text-amber-600 border-amber-200 hover:bg-amber-50">
+                            <Sparkles className="w-3 h-3 mr-1" /> Auto-Fill
+                        </Button>
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={handleShareWhatsApp}>
+                            <Share2 className="w-3 h-3 mr-1" /> Share
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Input Area */}
             <Card className="border-blue-100 bg-blue-50/30">
@@ -308,7 +315,7 @@ const ShortbookContent = () => {
                             <label htmlFor="urgent" className="text-sm font-medium cursor-pointer text-red-600">Urgent?</label>
                         </div>
                         <Button onClick={handleAddItem} className="w-full md:w-auto">
-                            <Plus className="w-4 h-4 mr-1" /> Add Note
+                            <Plus className="w-4 h-4 mr-1" /> Add
                         </Button>
                     </div>
                 </CardContent>
@@ -318,7 +325,7 @@ const ShortbookContent = () => {
             <div className="grid gap-3">
                 <div className="flex justify-end">
                     <Button variant="ghost" size="sm" onClick={clearOrdered} className="text-xs text-muted-foreground hover:text-red-500">
-                        <Trash2 className="w-3 h-3 mr-1" /> Clear Completed
+                        <Trash2 className="w-3 h-3 mr-1" /> Clear CompletedItems
                     </Button>
                 </div>
                 {items.map((item) => (
@@ -329,7 +336,7 @@ const ShortbookContent = () => {
                                     <CheckCircle2 className="w-6 h-6" />
                                 </button>
                                 <div>
-                                    <h3 className={`font-semibold text-lg ${item.is_ordered ? 'line-through text-muted-foreground' : ''}`}>
+                                    <h3 className={`font-semibold text-md ${item.is_ordered ? 'line-through text-muted-foreground' : ''}`}>
                                         {item.medicine_name}
                                     </h3>
                                     <div className="flex gap-2 text-sm text-muted-foreground">
@@ -346,21 +353,15 @@ const ShortbookContent = () => {
                         </CardContent>
                     </Card>
                 ))}
-                {items.length === 0 && !loading && (
-                    <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
-                        <NotebookPen className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                        <p>Your shortbook is empty</p>
-                    </div>
-                )}
             </div>
         </div>
     );
 };
 
-export default function Shortbook() {
+export default function Shortbook({ embedded = false }: { embedded?: boolean }) {
     return (
         <ErrorBoundary>
-            <ShortbookContent />
+            <ShortbookContent embedded={embedded} />
         </ErrorBoundary>
     );
 }

@@ -11,7 +11,7 @@ import { Plus, Search, FileText, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
-export default function Purchases() {
+export default function Purchases({ embedded = false }: { embedded?: boolean }) {
     const { currentShop } = useUserShops();
     const [purchases, setPurchases] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -41,15 +41,20 @@ export default function Purchases() {
     );
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold flex items-center gap-2">
-                        <FileText className="w-8 h-8 text-indigo-600" /> Purchase History
-                    </h1>
-                    <p className="text-muted-foreground">Track all inward stock invoices from suppliers.</p>
+        <div className={`space-y-6 animate-fade-in ${embedded ? 'p-0' : ''}`}>
+            {!embedded && (
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold flex items-center gap-2">
+                            <FileText className="w-8 h-8 text-indigo-600" /> Purchase History
+                        </h1>
+                        <p className="text-muted-foreground">Track all inward stock invoices from suppliers.</p>
+                    </div>
                 </div>
-                <Button onClick={() => setIsEntryOpen(true)} size="lg" className="shadow-lg bg-indigo-600 hover:bg-indigo-700">
+            )}
+
+            <div className="flex justify-end mb-4">
+                <Button onClick={() => setIsEntryOpen(true)} size={embedded ? "sm" : "lg"} className="shadow-lg bg-indigo-600 hover:bg-indigo-700">
                     <Plus className="w-4 h-4 mr-2" /> New Entry (Stock In)
                 </Button>
             </div>

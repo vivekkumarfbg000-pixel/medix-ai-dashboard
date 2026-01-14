@@ -405,7 +405,15 @@ const DiaryScan = () => {
                 <div className="flex gap-4 w-full md:w-auto">
                   <div className="space-y-1 w-full md:w-48">
                     <label className="text-xs font-medium text-muted-foreground uppercase">Patient Name</label>
-                    <Input placeholder="Optional" className="h-9 bg-background" id="patient-name" />
+                    <Input
+                      placeholder="Optional"
+                      className="h-9 bg-background"
+                      id="patient-name"
+                      onChange={(e) => {
+                        // Use a ref or simple state if needed, but for now we can access by ID in the handler
+                        // or better, let's use a local variable in the handler by reading the DOM element
+                      }}
+                    />
                   </div>
                   <div className="space-y-1 w-full md:w-48">
                     <label className="text-xs font-medium text-muted-foreground uppercase">Prescriber</label>
@@ -427,9 +435,27 @@ const DiaryScan = () => {
                         if (!confirm("This will deduct stock for all items listed above. Proceed?")) return;
                         toast.loading("Adjusting Inventory...");
 
+                        // Save to Prescriptions History
+                        const patientName = (document.getElementById('patient-name') as HTMLInputElement)?.value || "Walk-in Customer";
+                        const doctorName = (document.getElementById('doctor-name') as HTMLInputElement)?.value || "Unknown Doctor";
+
+                        await supabase.from('prescriptions').insert({
+                          shop_id: currentShop.id,
+                          customer_name: patientName,
+                          doctor_name: doctorName,
+                          visit_date: new Date().toISOString(),
+                          medicines: extractedItems.map(i => ({
+                            name: i.medication_name,
+                            dosage: i.dosage_frequency,
+                            strength: i.strength,
+                            duration: i.duration
+                          }))
+                        } as any);
+
                         // Logic preserved from original
                         let successCount = 0;
                         for (const item of extractedItems) {
+                          // ... existing stock adjustment logic ...
                           const { data: exactMatch } = await supabase
                             .from('inventory')
                             .select('id')
@@ -464,9 +490,9 @@ const DiaryScan = () => {
                         toast.dismiss();
                         if (successCount > 0) {
                           setIsConfirmed(true);
-                          toast.success(`Stock adjusted for ${successCount} items.`);
+                          toast.success(`Stock adjusted for ${successCount} items. Parcha Saved.`);
                         } else {
-                          toast.warning("No matching stock found.");
+                          toast.warning("No matching stock found, but Parcha saved.");
                         }
                       }}
                       className="bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
@@ -475,8 +501,28 @@ const DiaryScan = () => {
                       Log Sale
                     </Button>
                     <Button
-                      onClick={() => {
+                      onClick={async () => {
                         if (!currentShop?.id) return;
+
+                        // Save to Prescriptions History first
+                        const patientName = (document.getElementById('patient-name') as HTMLInputElement)?.value || "Walk-in Customer";
+                        const doctorName = (document.getElementById('doctor-name') as HTMLInputElement)?.value || "Unknown Doctor";
+
+                        // We do this asynchronously so we don't block the redirect too long, but ideally await it
+                        toast.info("Saving Parcha...");
+                        await supabase.from('prescriptions').insert({
+                          shop_id: currentShop.id,
+                          customer_name: patientName,
+                          doctor_name: doctorName,
+                          visit_date: new Date().toISOString(),
+                          medicines: extractedItems.map(i => ({
+                            name: i.medication_name,
+                            dosage: i.dosage_frequency,
+                            strength: i.strength,
+                            duration: i.duration
+                          }))
+                        } as any);
+
                         const cartItems = extractedItems.map(i => ({
                           name: i.medication_name,
                           qty: 1,

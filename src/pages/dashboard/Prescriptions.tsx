@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FileText, Calendar, User, Search, Stethoscope, Pill, Share2 } from "lucide-react";
+import { FileText, Calendar, User, Search, Stethoscope, Pill, Share2, ScanLine } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { whatsappService } from "@/services/whatsappService";
 import { format } from "date-fns";
 
@@ -22,6 +23,7 @@ const Prescriptions = () => {
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+    const navigate = useNavigate();
 
     const fetchPrescriptions = async () => {
         setLoading(true);
@@ -39,7 +41,7 @@ const Prescriptions = () => {
 
     const handleShare = (p: Prescription) => {
         // @ts-ignore
-        const link = whatsappService.generatePrescriptionLink("", { // Phone not stored in prescription table usually, fallback to empty
+        const link = whatsappService.generatePrescriptionLink("", {
             doctor_name: p.doctor_name,
             customer_name: p.customer_name,
             visit_date: p.visit_date,
@@ -58,70 +60,120 @@ const Prescriptions = () => {
     );
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Digital Parchas</h1>
-                    <p className="text-muted-foreground mt-1">History of scanned prescriptions.</p>
+        <div className="space-y-6 animate-fade-in pb-12">
+            {/* Premium Header */}
+            <div className="relative rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 p-8 shadow-xl overflow-hidden text-white">
+                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
+                <div className="absolute -top-24 -right-24 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div className="space-y-2">
+                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight flex items-center gap-3">
+                            <FileText className="w-8 h-8 md:w-10 md:h-10 text-teal-200" />
+                            Digital Parchas
+                        </h1>
+                        <p className="text-teal-100 max-w-xl text-lg font-medium opacity-90">
+                            Securely store, organize, and retrieve patient prescriptions and history.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Quick Stats */}
+                <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
+                    <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/10">
+                        <div className="text-teal-100 text-xs font-semibold uppercase tracking-wider">Total Parchas</div>
+                        <div className="text-2xl font-bold">{prescriptions.length}</div>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/10">
+                        <div className="text-teal-100 text-xs font-semibold uppercase tracking-wider">This Month</div>
+                        <div className="text-2xl font-bold">{prescriptions.filter(p => new Date(p.created_at) > new Date(new Date().setDate(1))).length}</div>
+                    </div>
                 </div>
             </div>
 
-            <Card>
-                <CardContent className="p-4">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search by patient or doctor..."
-                            className="pl-10"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="relative flex-1 w-full md:w-auto md:max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search by patient, doctor, or date..."
+                        className="pl-10 h-10 w-full bg-white shadow-sm border-muted focus-visible:ring-teal-500"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+                <Button
+                    size="lg"
+                    className="shadow-lg bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 h-10 px-6 w-full md:w-auto"
+                    onClick={() => navigate("/dashboard/diary-scan")}
+                >
+                    <div className="flex items-center gap-2">
+                        <ScanLine className="w-4 h-4" />
+                        <span>Scan New Parcha</span>
                     </div>
-                </CardContent>
-            </Card>
+                </Button>
+            </div>
 
-            <div className="grid gap-4">
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {loading ? (
-                    <div className="text-center py-10">Loading parchas...</div>
+                    [1, 2, 3, 4].map(i => <div key={i} className="h-64 bg-muted animate-pulse rounded-xl" />)
                 ) : filtered.length === 0 ? (
-                    <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
-                        <FileText className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                        <p>No prescriptions found.</p>
+                    <div className="col-span-full flex flex-col items-center justify-center py-20 text-center bg-white rounded-xl border border-dashed border-slate-200">
+                        <div className="bg-slate-50 p-6 rounded-full mb-4">
+                            <FileText className="w-12 h-12 text-slate-300" />
+                        </div>
+                        <h3 className="text-xl font-semibold text-slate-900">No prescriptions found</h3>
+                        <p className="text-slate-500 max-w-sm mt-2">Upload a new prescription using the Scan button above.</p>
                     </div>
                 ) : (
                     filtered.map(p => (
-                        <Card key={p.id} className="hover:shadow-md transition-shadow">
-                            <CardContent className="p-6">
-                                <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
-                                    <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
-                                            <User className="w-4 h-4 text-muted-foreground" />
-                                            <span className="font-semibold text-lg">{p.customer_name || 'Unknown Patient'}</span>
+                        <Card key={p.id} className="group hover:shadow-xl transition-all duration-300 border-slate-200 hover:border-teal-200 flex flex-col">
+                            <CardContent className="p-5 flex-1 flex flex-col">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600">
+                                            <User className="w-5 h-5" />
                                         </div>
-                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                            <Stethoscope className="w-4 h-4" />
-                                            <span>{p.doctor_name || 'Unknown Doctor'}</span>
+                                        <div>
+                                            <h3 className="font-bold text-slate-800 line-clamp-1" title={p.customer_name}>{p.customer_name || 'Unknown Patient'}</h3>
+                                            <p className="text-xs text-slate-500 flex items-center gap-1">
+                                                <Calendar className="w-3 h-3" />
+                                                {p.visit_date ? format(new Date(p.visit_date), 'PP') : 'No Date'}
+                                            </p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 text-sm bg-muted/50 px-3 py-1 rounded-full h-fit w-fit">
-                                        <Calendar className="w-4 h-4" />
-                                        <span>{p.visit_date ? format(new Date(p.visit_date), 'PP') : 'No Date'}</span>
-                                    </div>
-                                    <Button size="sm" variant="outline" className="text-green-600 border-green-200 hover:bg-green-50" onClick={() => handleShare(p)}>
-                                        <Share2 className="w-4 h-4 mr-1" /> WhatsApp
-                                    </Button>
                                 </div>
-                                <div className="space-y-2">
-                                    <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-wider mb-2">Medicines</h4>
-                                    <div className="flex flex-wrap gap-2">
-                                        {Array.isArray(p.medicines) && p.medicines.map((m, idx) => (
-                                            <Badge key={idx} variant="outline" className="pl-2 gap-1 py-1">
-                                                <Pill className="w-3 h-3 text-blue-500" />
-                                                <span className="font-medium">{m.name}</span>
-                                                {m.dosage && <span className="text-muted-foreground mx-1 text-[10px] border-l pl-1">{m.dosage}</span>}
-                                            </Badge>
-                                        ))}
+
+                                <div className="space-y-3 flex-1">
+                                    <div className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 p-2 rounded-lg">
+                                        <Stethoscope className="w-4 h-4 text-slate-400" />
+                                        <span className="font-medium truncate">{p.doctor_name || 'Unknown Doctor'}</span>
                                     </div>
+
+                                    <div className="space-y-2 mt-2">
+                                        <div className="flex items-center justify-between text-xs font-semibold uppercase text-muted-foreground tracking-wider">
+                                            <span>Medicines</span>
+                                            <Badge variant="secondary" className="text-[10px] h-5">{p.medicines?.length || 0}</Badge>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5 h-20 content-start overflow-hidden">
+                                            {Array.isArray(p.medicines) && p.medicines.slice(0, 4).map((m, idx) => (
+                                                <Badge key={idx} variant="outline" className="text-xs font-normal bg-white">
+                                                    {m.name}
+                                                </Badge>
+                                            ))}
+                                            {Array.isArray(p.medicines) && p.medicines.length > 4 && (
+                                                <span className="text-xs text-muted-foreground pl-1">+{p.medicines.length - 4} more</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
+                                    <Button size="sm" variant="outline" className="flex-1 text-teal-700 border-teal-100 hover:bg-teal-50" onClick={() => handleShare(p)}>
+                                        <Share2 className="w-3.5 h-3.5 mr-1.5" /> Share
+                                    </Button>
+                                    <Button size="sm" className="flex-1 bg-slate-900 text-white hover:bg-slate-800">
+                                        View
+                                    </Button>
                                 </div>
                             </CardContent>
                         </Card>

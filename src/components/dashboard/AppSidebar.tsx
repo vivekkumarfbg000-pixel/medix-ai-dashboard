@@ -46,10 +46,8 @@ const mainNavItems = [
   { title: "Marketplace", url: "/dashboard/marketplace", icon: Store },
   { title: "Orders", url: "/dashboard/orders", icon: MessageSquare },
   { title: "Smart Khata", url: "/dashboard/customers", icon: Users },
-  { title: "Shortbook", url: "/dashboard/shortbook", icon: NotebookPen },
   { title: "Digital Parchas", url: "/dashboard/prescriptions", icon: FileText },
   { title: "Financial Reports", url: "/dashboard/reports", icon: TrendingUp },
-  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: History },
 ];
 
 const aiNavItems = [

@@ -7,9 +7,7 @@ import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 // Widgets
 import { QuickActions } from "@/components/dashboard/widgets/QuickActions";
 import { SafetyWidget } from "@/components/dashboard/widgets/SafetyWidget";
-import { RefillAlertsWidget } from "@/components/dashboard/ai/RefillAlertsWidget";
 import { AICommandCentre } from "@/components/dashboard/widgets/AICommandCentre"; // NEW
-import { SystemHealthWidget } from "@/components/dashboard/widgets/SystemHealthWidget";
 import { DayEndTally } from "@/components/dashboard/widgets/DayEndTally";
 
 const Overview = () => {
@@ -40,7 +38,7 @@ const Overview = () => {
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-foreground tracking-tight">Command Center</h1>
           <p className="text-muted-foreground mt-1 text-sm font-medium">
-            Good Morning, Vivek. You have <span className="text-indigo-600 font-bold">5 Refills Due</span> today.
+            Good Morning, Vivek.
           </p>
         </div>
         <Button className="w-fit shadow-glow bg-primary hover:bg-primary/90 text-white rounded-full px-6">
@@ -49,28 +47,23 @@ const Overview = () => {
         </Button>
       </div>
 
-      {/* ROW 1: CORE OPS (3-COLUMN LAYOUT) */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-stretch">
-        {/* LEFT COLUMN: QUICK ACTIONS (25%) */}
-        <div className="lg:col-span-1 h-full min-h-[400px]">
+      {/* ROW 1: CORE OPS (2-COLUMN LAYOUT) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+        {/* LEFT COLUMN: QUICK ACTIONS */}
+        <div className="h-full min-h-[300px]">
           <QuickActions />
         </div>
 
-        {/* MIDDLE COLUMN: SMART REFILL ENGINE (50%) - Replaces Pulse */}
-        <div className="lg:col-span-2 h-full min-h-[400px]">
-          <RefillAlertsWidget />
-        </div>
-
-        {/* RIGHT COLUMN: SAFETY (25%) */}
-        <div className="lg:col-span-1 h-full min-h-[400px]">
+        {/* RIGHT COLUMN: SAFETY */}
+        <div className="h-full min-h-[300px]">
           <SafetyWidget />
         </div>
       </div>
 
       {/* ROW 2: INTELLIGENCE LAYER */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* AI COMMAND CENTRE (Full Width for Growth) */}
-        <div className="h-full md:col-span-3">
+      <div className="grid grid-cols-1 gap-6">
+        {/* AI COMMAND CENTRE (Full Width) */}
+        <div className="h-full">
           <AICommandCentre />
         </div>
       </div>
@@ -78,7 +71,7 @@ const Overview = () => {
       {/* ROW 3: METRICS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <DayEndTally />
-        <SystemHealthWidget />
+        {/* System Pulse Removed */}
       </div>
 
       {/* Activity Feed & Detailed Metrics */}

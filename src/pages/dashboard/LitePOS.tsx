@@ -105,7 +105,7 @@ const LitePOS = () => {
         try {
             const { data, error } = await supabase
                 .from('inventory')
-                .select('id, medicine_name, quantity, unit_price, batch_number, expiry_date')
+                .select('id, medicine_name, quantity, unit_price, batch_number, expiry_date, rack_number, shelf_number, gst_rate, hsn_code')
                 .eq('shop_id', currentShop.id)
                 .gt('quantity', 0);
 
@@ -283,11 +283,16 @@ const LitePOS = () => {
         const total = calculateTotal();
 
         // Prepare items for DB
+        // Prepare items for DB with Snapshot Metadata (Crucial for Reports/Audit)
         const orderItems = cart.map(c => ({
             name: c.item.medicine_name,
             qty: c.qty,
             price: c.item.unit_price,
-            inventory_id: c.item.id
+            inventory_id: c.item.id,
+            batch: c.item.batch_number || null,
+            expiry: c.item.expiry_date || null,
+            gst: c.item.gst_rate || 0,
+            hsn: c.item.hsn_code || null
         }));
 
         try {
@@ -353,7 +358,11 @@ const LitePOS = () => {
             name: c.item.medicine_name,
             qty: c.qty,
             price: c.item.unit_price,
-            inventory_id: c.item.id
+            inventory_id: c.item.id,
+            batch: c.item.batch_number || null,
+            expiry: c.item.expiry_date || null,
+            gst: c.item.gst_rate || 0,
+            hsn: c.item.hsn_code || null
         }));
 
         try {
@@ -458,10 +467,27 @@ const LitePOS = () => {
                             <button
                                 key={prod.id}
                                 onClick={() => withHaptic(() => addToCart(prod))}
-                                className="h-32 bg-white dark:bg-slate-800 rounded-xl shadow-md border-2 border-slate-200 dark:border-slate-700 p-4 flex flex-col items-center justify-center gap-2 hover:border-blue-400 hover:shadow-lg active:scale-95 transition-all"
+                                className="h-auto min-h-[140px] bg-white dark:bg-slate-800 rounded-xl shadow-md border-2 border-slate-200 dark:border-slate-700 p-3 flex flex-col items-center justify-between hover:border-blue-400 hover:shadow-lg active:scale-95 transition-all group relative overflow-hidden text-left"
                             >
-                                <span className="font-bold text-base text-slate-800 dark:text-white text-center leading-tight line-clamp-2">{prod.medicine_name}</span>
-                                <span className="text-sm bg-emerald-500 text-white px-3 py-1 rounded-full font-semibold shadow-sm">₹{prod.unit_price}</span>
+                                <div className="w-full">
+                                    <div className="flex justify-between items-start mb-1">
+                                        <span className="font-bold text-base text-slate-800 dark:text-white leading-tight line-clamp-2">{prod.medicine_name}</span>
+                                        <span className="text-xs bg-emerald-500 text-white px-2 py-0.5 rounded-full font-bold shadow-sm whitespace-nowrap">₹{prod.unit_price}</span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5">
+                                        <div className="flex justify-between">
+                                            <span>📦 B: <span className="text-slate-700 dark:text-slate-300 font-bold">{prod.batch_number || 'N/A'}</span></span>
+                                            <span>📅 {prod.expiry_date || 'N/A'}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>📍 {prod.rack_number ? `R:${prod.rack_number} S:${prod.shelf_number || '-'}` : 'No Loc'}</span>
+                                            <span>Qty: {prod.quantity}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="w-full mt-2 text-center text-xs text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                    Click to Add +
+                                </div>
                             </button>
                         ))}
                         {products?.length === 0 && (

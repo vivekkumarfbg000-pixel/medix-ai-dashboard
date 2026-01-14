@@ -39,6 +39,9 @@ interface InventoryItem {
   igst_rate?: number;
   schedule_h1?: boolean;
   salt_composition?: string;
+  rack_number?: string;
+  shelf_number?: string;
+  gst_rate?: number;
 }
 
 interface StagingItem {
@@ -76,9 +79,12 @@ const Inventory = () => {
     expiry_date: "",
     manufacturer: "",
     category: "",
+    category: "",
     hsn_code: "",
-    gst_rate: 0,
-    salt_composition: ""
+    gst_rate: 12,
+    salt_composition: "",
+    rack_number: "",
+    shelf_number: ""
   });
 
   /* Debug Logging */
@@ -270,7 +276,12 @@ const Inventory = () => {
       expiry_date: newItem.expiry_date || null,
       manufacturer: newItem.manufacturer,
       category: newItem.category,
-      schedule_h1: complianceResult.is_h1
+      category: newItem.category,
+      schedule_h1: complianceResult.is_h1,
+      rack_number: newItem.rack_number,
+      shelf_number: newItem.shelf_number,
+      gst_rate: newItem.gst_rate,
+      hsn_code: newItem.hsn_code
     } as any);
 
     if (error) {
@@ -281,7 +292,7 @@ const Inventory = () => {
       setIsAddDialogOpen(false);
       setNewItem({
         medicine_name: "", generic_name: "", batch_number: "", quantity: 0, unit_price: 0,
-        expiry_date: "", manufacturer: "", category: "", hsn_code: "", gst_rate: 0, salt_composition: ""
+        expiry_date: "", manufacturer: "", category: "", hsn_code: "", gst_rate: 12, salt_composition: "", rack_number: "", shelf_number: ""
       });
       fetchInventory();
     }
@@ -577,6 +588,38 @@ const Inventory = () => {
                       <Input type="number" step="0.01" value={newItem.unit_price} onChange={(e) => setNewItem({ ...newItem, unit_price: parseFloat(e.target.value) || 0 })} />
                     </div>
                   </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Rack No.</Label>
+                      <Input value={newItem.rack_number} onChange={(e) => setNewItem({ ...newItem, rack_number: e.target.value })} placeholder="e.g. A1" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Shelf No.</Label>
+                      <Input value={newItem.shelf_number} onChange={(e) => setNewItem({ ...newItem, shelf_number: e.target.value })} placeholder="e.g. 2" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>GST Rate (%)</Label>
+                      <select
+                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                        value={newItem.gst_rate}
+                        onChange={(e) => setNewItem({ ...newItem, gst_rate: parseFloat(e.target.value) })}
+                      >
+                        <option value="0">0% (Nil)</option>
+                        <option value="5">5%</option>
+                        <option value="12">12%</option>
+                        <option value="18">18%</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>HSN Code</Label>
+                      <Input value={newItem.hsn_code} onChange={(e) => setNewItem({ ...newItem, hsn_code: e.target.value })} />
+                    </div>
+                  </div>
+
                   <div className="flex justify-end gap-3"><Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button><Button onClick={handleAddItem}>Save</Button></div>
                 </DialogContent>
               </Dialog>
@@ -598,18 +641,24 @@ const Inventory = () => {
                     return (
                       <div key={item.id} className="medical-card group relative hover:shadow-xl transition-all duration-300 flex flex-col justify-between">
                         <div>
-                          <div className="flex justify-between items-start mb-4">
+                          <div className="flex justify-between items-start mb-2">
                             <div>
                               <h3 className={`font-semibold text-lg ${!item.medicine_name ? 'text-red-500' : ''}`}>
                                 {item.medicine_name || "Unknown Item (Data Error)"}
                               </h3>
-                              <p className="text-xs text-muted-foreground">{item.batch_number || "No Batch"}</p>
+                              <p className="text-xs text-muted-foreground font-mono">{item.batch_number || "No Batch"}</p>
                             </div>
                             <Badge variant={item.quantity < 10 ? "destructive" : "secondary"}>{item.quantity} units</Badge>
                           </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground mb-3 bg-slate-50 p-2 rounded">
+                            <div title="Location">📍 {item.rack_number ? `${item.rack_number}-${item.shelf_number || ''}` : 'No Loc'}</div>
+                            <div title="Tax">🧾 GST: {item.gst_rate}%</div>
+                          </div>
+
                           <div className="flex justify-between items-center text-sm mb-4">
-                            <span className="font-bold">₹{item.unit_price}</span>
-                            <Badge variant={status === 'expired' ? 'destructive' : 'outline'} className="text-[10px]">{status === 'safe' ? 'Safe' : 'Check Expiry'}</Badge>
+                            <span className="font-bold text-base">₹{item.unit_price}</span>
+                            <Badge variant={status === 'expired' ? 'destructive' : 'outline'} className="text-[10px]">{status === 'safe' ? `Exp: ${item.expiry_date}` : 'Check Expiry'}</Badge>
                           </div>
                         </div>
 
@@ -817,7 +866,7 @@ const Inventory = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 };
 
