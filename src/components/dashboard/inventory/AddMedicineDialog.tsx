@@ -88,32 +88,48 @@ export const AddMedicineDialog = ({ open, onOpenChange, onSuccess }: AddMedicine
             });
         }
 
-        const { error } = await supabase.from("inventory").insert({
-            shop_id: currentShop.id,
-            medicine_name: values.medicine_name,
-            generic_name: values.generic_name,
-            batch_number: values.batch_number,
-            quantity: values.quantity,
-            unit_price: values.unit_price,
-            expiry_date: values.expiry_date || null,
-            manufacturer: values.manufacturer,
-            category: values.category,
-            schedule_h1: complianceResult.is_h1,
-            rack_number: values.rack_number,
-            shelf_number: values.shelf_number,
-            gst_rate: values.gst_rate,
-            hsn_code: values.hsn_code
-        } as any);
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Request timed out")), 10000)
+        );
 
-        if (error) {
-            toast.error("Failed to add item: " + error.message);
-        } else {
+        try {
+            // @ts-ignore
+            const { error } = await Promise.race([
+                supabase.from("inventory").insert({
+                    shop_id: currentShop.id,
+                    medicine_name: values.medicine_name,
+                    generic_name: values.generic_name,
+                    batch_number: values.batch_number,
+                    quantity: values.quantity,
+                    unit_price: values.unit_price,
+                    expiry_date: values.expiry_date || null,
+                    manufacturer: values.manufacturer,
+                    category: values.category,
+                    schedule_h1: complianceResult.is_h1,
+                    rack_number: values.rack_number,
+                    shelf_number: values.shelf_number,
+                    gst_rate: values.gst_rate,
+                    hsn_code: values.hsn_code
+                }),
+                timeoutPromise
+            ]) as any;
+
+            if (error) {
+                // @ts-ignore
+                throw new Error(error.message || "Database Insert Failed");
+            }
+
             toast.success("Item added successfully");
             form.reset();
             onOpenChange(false);
             if (onSuccess) onSuccess();
+
+        } catch (error: any) {
+            console.error("Add Medicine Error:", error);
+            toast.error("Failed to add item: " + (error.message || "Unknown error"));
+        } finally {
+            setIsSubmitting(false);
         }
-        setIsSubmitting(false);
     };
 
     return (

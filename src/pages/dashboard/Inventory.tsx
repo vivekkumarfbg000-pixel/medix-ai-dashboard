@@ -82,36 +82,44 @@ const Inventory = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
   /* Debug Logging */
+  /* Debug Logging */
   const fetchInventory = async () => {
-    // Only fetch if we have a shop selected (though RLS handles security, this is good for UX)
-    if (!currentShop?.id) return;
-
-    const { data, error } = await supabase
-      .from("inventory")
-      // @ts-ignore
-      .select("*")
-      .order("medicine_name");
-
-    if (error) {
-      console.error(error);
-      toast.error("Failed to load inventory");
-    } else {
-      // @ts-ignore
-      const validData = data || [];
-      if (validData.length > 0) {
-        // console.log("Inventory Loaded:", validData.length, "items", validData[0]);
-      }
-      setInventory(validData);
+    if (!currentShop?.id) {
+      console.warn("fetchInventory: No shop ID");
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    try {
+      const { data, error } = await supabase
+        .from("inventory")
+        // @ts-ignore
+        .select("*")
+        .eq("shop_id", currentShop.id) // EXPLICIT FILTER
+        .order("medicine_name");
+
+      if (error) {
+        console.error("fetchInventory Error:", error);
+        toast.error("Failed to load inventory: " + error.message);
+      } else {
+        // @ts-ignore
+        setInventory(data || []);
+      }
+    } catch (e) {
+      console.error("fetchInventory Exception:", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // fetchStaging removed
 
   useEffect(() => {
     if (currentShop?.id) {
+      setLoading(true);
       fetchInventory();
-      fetchStaging();
+    } else {
+      setLoading(false);
     }
 
     const channel = supabase
@@ -120,7 +128,7 @@ const Inventory = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [currentShop?.id]); // Re-fetch when shop changes
+  }, [currentShop?.id]);
 
   const getExpiryStatus = (expiryDate: string | null) => {
     if (!expiryDate) return "safe";
@@ -314,7 +322,7 @@ const Inventory = () => {
         let errorCount = 0;
 
         const chunks = [];
-        const CHUNK_SIZE = 50;
+        const CHUNK_SIZE = 100;
 
         // Parse Logic
         const parsedData = rows.map(line => {
@@ -332,7 +340,16 @@ const Inventory = () => {
           chunks.push(parsedData.slice(i, i + CHUNK_SIZE));
         }
 
+        const toastId = toast.loading(`Preparing to import ${rows.length} items...`);
+        const timeoutPromise = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error("Request timed out")), ms));
+
+        // Track progress
+        let completedChunks = 0;
+
         for (const chunk of chunks) {
+          completedChunks++;
+          toast.loading(`Importing batch ${completedChunks}/${chunks.length} (${Math.round((completedChunks / chunks.length) * 100)}%)...`, { id: toastId });
+
           const formattedData = chunk.map((row: any) => {
             // Map common CSV headers to DB columns
             const name = row['medicine name'] || row['name'] || row['medicine'] || 'Unknown';
@@ -358,22 +375,34 @@ const Inventory = () => {
 
           if (formattedData.length === 0) continue;
 
-          // @ts-ignore
-          const { error } = await supabase.from('inventory').insert(formattedData);
-          if (error) {
-            console.error("Bulk Insert Error:", error);
+          try {
+            // @ts-ignore
+            const { error } = await Promise.race([
+              supabase.from('inventory').insert(formattedData),
+              timeoutPromise(20000) // 20s timeout per chunk
+            ]) as any;
+
+            if (error) {
+              console.error("Bulk Insert Error:", error);
+              errorCount += chunk.length;
+              toast.error(`Batch ${completedChunks} failed: ${error.message} (Check Console)`);
+            } else {
+              successCount += chunk.length;
+            }
+          } catch (err: any) {
+            console.error("Bulk Insert Exception:", err);
             errorCount += chunk.length;
-          } else {
-            successCount += chunk.length;
+            toast.error(`Chunk error: ${err.message}`);
           }
         }
 
-        toast.dismiss();
+        toast.dismiss(toastId);
         if (successCount > 0) toast.success(`Successfully imported ${successCount} medicines!`);
-        if (errorCount > 0) toast.warning(`Failed to import ${errorCount} items.`);
+        if (errorCount > 0) toast.warning(`Failed to import ${errorCount} items. Check console for details.`);
         fetchInventory();
 
       } catch (err: any) {
+        toast.dismiss(toastId);
         toast.error("Failed to parse CSV: " + err.message);
       }
     };
@@ -381,6 +410,28 @@ const Inventory = () => {
 
     e.target.value = ''; // Reset input
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[50vh]">
+        <div className="flex flex-col items-center gap-2">
+          <RefreshCw className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading Stock...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentShop?.id) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[50vh] text-center space-y-4">
+        <Package className="w-12 h-12 text-muted-foreground" />
+        <h2 className="text-xl font-semibold">No Shop Selected</h2>
+        <p className="text-muted-foreground">Please select or create a shop in Settings.</p>
+        <Button variant="outline" onClick={() => window.location.reload()}>Retry Connection</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
