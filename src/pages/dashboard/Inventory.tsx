@@ -301,6 +301,7 @@ const Inventory = () => {
 
     const reader = new FileReader();
     reader.onload = async (event) => {
+      let toastId: string | number | undefined;
       try {
         const text = event.target?.result as string;
         if (!text) {
@@ -317,7 +318,7 @@ const Inventory = () => {
         const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
         const rows = lines.slice(1);
 
-        toast.loading(`Importing ${rows.length} items...`);
+
         let successCount = 0;
         let errorCount = 0;
 
@@ -340,7 +341,7 @@ const Inventory = () => {
           chunks.push(parsedData.slice(i, i + CHUNK_SIZE));
         }
 
-        const toastId = toast.loading(`Preparing to import ${rows.length} items...`);
+        toastId = toast.loading(`Preparing to import ${rows.length} items...`);
         const timeoutPromise = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error("Request timed out")), ms));
 
         // Track progress
@@ -396,14 +397,22 @@ const Inventory = () => {
           }
         }
 
-        toast.dismiss(toastId);
-        if (successCount > 0) toast.success(`Successfully imported ${successCount} medicines!`);
-        if (errorCount > 0) toast.warning(`Failed to import ${errorCount} items. Check console for details.`);
-        fetchInventory();
+        if (successCount > 0) {
+          toast.success(`Complete! Imported ${successCount} medicines.`, { id: toastId });
+        } else if (errorCount > 0) {
+          toast.warning(`Import finished with ${errorCount} errors. Check console.`, { id: toastId });
+        } else {
+          toast.dismiss(toastId);
+        }
+
+        // Allow UI to update before fetching large inventory
+        setTimeout(() => {
+          fetchInventory();
+        }, 500);
 
       } catch (err: any) {
-        toast.dismiss(toastId);
-        toast.error("Failed to parse CSV: " + err.message);
+        console.error("CSV Import Error:", err);
+        toast.error("Failed to parse CSV: " + err.message, { id: toastId });
       }
     };
     reader.readAsText(file);
