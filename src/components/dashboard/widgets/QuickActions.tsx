@@ -42,7 +42,7 @@ export const QuickActions = () => {
                 <div className="grid grid-cols-2 gap-4">
                     <Button
                         className="h-28 flex flex-col items-start justify-between p-4 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white border-0 shadow-lg shadow-blue-900/20 rounded-2xl transition-all duration-300 hover:scale-[1.02] active:scale-95 group relative overflow-hidden"
-                        onClick={() => navigate("/lite-pos")}
+                        onClick={() => navigate("/dashboard/sales/pos")}
                     >
                         <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                             <Zap className="w-16 h-16" />
