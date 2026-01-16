@@ -7,11 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Bell, RefreshCw, Calendar, Phone } from "lucide-react";
 import { format, isSameDay, parseISO } from "date-fns";
 
+import { useUserShops } from "@/hooks/useUserShops";
+
 export const RefillAlertsWidget = () => {
+    const { currentShop } = useUserShops();
     const [refills, setRefills] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchRefills = async () => {
+        if (!currentShop?.id) return;
         setLoading(true);
         const today = new Date().toISOString().split('T')[0];
 
@@ -20,6 +24,7 @@ export const RefillAlertsWidget = () => {
         const { data, error } = await supabase
             .from('orders')
             .select('id, customer_name, customer_phone, refill_due_date, order_items')
+            .eq('shop_id', currentShop.id) // Secure Filter
             .not('refill_due_date', 'is', null)
             .order('refill_due_date', { ascending: true })
             .limit(5);
@@ -31,16 +36,16 @@ export const RefillAlertsWidget = () => {
     };
 
     useEffect(() => {
-        fetchRefills();
+        if (currentShop?.id) fetchRefills();
 
         // Subscribe to changes
         const channel = supabase
             .channel('refill-updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchRefills)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${currentShop?.id}` }, fetchRefills)
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, []);
+    }, [currentShop?.id]);
 
     return (
         <Card className="h-full border-l-4 border-l-blue-400">

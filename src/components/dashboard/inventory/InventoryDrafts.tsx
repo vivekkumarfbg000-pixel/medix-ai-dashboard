@@ -41,6 +41,7 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest }: InventoryDraftsPro
             const { data, error } = await supabase
                 .from("inventory_staging")
                 .select("*")
+                .eq("shop_id", shopId) // EXPLICIT FILTER
                 .eq("status", "pending")
                 .order("created_at", { ascending: false });
 
@@ -103,9 +104,28 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest }: InventoryDraftsPro
         } as any);
 
         if (insertError) {
-            toast.error("Failed to approve item: " + insertError.message);
-            logger.error(insertError);
-            return;
+            // --- FALLBACK: Retry without 'source' ---
+            if (insertError.code === '42703') {
+                const { error: retryError } = await supabase.from("inventory").insert({
+                    shop_id: shopId,
+                    medicine_name: item.medicine_name,
+                    batch_number: item.batch_number,
+                    quantity: item.quantity,
+                    unit_price: item.unit_price,
+                    expiry_date: item.expiry_date
+                    // source removed
+                } as any);
+
+                if (retryError) {
+                    toast.error("Failed to approve item: " + retryError.message);
+                    return;
+                }
+                // Success path falls through
+            } else {
+                toast.error("Failed to approve item: " + insertError.message);
+                logger.error(insertError);
+                return;
+            }
         }
 
         // 2. Mark as Approved

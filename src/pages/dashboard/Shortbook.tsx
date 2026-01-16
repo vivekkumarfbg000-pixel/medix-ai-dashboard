@@ -1,367 +1,221 @@
-import { useEffect, useState, Component, ErrorInfo, ReactNode } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useUserShops } from "@/hooks/useUserShops";
-import { toast } from "sonner";
-import { NotebookPen, Plus, Trash2, Share2, CheckCircle2, AlertCircle, Sparkles, FileText, Printer, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { Plus, Trash2, Send, ShoppingCart, Loader2 } from "lucide-react";
+import { useUserShops } from "@/hooks/useUserShops";
+import { format } from "date-fns";
 
-interface ShortbookItem {
-    id: string;
-    medicine_name: string;
-    quantity_needed: string;
-    priority: 'normal' | 'high';
-    is_ordered: boolean;
-    created_at: string;
-}
-
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
-    constructor(props: { children: ReactNode }) {
-        super(props);
-        this.state = { hasError: false };
-    }
-
-    static getDerivedStateFromError(_: Error) {
-        return { hasError: true };
-    }
-
-    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error("Shortbook Error:", error, errorInfo);
-    }
-
-    render() {
-        if (this.state.hasError) {
-            return (
-                <div className="p-6 text-center border-2 border-red-200 bg-red-50 rounded-lg">
-                    <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-2" />
-                    <h3 className="text-lg font-bold text-red-700">Something went wrong</h3>
-                    <p className="text-red-600 mb-4">The Shortbook component crashed. Please check your database connection.</p>
-                    <Button variant="outline" onClick={() => this.setState({ hasError: false })}>Try Again</Button>
-                </div>
-            );
-        }
-        return this.props.children;
-    }
-}
-
-const ShortbookContent = ({ embedded = false }: { embedded?: boolean }) => {
+const Shortbook = () => {
     const { currentShop } = useUserShops();
-    const [items, setItems] = useState<ShortbookItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [items, setItems] = useState<any[]>([]);
+    const [distributors, setDistributors] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [newItem, setNewItem] = useState({ product_name: "", quantity: 1, priority: "medium", distributor_id: "any" });
+    const [isAddOpen, setIsAddOpen] = useState(false);
 
-    // Form State
-    const [newName, setNewName] = useState("");
-    const [newQty, setNewQty] = useState("");
-    const [isHighPriority, setIsHighPriority] = useState(false);
-
-    const fetchItems = async () => {
-        if (!currentShop?.id) return;
-        setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('shortbook_items' as any)
-                .select('*')
-                .eq('shop_id', currentShop.id)
-                .order('created_at', { ascending: false });
-
-            if (error) {
-                // If table doesn't exist, don't crash, just log logic error
-                if (error.code === '42P01') {
-                    console.warn("Table shortbook_items not found");
-                } else {
-                    toast.error("Failed to load shortbook");
-                }
-            } else {
-                setItems(data as any[] || []);
-            }
-        } catch (e) {
-            console.error(e);
+    useEffect(() => {
+        if (currentShop?.id) {
+            fetchShortbook();
+            fetchDistributors();
         }
+    }, [currentShop]);
+
+    const fetchShortbook = async () => {
+        setLoading(true);
+        const { data } = await supabase
+            .from('shortbook')
+            .select('*, distributors(name)')
+            .eq('shop_id', currentShop?.id)
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false });
+        if (data) setItems(data);
         setLoading(false);
     };
 
-    useEffect(() => {
-        if (currentShop?.id) fetchItems();
-    }, [currentShop]);
+    const fetchDistributors = async () => {
+        const { data } = await supabase
+            .from('distributors')
+            .select('*')
+            .eq('shop_id', currentShop?.id);
+        if (data) setDistributors(data);
+    };
 
-    const handleAddItem = async () => {
-        if (!newName.trim()) return;
-        if (!currentShop?.id) return;
+    const addItem = async () => {
+        if (!newItem.product_name) return toast.error("Product name is required");
 
-        const { error } = await supabase.from('shortbook_items' as any).insert({
-            shop_id: currentShop.id,
-            medicine_name: newName,
-            quantity_needed: newQty || "1 Box",
-            priority: isHighPriority ? 'high' : 'normal'
-        });
+        const payload: any = {
+            shop_id: currentShop?.id,
+            product_name: newItem.product_name,
+            quantity: newItem.quantity,
+            priority: newItem.priority,
+            added_from: 'manual'
+        };
 
+        if (newItem.distributor_id !== "any") {
+            payload.distributor_id = newItem.distributor_id;
+        }
+
+        const { error } = await supabase.from('shortbook').insert(payload);
         if (error) {
             toast.error("Failed to add item");
         } else {
             toast.success("Added to Shortbook");
-            setNewName("");
-            setNewQty("");
-            setIsHighPriority(false);
-            fetchItems();
+            setIsAddOpen(false);
+            setNewItem({ product_name: "", quantity: 1, priority: "medium", distributor_id: "any" });
+            fetchShortbook();
         }
     };
 
-    const handleDelete = async (id: string) => {
-        const { error } = await supabase.from('shortbook_items' as any).delete().eq('id', id);
-        if (error) toast.error("Failed to delete");
-        else fetchItems();
+    const markOrdered = async (id: string) => {
+        await supabase.from('shortbook').update({ status: 'ordered' }).eq('id', id);
+        toast.success("Marked as ordered");
+        fetchShortbook();
     };
 
-    const toggleOrdered = async (item: ShortbookItem) => {
-        const { error } = await supabase
-            .from('shortbook_items' as any)
-            .update({ is_ordered: !item.is_ordered })
-            .eq('id', item.id);
+    const sendToDistributor = (distributorId: string, distributorName: string, phone: string | null) => {
+        const orderItems = items.filter(i => i.distributor_id === distributorId || (!i.distributor_id && distributorName === "General"));
+        if (orderItems.length === 0) return toast.info("No items for this distributor");
 
-        if (error) toast.error("Update failed");
-        else fetchItems();
-    };
+        const text = `*Order for ${currentShop?.name || 'Pharmacy'}*%0A%0A` +
+            orderItems.map(i => `- ${i.product_name} x${i.quantity}`).join('%0A') +
+            `%0A%0APlease confirm delivery.`;
 
-    const handleShareWhatsApp = () => {
-        const activeItems = items.filter(i => !i.is_ordered);
-        if (activeItems.length === 0) {
-            toast.info("No active items to order");
-            return;
-        }
-
-        let message = `*Order List - ${new Date().toLocaleDateString()}*\n\n`;
-        activeItems.forEach((item, idx) => {
-            message += `${idx + 1}. ${item.medicine_name} - ${item.quantity_needed} ${item.priority === 'high' ? '(URGENT)' : ''}\n`;
-        });
-
-        const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
-        window.open(url, '_blank');
-    };
-
-    const clearOrdered = async () => {
-        const { error } = await supabase
-            .from('shortbook_items' as any)
-            .delete()
-            .eq('shop_id', currentShop?.id)
-            .eq('is_ordered', true);
-
-        if (error) toast.error("Failed to clear");
-        else {
-            toast.success("Cleared ordered items");
-            fetchItems();
-        }
-    };
-
-    const handleAutoAddLowStock = async () => {
-        if (!currentShop?.id) return;
-        toast.loading("Scanning inventory for low stock...");
-
-        // 1. Fetch items with stock < 5 (Threshold)
-        const { data: lowStockItems, error } = await supabase
-            .from('inventory')
-            .select('medicine_name, quantity')
-            .eq('shop_id', currentShop.id)
-            .lt('quantity', 5)
-            .limit(20); // Safety limit
-
-        if (error || !lowStockItems) {
-            toast.dismiss();
-            toast.error("Failed to scan inventory");
-            return;
-        }
-
-        if (lowStockItems.length === 0) {
-            toast.dismiss();
-            toast.info("No low stock items found (< 5 qty)");
-            return;
-        }
-
-        // 2. Add to Shortbook
-        let addedCount = 0;
-        for (const item of lowStockItems) {
-            // Simple check if already in list
-            if (items.some(i => i.medicine_name === item.medicine_name && !i.is_ordered)) continue;
-
-            await supabase.from('shortbook_items' as any).insert({
-                shop_id: currentShop.id,
-                medicine_name: item.medicine_name,
-                quantity_needed: "10 (Auto)", // Default reorder qty
-                priority: 'high'
-            });
-            addedCount++;
-        }
-
-        toast.dismiss();
-        if (addedCount > 0) {
-            toast.success(`Added ${addedCount} low stock items to Shortbook`);
-            fetchItems();
+        if (phone) {
+            const cleanPhone = phone.replace(/\D/g, '');
+            const finalPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+            window.open(`https://wa.me/${finalPhone}?text=${text}`, '_blank');
         } else {
-            toast.info("Low stock items already in list");
-        }
-    };
-
-    const handlePrintPO = () => {
-        const activeItems = items.filter(i => !i.is_ordered);
-        if (activeItems.length === 0) return toast.info("No items to print");
-
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-            printWindow.document.write(`
-                <html>
-                <head>
-                    <title>Purchase Order - ${new Date().toLocaleDateString()}</title>
-                    <style>
-                        body { font-family: sans-serif; padding: 20px; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                        th { background-color: #f2f2f2; }
-                        .header { margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <h1>Purchase Order / Shortbook</h1>
-                        <p>Date: ${new Date().toLocaleDateString()}</p>
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Medicine Name</th>
-                                <th>Quantity Needed</th>
-                                <th>Priority</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${activeItems.map((item, i) => `
-                                <tr>
-                                    <td>${i + 1}</td>
-                                    <td>${item.medicine_name}</td>
-                                    <td>${item.quantity_needed}</td>
-                                    <td>${item.priority === 'high' ? 'URGENT' : 'Normal'}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                    <script>window.print();</script>
-                </body>
-                </html>
-            `);
-            printWindow.document.close();
+            // Fallback for general list sharing
+            if (navigator.share) {
+                navigator.share({ title: 'Pharmacy Order', text: text.replace(/%0A/g, '\n') });
+            } else {
+                navigator.clipboard.writeText(text.replace(/%0A/g, '\n'));
+                toast.success("Order copied to clipboard!");
+            }
         }
     };
 
     return (
-        <div className={`space-y-6 animate-fade-in ${embedded ? 'p-0' : 'p-2 md:p-0'}`}>
-            {!embedded && (
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl lg:text-3xl font-bold text-foreground flex items-center gap-2">
-                            <NotebookPen className="w-8 h-8 text-blue-600" /> Shortbook
-                        </h1>
-                        <p className="text-muted-foreground">Digital reorder notebook. Share with suppliers instantly.</p>
-                    </div>
+        <div className="space-y-6 animate-fade-in p-2 md:p-0">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold flex items-center gap-2">
+                        <ShoppingCart className="w-8 h-8 text-purple-600" /> Shortbook
+                    </h1>
+                    <p className="text-muted-foreground">Track out-of-stock items and send orders to distributors.</p>
                 </div>
-            )}
-
-            {embedded && (
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-semibold text-lg flex items-center gap-2">
-                        <NotebookPen className="w-5 h-5 text-indigo-600" /> Shortbook & Quick Reorder
-                    </h3>
-                    <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={handleAutoAddLowStock} className="text-amber-600 border-amber-200 hover:bg-amber-50">
-                            <Sparkles className="w-3 h-3 mr-1" /> Auto-Fill
-                        </Button>
-                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={handleShareWhatsApp}>
-                            <Share2 className="w-3 h-3 mr-1" /> Share
-                        </Button>
-                    </div>
+                <div className="flex gap-2">
+                    <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                        <DialogTrigger asChild>
+                            <Button><Plus className="w-4 h-4 mr-2" /> Add Item</Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader><DialogTitle>Add to Shortbook</DialogTitle></DialogHeader>
+                            <div className="space-y-4 py-4">
+                                <div className="space-y-2"><Label>Product Name</Label><Input value={newItem.product_name} onChange={e => setNewItem({ ...newItem, product_name: e.target.value })} /></div>
+                                <div className="space-y-2"><Label>Quantity</Label><Input type="number" value={newItem.quantity} onChange={e => setNewItem({ ...newItem, quantity: parseInt(e.target.value) })} /></div>
+                                <div className="space-y-2">
+                                    <Label>Preferred Distributor</Label>
+                                    <Select value={newItem.distributor_id} onValueChange={v => setNewItem({ ...newItem, distributor_id: v })}>
+                                        <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="any">Any Distributor</SelectItem>
+                                            {distributors.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Priority</Label>
+                                    <Select value={newItem.priority} onValueChange={v => setNewItem({ ...newItem, priority: v })}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="low">Low</SelectItem>
+                                            <SelectItem value="medium">Medium</SelectItem>
+                                            <SelectItem value="high">High</SelectItem>
+                                            <SelectItem value="urgent">Urgent 🚨</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <Button className="w-full" onClick={addItem}>Add to List</Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
                 </div>
-            )}
+            </div>
 
-            {/* Input Area */}
-            <Card className="border-blue-100 bg-blue-50/30">
-                <CardContent className="pt-6">
-                    <div className="flex flex-col md:flex-row gap-3 items-end">
-                        <div className="flex-1 w-full space-y-2">
-                            <label className="text-sm font-medium">Medicine Name</label>
-                            <Input
-                                placeholder="e.g. Dolo 650"
-                                value={newName}
-                                onChange={e => setNewName(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleAddItem()}
-                            />
-                        </div>
-                        <div className="w-full md:w-32 space-y-2">
-                            <label className="text-sm font-medium">Qty</label>
-                            <Input
-                                placeholder="5 boxes"
-                                value={newQty}
-                                onChange={e => setNewQty(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleAddItem()}
-                            />
-                        </div>
-                        <div className="flex items-center pb-3 px-2 gap-2">
-                            <input
-                                type="checkbox"
-                                id="urgent"
-                                className="w-4 h-4"
-                                checked={isHighPriority}
-                                onChange={e => setIsHighPriority(e.target.checked)}
-                            />
-                            <label htmlFor="urgent" className="text-sm font-medium cursor-pointer text-red-600">Urgent?</label>
-                        </div>
-                        <Button onClick={handleAddItem} className="w-full md:w-auto">
-                            <Plus className="w-4 h-4 mr-1" /> Add
-                        </Button>
-                    </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Distributor Quick Actions */}
+                {loading ? <Loader2 className="animate-spin" /> :
+                    distributors.map(d => {
+                        const count = items.filter(i => i.distributor_id === d.id).length;
+                        if (count === 0) return null;
+                        return (
+                            <Card key={d.id} className="bg-purple-50 border-purple-100">
+                                <CardContent className="p-4 flex items-center justify-between">
+                                    <div>
+                                        <div className="font-bold text-purple-900">{d.name}</div>
+                                        <div className="text-xs text-purple-600">{count} items pending</div>
+                                    </div>
+                                    <Button size="sm" variant="outline" className="border-green-400 text-green-700 bg-white hover:bg-green-50" onClick={() => sendToDistributor(d.id, d.name, d.phone)}>
+                                        <Send className="w-4 h-4" />
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        );
+                    })
+                }
+            </div>
+
+            <Card>
+                <CardContent className="p-0">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead>Qty</TableHead>
+                                <TableHead>Priority</TableHead>
+                                <TableHead>Distributor</TableHead>
+                                <TableHead>Added</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {items.length === 0 ? (
+                                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Shortbook is empty.</TableCell></TableRow>
+                            ) : items.map(item => (
+                                <TableRow key={item.id}>
+                                    <TableCell className="font-medium">{item.product_name}</TableCell>
+                                    <TableCell>{item.quantity}</TableCell>
+                                    <TableCell>
+                                        <Badge variant={item.priority === 'urgent' ? 'destructive' : 'secondary'}>
+                                            {item.priority}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>{item.distributors?.name || 'Any'}</TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">{format(new Date(item.created_at), 'dd MMM')}</TableCell>
+                                    <TableCell className="text-right flex justify-end gap-2">
+                                        <Button size="sm" variant="outline" className="text-green-600" onClick={() => markOrdered(item.id)}>Ordered</Button>
+                                        <Button size="icon" variant="ghost" className="text-red-400 hover:text-red-600" onClick={async () => {
+                                            await supabase.from('shortbook').delete().eq('id', item.id);
+                                            fetchShortbook();
+                                        }}><Trash2 className="w-4 h-4" /></Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </CardContent>
             </Card>
-
-            {/* List */}
-            <div className="grid gap-3">
-                <div className="flex justify-end">
-                    <Button variant="ghost" size="sm" onClick={clearOrdered} className="text-xs text-muted-foreground hover:text-red-500">
-                        <Trash2 className="w-3 h-3 mr-1" /> Clear CompletedItems
-                    </Button>
-                </div>
-                {items.map((item) => (
-                    <Card key={item.id} className={`transition-all ${item.is_ordered ? 'opacity-60 bg-slate-50' : 'hover:shadow-md'}`}>
-                        <CardContent className="p-4 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <button onClick={() => toggleOrdered(item)} className={`p-2 rounded-full transition-colors ${item.is_ordered ? 'text-green-600 bg-green-100' : 'text-slate-300 hover:text-slate-400'}`}>
-                                    <CheckCircle2 className="w-6 h-6" />
-                                </button>
-                                <div>
-                                    <h3 className={`font-semibold text-md ${item.is_ordered ? 'line-through text-muted-foreground' : ''}`}>
-                                        {item.medicine_name}
-                                    </h3>
-                                    <div className="flex gap-2 text-sm text-muted-foreground">
-                                        <span>Qty: {item.quantity_needed}</span>
-                                        {item.priority === 'high' && (
-                                            <Badge variant="destructive" className="h-5 text-[10px] px-1">URGENT</Badge>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} className="text-muted-foreground hover:text-red-500">
-                                <Trash2 className="w-4 h-4" />
-                            </Button>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
         </div>
     );
 };
 
-export default function Shortbook({ embedded = false }: { embedded?: boolean }) {
-    return (
-        <ErrorBoundary>
-            <ShortbookContent embedded={embedded} />
-        </ErrorBoundary>
-    );
-}
+export default Shortbook;

@@ -48,6 +48,8 @@ export interface OfflineInventory {
     shelf_number?: string;
     gst_rate?: number;
     hsn_code?: string;
+    composition?: string; // Chemical composition for substitutes
+    purchase_price?: number; // For margin calculation
     is_synced: number; // 1 = Synced, 0 = Pending Upload
 }
 

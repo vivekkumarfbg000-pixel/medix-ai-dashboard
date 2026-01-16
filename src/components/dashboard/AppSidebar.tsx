@@ -15,7 +15,8 @@ import {
   Users,
   History,
   Truck,
-  NotebookPen
+  NotebookPen,
+  BookOpen
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useUserShops } from "@/hooks/useUserShops";
+import { useDemandForecast } from "@/hooks/useDemandForecast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,8 +28,9 @@ import { logger } from "@/utils/logger";
 import { format, differenceInDays } from "date-fns";
 import { useSearchParams } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FileText as FileTextIcon, History } from "lucide-react";
+import { FileText as FileTextIcon, History, Scan } from "lucide-react";
 import AuditLogs from "@/pages/dashboard/AuditLogs";
+import { StockAudit } from "@/components/dashboard/inventory/StockAudit";
 
 interface InventoryItem {
   id: string;
@@ -77,6 +79,9 @@ const Inventory = () => {
   const { currentShop } = useUserShops();
   const { canModify } = useUserRole(currentShop?.id);
   const [activeTab, setActiveTab] = useState("stock");
+
+  // AI Forecast Hook
+  const { predictions } = useDemandForecast(currentShop?.id);
 
   /* Add Item State */
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -216,11 +221,34 @@ const Inventory = () => {
     if (itemsError) {
       toast.error("Failed to add items to Note");
     } else {
-      toast.success("Return Note Created!");
+      // 3. Generate PDF
+      try {
+        pdfService.generateReturnNote(
+          { name: currentShop?.name || "My Pharmacy" },
+          supplierName,
+          itemsToReturn
+        );
+      } catch (e) { console.error("PDF Gen Failed", e); }
+
+      // 4. Success & WhatsApp Prompt
+      toast.success("Return Note Created & PDF Downloaded!", {
+        action: {
+          label: "Share on WhatsApp",
+          onClick: () => {
+            const link = whatsappService.generateReturnMessage(null, {
+              shop_name: currentShop?.name,
+              supplier_name: supplierName,
+              item_count: itemsToReturn.length
+            });
+            window.open(link, '_blank');
+          }
+        },
+        duration: 6000
+      });
+
       setIsReturnDialogOpen(false);
       setIsSelectMode(false);
       setSelectedItems([]);
-      // Ideally redirect to "Purchases -> Returns" tab, but for now just show success
     }
   };
 
@@ -318,17 +346,17 @@ const Inventory = () => {
         const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
         const rows = lines.slice(1);
 
-
         let successCount = 0;
         let errorCount = 0;
+        let consecutiveErrors = 0;
+        let completedChunks = 0;
+        let criticalError = false;
 
         const chunks = [];
-        const CHUNK_SIZE = 100;
+        const CHUNK_SIZE = 20; // Reduced to 20 for maximum safety
 
         // Parse Logic
         const parsedData = rows.map(line => {
-          // Handle quotes if needed, but for simple usage simple split is okay for now
-          // For robust parsing without lib, we assume standard CSV without comma in values for now
           const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
           const row: any = {};
           headers.forEach((h, i) => {
@@ -337,42 +365,91 @@ const Inventory = () => {
           return row;
         });
 
-        for (let i = 0; i < parsedData.length; i += CHUNK_SIZE) {
-          chunks.push(parsedData.slice(i, i + CHUNK_SIZE));
+        // Parse and Format ALL Data First
+        const formattedDataAll = parsedData.map((row: any) => {
+          const name = row['medicine name'] || row['name'] || row['medicine'] || 'Unknown';
+          const quantity = parseInt(row['qty'] || row['quantity'] || row['stock'] || '0');
+          const price = parseFloat(row['mrp'] || row['price'] || row['unit price'] || '0');
+
+          return {
+            shop_id: currentShop.id,
+            medicine_name: name,
+            batch_number: row['batch'] || row['batch number'] || null,
+            quantity: isNaN(quantity) ? 0 : quantity,
+            unit_price: isNaN(price) ? 0 : price,
+            expiry_date: row['expiry'] || row['expiry date'] || null,
+            barcode: row['barcode'] || null,
+            manufacturer: row['manufacturer'] || null,
+            rack_number: row['rack'] || row['rack no'] || null,
+            shelf_number: row['shelf'] || row['shelf no'] || null,
+            gst_rate: parseFloat(row['gst'] || row['gst rate'] || '0'),
+            hsn_code: row['hsn'] || row['hsn code'] || null,
+            source: 'bulk_csv'
+          };
+        }).filter((item: any) => item.medicine_name !== 'Unknown');
+
+        for (let i = 0; i < formattedDataAll.length; i += CHUNK_SIZE) {
+          chunks.push(formattedDataAll.slice(i, i + CHUNK_SIZE));
         }
 
-        toastId = toast.loading(`Preparing to import ${rows.length} items...`);
-        const timeoutPromise = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error("Request timed out")), ms));
+        const timeoutPromise = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error("Request timed out - check your connection")), ms));
 
-        // Track progress
-        let completedChunks = 0;
+
+
+        // --- DRY RUN: Test Connection & Permissions ---
+        try {
+          toast.loading("Verifying connection...", { id: toastId });
+
+          const dryRunPromise = async () => {
+            // 1. Insert Test Record
+            const testItem = {
+              ...formattedDataAll[0],
+              medicine_name: "Connectivity_Test_" + Date.now(),
+              quantity: 1,
+              source: 'system_test'
+            };
+
+            const { data: testData, error: testError } = await supabase.from('inventory').insert([testItem]).select().single();
+            if (testError) throw testError;
+
+            // 2. Cleanup Test Record (Fire and forget cleanup to avoid waiting)
+            if (testData?.id) {
+              await supabase.from('inventory').delete().eq('id', testData.id);
+            }
+            return true;
+          };
+
+          // Race against 5s timeout
+          await Promise.race([
+            dryRunPromise(),
+            timeoutPromise(5000)
+          ]);
+
+        } catch (e: any) {
+          console.error("Dry Run Failed:", e);
+          if (e.code === '42501' || e.message?.includes("security policy")) {
+            toast.error("Permission Denied: Check Settings -> Pharmacy Profile.", { id: toastId, duration: 5000 });
+          } else {
+            toast.error("Connection Failed. Refresh and try again.", { id: toastId, duration: 4000 });
+          }
+          return; // STOP HERE
+        }
+        // -----------------------------------------------
 
         for (const chunk of chunks) {
+          if (criticalError) break;
+          // Abort if too many errors in a row (prevent infinite loop of failures)
+          if (consecutiveErrors >= 3) {
+            toast.error("Too many errors (3 batches failed). Aborting import.", { id: toastId });
+            criticalError = true;
+            break;
+          }
+
           completedChunks++;
           toast.loading(`Importing batch ${completedChunks}/${chunks.length} (${Math.round((completedChunks / chunks.length) * 100)}%)...`, { id: toastId });
 
-          const formattedData = chunk.map((row: any) => {
-            // Map common CSV headers to DB columns
-            const name = row['medicine name'] || row['name'] || row['medicine'] || 'Unknown';
-            const quantity = parseInt(row['qty'] || row['quantity'] || row['stock'] || '0');
-            const price = parseFloat(row['mrp'] || row['price'] || row['unit price'] || '0');
-
-            return {
-              shop_id: currentShop.id,
-              medicine_name: name,
-              batch_number: row['batch'] || row['batch number'] || null,
-              quantity: isNaN(quantity) ? 0 : quantity,
-              unit_price: isNaN(price) ? 0 : price,
-              expiry_date: row['expiry'] || row['expiry date'] || null,
-              barcode: row['barcode'] || null,
-              manufacturer: row['manufacturer'] || null,
-              rack_number: row['rack'] || row['rack no'] || null,
-              shelf_number: row['shelf'] || row['shelf no'] || null,
-              gst_rate: parseFloat(row['gst'] || row['gst rate'] || '0'),
-              hsn_code: row['hsn'] || row['hsn code'] || null,
-              source: 'bulk_csv'
-            };
-          }).filter((item: any) => item.medicine_name !== 'Unknown');
+          // chunk is now already formatted data
+          const formattedData = chunk;
 
           if (formattedData.length === 0) continue;
 
@@ -380,25 +457,60 @@ const Inventory = () => {
             // @ts-ignore
             const { error } = await Promise.race([
               supabase.from('inventory').insert(formattedData),
-              timeoutPromise(20000) // 20s timeout per chunk
+              timeoutPromise(10000) // Reduced to 10s per chunk
             ]) as any;
 
             if (error) {
+              // --- FALLBACK: Retry without 'source' column if schema is old ---
+              if (error.code === '42703') { // undefined_column
+                console.warn("Schema Mismatch: 'source' column missing. Retrying without it...");
+                const fallbackData = formattedData.map((d: any) => {
+                  const { source, ...rest } = d;
+                  return rest;
+                });
+                const { error: retryError } = await supabase.from('inventory').insert(fallbackData);
+                if (retryError) {
+                  console.error("Fallback Failed:", retryError);
+                  errorCount += chunk.length;
+                  toast.error(`Batch ${completedChunks} failed (even after fallback): ${retryError.message}`, { id: toastId });
+                } else {
+                  successCount += chunk.length;
+                  consecutiveErrors = 0;
+                }
+                // Continue to next chunk
+                continue;
+              }
+              // -------------------------------------------------------------
+
               console.error("Bulk Insert Error:", error);
               errorCount += chunk.length;
-              toast.error(`Batch ${completedChunks} failed: ${error.message} (Check Console)`);
+              consecutiveErrors++;
+
+              // If RLS error, ABORT immediately don't retry
+              if (error.code === '42501' || error.message?.includes("security policy")) {
+                toast.error(`Permission Error: Stopping import. ${error.message}`, { id: toastId });
+                criticalError = true;
+              } else {
+                toast.error(`Batch ${completedChunks} failed: ${error.message}`, { id: toastId });
+              }
             } else {
               successCount += chunk.length;
+              consecutiveErrors = 0; // Reset
             }
           } catch (err: any) {
             console.error("Bulk Insert Exception:", err);
             errorCount += chunk.length;
-            toast.error(`Chunk error: ${err.message}`);
+            toast.error(`Timeout/Network Error: Stopping import.`, { id: toastId });
+            criticalError = true;
           }
         }
 
-        if (successCount > 0) {
-          toast.success(`Complete! Imported ${successCount} medicines.`, { id: toastId });
+        // --- FINAL STATUS CHECK ---
+        if (criticalError) {
+          // Ensure the user knows why it stopped
+          toast.error("Import Aborted due to critical errors.", { id: toastId, duration: 5000 });
+        } else if (successCount > 0) {
+          toast.success(`Success! Imported ${successCount} items to Shop (${currentShop.name}).`, { id: toastId });
         } else if (errorCount > 0) {
           toast.warning(`Import finished with ${errorCount} errors. Check console.`, { id: toastId });
         } else {
@@ -455,8 +567,16 @@ const Inventory = () => {
           </p>
         </div>
 
+        const [isAuditOpen, setIsAuditOpen] = useState(false);
+
+        // ... inside return ...
+
         {/* Bulk Actions Toolbar */}
         <div className="flex gap-2 items-center">
+          <Button variant="outline" className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50" onClick={() => setIsAuditOpen(true)}>
+            <Scan className="w-4 h-4" /> Audit Mode
+          </Button>
+
           {/* Default Actions */}
           {!isSelectMode && !isExpiryFilter && (
             <>
@@ -509,13 +629,16 @@ const Inventory = () => {
         </div>
       </div>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 h-auto p-1">
+        <TabsList className="grid w-full grid-cols-4 h-auto p-1">
           <TabsTrigger value="stock" className="gap-2 py-2">
             <Package className="w-4 h-4" /> Live Stock
           </TabsTrigger>
           <TabsTrigger value="drafts" className="gap-2 relative py-2">
             <Sparkles className="w-4 h-4 text-purple-500" />
             AI Drafts
+          </TabsTrigger>
+          <TabsTrigger value="deadstock" className="gap-2 py-2">
+            <AlertTriangle className="w-4 h-4 text-amber-500" /> Dead Stock
           </TabsTrigger>
           <TabsTrigger value="audit" className="gap-2 py-2">
             <History className="w-4 h-4" /> Audit Logs
@@ -526,6 +649,26 @@ const Inventory = () => {
         </TabsContent>
 
         <TabsContent value="stock" className="space-y-6">
+          {/* AI Reorder Recommendations */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {predictions.filter(p => p.predicted_quantity > 0).slice(0, 2).map((pred, i) => (
+              <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between animate-in slide-in-from-top-2">
+                <div className="flex items-center gap-3">
+                  <div className="bg-amber-100 p-2 rounded-full">
+                    <TrendingUp className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-amber-900">Reorder Alert: {pred.medicine_name}</p>
+                    <p className="text-xs text-amber-700">Stock: {pred.current_stock} | Suggested: +{pred.predicted_quantity}</p>
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" className="border-amber-300 text-amber-800 hover:bg-amber-100 h-7 text-xs">
+                  Add to PO
+                </Button>
+              </div>
+            ))}
+          </div>
+
           <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
             <Card className="flex-1 w-full">
               <CardContent className="p-4 flex gap-4">
@@ -627,6 +770,41 @@ const Inventory = () => {
         </TabsContent>
 
         {/* ... Drafts Tab Content ... */}
+        <TabsContent value="deadstock" className="space-y-6">
+          <Card className="border-l-4 border-l-amber-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" /> Non-Moving Stock (Dead Stock)
+              </CardTitle>
+              <CardDescription>
+                Items with 0 predicted sales velocity based on recent history.
+                Consider clearance to free up capital.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {predictions.filter(p => p.avg_daily_sales === 0 && p.current_stock > 0).length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No dead stock detected! (Run "Forecast Analysis" to update)
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {predictions.filter(p => p.avg_daily_sales === 0 && p.current_stock > 0).map((item, idx) => (
+                    <div key={idx} className="flex flex-col md:flex-row justify-between items-center p-4 border rounded-lg bg-slate-50">
+                      <div>
+                        <h4 className="font-bold text-slate-800">{item.medicine_name}</h4>
+                        <p className="text-sm text-slate-500">Current Stock: <span className="font-mono font-bold text-slate-700">{item.current_stock} units</span></p>
+                      </div>
+                      <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200">
+                        0 Sales / 30 Days
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="drafts" className="space-y-4">
           <InventoryDrafts
             shopId={currentShop?.id || ""}
@@ -642,6 +820,13 @@ const Inventory = () => {
         item={adjustmentDialog.item}
         mode={adjustmentDialog.type}
         onSuccess={fetchInventory}
+      />
+
+      <StockAudit
+        open={isAuditOpen}
+        onOpenChange={setIsAuditOpen}
+        shopId={currentShop?.id || ''}
+        onComplete={fetchInventory}
       />
     </div >
   );

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useDemandForecast } from "@/hooks/useDemandForecast";
 import { format, addMonths, parseISO, differenceInDays } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,40 +43,33 @@ interface ExpiryRisk {
 
 const Forecasting = () => {
   const { currentShop } = useUserShops();
-  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("demand");
   const [stockoutRisks, setStockoutRisks] = useState<StockoutRisk[]>([]);
   const [expiryRisks, setExpiryRisks] = useState<ExpiryRisk[]>([]);
   const [forecastHistory, setForecastHistory] = useState<any[]>([]);
 
+  // Use the new hook
+  const { predictions, loading, runAIAnalysis } = useDemandForecast(currentShop?.id);
+
   useEffect(() => {
-    if (!currentShop?.id) return;
-    fetchPredictions();
-    fetchExpiryRisks();
-  }, [currentShop?.id]);
-
-  const fetchPredictions = async () => {
-    const { data } = await supabase
-      .from('restock_predictions')
-      .select('*')
-      .order('predicted_quantity', { ascending: false });
-
-    // No forecast_history table - use empty array
-    setForecastHistory([]);
-
-    if (data) {
-      const risks = (data as any[]).map((item) => ({
+    if (predictions.length > 0) {
+      const risks = predictions.map((item) => ({
         medicine: item.medicine_name,
         currentStock: item.current_stock,
-        avgDailySales: item.avg_daily_sales || 5,
-        burnRate: item.current_stock / (item.avg_daily_sales || 1),
+        avgDailySales: item.avg_daily_sales || 5, // fallback
+        burnRate: item.avg_daily_sales > 0 ? item.current_stock / item.avg_daily_sales : 999,
         safetyStock: 50,
         reorderQty: item.predicted_quantity,
-        criticality: (item.current_stock / (item.avg_daily_sales || 1)) < 3 ? "high" : "medium"
+        criticality: (item.avg_daily_sales > 0 && (item.current_stock / item.avg_daily_sales) < 3) ? "high" as const : "medium" as const
       }));
-      setStockoutRisks(risks as StockoutRisk[]);
+      setStockoutRisks(risks);
     }
-  };
+  }, [predictions]);
+
+  useEffect(() => {
+    if (!currentShop?.id) return;
+    fetchExpiryRisks();
+  }, [currentShop?.id]);
 
   const fetchExpiryRisks = async () => {
     if (!currentShop?.id) return;
@@ -123,110 +117,7 @@ const Forecasting = () => {
 
   const seasonalAlerts = getSeasonalAlerts();
 
-  /* Rate of Sale (ROS) Engine */
-  const runAIAnalysis = async () => {
-    if (!currentShop?.id) return;
-    setLoading(true);
-    const toastId = toast.loading("Analyzing Sales Velocity...");
-
-    try {
-      // 1. Fetch Sales History (Last 30 Days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const { data: orders, error: orderError } = await supabase
-        .from('orders')
-        .select('order_items, created_at')
-        .eq('shop_id', currentShop.id)
-        .gte('created_at', thirtyDaysAgo.toISOString());
-
-      if (orderError) throw orderError;
-
-      // 2. Fetch Current Inventory
-      const { data: inventory, error: invError } = await supabase
-        .from('inventory')
-        .select('id, medicine_name, quantity, unit_price')
-        .eq('shop_id', currentShop.id);
-
-      if (invError) throw invError;
-
-      // 3. Aggregate Sales (Map <MedicineName, QtySold>)
-      const salesMap = new Map<string, number>();
-      orders?.forEach(order => {
-        const items = order.order_items as any[];
-        if (Array.isArray(items)) {
-          items.forEach(item => {
-            const name = item.name || item.medicine_name;
-            if (name) {
-              const qty = parseInt(item.qty || item.quantity || 0);
-              salesMap.set(name, (salesMap.get(name) || 0) + qty);
-            }
-          });
-        }
-      });
-
-      // 4. Calculate ROS & Predictions
-      const predictions = inventory?.map(item => {
-        const totalSold = salesMap.get(item.medicine_name) || 0;
-        const avgDailySales = totalSold / 30; // Simple Moving Average
-        const currentStock = item.quantity;
-
-        // Forecast Logic
-        const safetyStockDays = 14; // buffer
-        const leadTimeDays = 2; // time to restock
-
-        let predictedRestock = 0;
-        let status = "Healthy";
-        let confidence = 0.9;
-
-        if (avgDailySales > 0) {
-          const daysCover = currentStock / avgDailySales;
-          const reorderPoint = avgDailySales * (leadTimeDays + safetyStockDays);
-
-          if (currentStock < reorderPoint) {
-            predictedRestock = Math.ceil(reorderPoint - currentStock);
-            status = "Low Stock";
-          }
-        } else {
-          status = "Dead Stock";
-          confidence = 0.5; // Low confidence if no sales
-        }
-
-        return {
-          shop_id: currentShop.id,
-          medicine_name: item.medicine_name,
-          current_stock: currentStock,
-          avg_daily_sales: parseFloat(avgDailySales.toFixed(2)),
-          predicted_quantity: predictedRestock,
-          confidence_score: confidence,
-          reason: status
-        };
-      });
-
-      // 5. Save to DB (Clear old first)
-      await supabase.from('restock_predictions').delete().eq('shop_id', currentShop.id);
-
-      if (predictions && predictions.length > 0) {
-        // Filter only relevant predictions to save space (e.g. only reorders or active items)
-        const vitalPredictions = predictions.filter(p => p.predicted_quantity > 0 || p.avg_daily_sales > 0);
-
-        if (vitalPredictions.length > 0) {
-          const { error: saveError } = await supabase.from('restock_predictions').insert(vitalPredictions);
-          if (saveError) throw saveError;
-        }
-      }
-
-      toast.success(`Analysis Complete. Processed ${orders?.length} orders.`);
-      fetchPredictions(); // Refresh UI
-
-    } catch (e: any) {
-      console.error("Forecasting Error:", e);
-      toast.error("Analysis Failed: " + e.message);
-    } finally {
-      setLoading(false);
-      toast.dismiss(toastId);
-    }
-  };
+  /* Rate of Sale (ROS) Engine - Now in useDemandForecast hook */
 
   const addToReorder = (item: StockoutRisk) => {
     toast.success(`Added ${item.reorderQty} units of ${item.medicine} to Purchase Order`);

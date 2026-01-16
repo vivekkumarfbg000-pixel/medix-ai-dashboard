@@ -5,17 +5,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { TrendingUp, RefreshCw, Archive, Sparkles } from "lucide-react";
 
+import { useUserShops } from "@/hooks/useUserShops";
+
 export const BusinessReportWidget = () => {
+    const { currentShop } = useUserShops();
     const [predictions, setPredictions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchPredictions = async () => {
+        if (!currentShop?.id) return;
         setLoading(true);
         // Fetch AI predictions
         // @ts-ignore - Table exists in database
         const { data, error } = await supabase
             .from('restock_predictions')
             .select('*')
+            .eq('shop_id', currentShop.id) // Secure Filter
             .order('confidence_score', { ascending: false })
             .limit(4);
 
@@ -26,8 +31,8 @@ export const BusinessReportWidget = () => {
     };
 
     useEffect(() => {
-        fetchPredictions();
-    }, []);
+        if (currentShop?.id) fetchPredictions();
+    }, [currentShop?.id]);
 
     return (
         <Card className="h-full border-l-4 border-l-purple-400 bg-gradient-to-br from-purple-50/50 to-transparent dark:from-purple-900/10">

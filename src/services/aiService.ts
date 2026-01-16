@@ -80,8 +80,29 @@ export const aiService = {
         const { data: { user } } = await supabase.auth.getUser();
         const shopId = localStorage.getItem("currentShopId");
 
+        // --- NEW: Inject Inventory Context (Low Stock) ---
+        let contextMessage = message;
+        try {
+            if (shopId) {
+                const { data: lowStock } = await supabase
+                    .from('inventory')
+                    .select('medicine_name, quantity, reorder_level')
+                    .eq('shop_id', shopId)
+                    .lt('quantity', 15) // Simple threshold for context
+                    .limit(10);
+
+                if (lowStock && lowStock.length > 0) {
+                    const stockContext = lowStock.map(i => `${i.medicine_name}: ${i.quantity} left`).join(', ');
+                    contextMessage = `${message}\n\n[System Context - Low Stock Items: ${stockContext}]`;
+                    logger.log("[AI Context] Injected Stock Data");
+                }
+            }
+        } catch (ctxErr) {
+            console.warn("Failed to inject AI context", ctxErr);
+        }
+
         const payload = {
-            query: message,
+            query: contextMessage,
             image: image ? (image.includes(',') ? image.split(',')[1] : image) : undefined,
             userId: user?.id,
             shopId: shopId

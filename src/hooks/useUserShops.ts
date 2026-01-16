@@ -44,13 +44,45 @@ export function useUserShops(): UserShopsState {
 
         if (error) {
           console.error("Error fetching shops:", error);
-        } else if (userShops) {
-          const mappedShops = userShops.map((us: any) => ({
+        }
+
+        let mappedShops: Shop[] = [];
+
+        if (userShops && userShops.length > 0) {
+          mappedShops = userShops.map((us: any) => ({
             id: us.shops.id,
             name: us.shops.name,
             address: us.shops.address,
             is_primary: us.is_primary,
           }));
+        } else {
+          // FALLBACK: Check profile if no user_shops mapping exists (Migration safety)
+          console.warn("No user_shops found, checking profile fallback...");
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("shop_id")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (profile?.shop_id) {
+            const { data: shop } = await supabase
+              .from("shops")
+              .select("id, name, address")
+              .eq("id", profile.shop_id)
+              .single();
+
+            if (shop) {
+              mappedShops = [{
+                id: shop.id,
+                name: shop.name || "My Shop",
+                address: shop.address,
+                is_primary: true
+              }];
+            }
+          }
+        }
+
+        if (mappedShops.length > 0) {
           setShops(mappedShops);
 
           // Set current shop to primary or first available

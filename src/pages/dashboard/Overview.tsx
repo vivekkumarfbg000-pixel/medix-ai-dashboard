@@ -11,6 +11,8 @@ import { AICommandCentre } from "@/components/dashboard/widgets/AICommandCentre"
 import { DayEndTally } from "@/components/dashboard/widgets/DayEndTally";
 import { AddMedicineDialog } from "@/components/dashboard/inventory/AddMedicineDialog";
 
+import { SystemHealthCheck } from "@/components/debug/SystemHealthCheck";
+
 const Overview = () => {
   const [loading, setLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -35,6 +37,9 @@ const Overview = () => {
 
   return (
     <div className="space-y-6 animate-fade-in pb-8">
+      {/* System Health Check (Only shows if critical errors found) */}
+      <SystemHealthCheck />
+
       {/* Welcome Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

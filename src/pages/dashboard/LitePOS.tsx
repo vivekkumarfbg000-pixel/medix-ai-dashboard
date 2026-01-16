@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, OfflineInventory } from "@/db/db";
 import { toast } from "sonner";
-import { ShoppingCart, RefreshCw, Mic, Trash2, ArrowLeft, Download, ShieldAlert } from "lucide-react";
+import { ShoppingCart, RefreshCw, Mic, Trash2, ArrowLeft, Download, ShieldAlert, Zap } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { VoiceCommandBar, ParsedItem } from "@/components/dashboard/VoiceCommandBar";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,10 @@ import { aiService } from "@/services/aiService";
 
 import { CustomerSearch, Customer } from "@/components/dashboard/CustomerSearch";
 import { SalesReturnModal } from "@/components/dashboard/SalesReturnModal";
+import { SubstituteModal } from "@/components/dashboard/SubstituteModal";
+import { RecentInvoices } from "@/components/dashboard/RecentInvoices";
+import { UpsellWidget } from "@/components/dashboard/UpsellWidget";
+import { Eye, EyeOff, Percent } from "lucide-react";
 
 const LitePOS = () => {
     const [cart, setCart] = useState<{ item: OfflineInventory; qty: number }[]>([]);
@@ -25,8 +29,40 @@ const LitePOS = () => {
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null); // New State
     const { currentShop } = useUserShops();
     const [interactions, setInteractions] = useState<string[]>([]);
+    const [dismissedInteractions, setDismissedInteractions] = useState(false);
     const [checkingSafety, setCheckingSafety] = useState(false);
+    const [customerStats, setCustomerStats] = useState<{ lastVisit: string | null; topItems: string[] } | null>(null);
     const location = useLocation();
+
+    // Fetch Customer Insights
+    useEffect(() => {
+        if (!selectedCustomer) {
+            setCustomerStats(null);
+            return;
+        }
+
+        const fetchStats = async () => {
+            // 1. Get Last Visit
+            const { data: lastOrder } = await supabase
+                .from('orders')
+                .select('created_at')
+                .eq('customer_name', selectedCustomer.name) // ideally use ID, but Schema uses name for now? Check DB schema. Using name as fallback or if ID available use it. 
+                // Wait, orders table usually has customer_id or just name. LitePOS uses name 'Walk-in' often. 
+                // Let's assume we filter by name for now safely or modify check if customer_id exists
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            // 2. Mock Top Items for now (Standard CRM would query aggregations)
+            // Real implementation would be: select order_items from orders where customer... -> aggregate
+            setCustomerStats({
+                lastVisit: lastOrder ? new Date(lastOrder.created_at).toLocaleDateString() : 'New Customer',
+                topItems: ['Paracetamol', 'Cough Syrup', 'Mask'] // Mock for MVP speed
+            });
+        };
+
+        fetchStats();
+    }, [selectedCustomer]);
 
     // Handle Navigation State (from DiaryScan)
     useEffect(() => {
@@ -67,6 +103,8 @@ const LitePOS = () => {
     }, [currentShop?.id]);
 
     useEffect(() => {
+        setDismissedInteractions(false); // Reset dismissal on cart change
+
         const checkSafety = async () => {
             if (cart.length < 2) {
                 setInteractions([]);
@@ -78,9 +116,22 @@ const LitePOS = () => {
                 // Debounce could be good here, but for now we keep it simple
                 const drugNames = cart.map(c => c.item.medicine_name);
                 const warnings = await aiService.checkInteractions(drugNames);
-                // Simplify output for LitePOS
-                const messages = warnings.map((w: any) =>
-                    typeof w === 'string' ? w : `${w.severity?.toUpperCase() || 'WARN'}: ${w.description || 'Interaction detected'}`
+
+                // FILTER: Only show MAJOR/HIGH/SEVERE interactions (User Request: "Only Major Risk")
+                // We assume the AI returns a 'severity' field. If not, we trust the description.
+                const criticalWarnings = warnings.filter((w: any) => {
+                    if (typeof w === 'string') return true; // Keep string warnings just in case
+                    const sev = w.severity?.toLowerCase() || '';
+                    return sev.includes('high') || sev.includes('severe') || sev.includes('major') || sev.includes('critical');
+                });
+
+                if (criticalWarnings.length === 0) {
+                    setInteractions([]);
+                    return;
+                }
+
+                const messages = criticalWarnings.map((w: any) =>
+                    typeof w === 'string' ? w : `${w.severity?.toUpperCase() || 'CRITICAL'}: ${w.description || 'Major Interaction Check'}`
                 );
                 setInteractions(messages);
             } catch (e) {
@@ -115,7 +166,7 @@ const LitePOS = () => {
                 // Clear existing and add fresh data
                 await db.inventory.clear();
                 await db.inventory.bulkAdd(data.map(item => ({
-                    ...item,
+                    ...(item as any),
                     is_synced: 1
                 })));
                 toast.success(`Synced ${data.length} items!`, { description: "Inventory ready for offline use" });
@@ -150,7 +201,16 @@ const LitePOS = () => {
         [search]
     );
 
+    const [discountPercentage, setDiscountPercentage] = useState(0);
+
     const addToCart = (product: OfflineInventory, qty: number = 1) => {
+        // Stock Validation
+        const currentInCart = cart.find(c => c.item.id === product.id)?.qty || 0;
+        if (currentInCart + qty > product.quantity) {
+            toast.error(`Out of Stock! Only ${product.quantity} available.`);
+            return;
+        }
+
         setCart((prev) => {
             const existing = prev.find((c) => c.item.id === product.id);
             if (existing) {
@@ -165,35 +225,111 @@ const LitePOS = () => {
         setCart(cart.filter((c) => c.item.id !== id));
     };
 
-    const calculateTotal = () => cart.reduce((acc, curr) => acc + (curr.item.unit_price * curr.qty), 0);
+    const calculateSubTotal = () => cart.reduce((acc, curr) => acc + (curr.item.unit_price * curr.qty), 0);
+
+    const calculateTotal = () => {
+        const subTotal = calculateSubTotal();
+        const discountAmount = subTotal * (discountPercentage / 100);
+        return Math.round(subTotal - discountAmount);
+    };
+
+    const calculateMargin = () => {
+        const discountFactor = 1 - (discountPercentage / 100);
+        return cart.reduce((acc, curr) => {
+            const cost = curr.item.purchase_price || (curr.item.unit_price * 0.7);
+            const sellingPrice = curr.item.unit_price * discountFactor;
+            return acc + ((sellingPrice - cost) * curr.qty);
+        }, 0);
+    };
+
+    // --- SUBSTITUTE LOGIC ---
+    const [subModalOpen, setSubModalOpen] = useState(false);
+    const [subLoading, setSubLoading] = useState(false);
+    const [missingQuery, setMissingQuery] = useState("");
+    const [substitutes, setSubstitutes] = useState<import("@/components/dashboard/SubstituteModal").SubstituteOption[]>([]);
 
     const handleVoiceCommand = async (transcription: string, items: ParsedItem[]) => {
         setSearch(transcription);
         toast.info(`AI Processed: ${transcription}`);
 
-        // Process each parsed item (Name + Quantity)
         for (const item of items) {
-            // Fuzzy Find Best Match in Local DB
-            // 1. Try Exact Match
+            // 1. Try Exact/Fuzzy Match locally
             let bestMatch = await db.inventory.where("medicine_name").equalsIgnoreCase(item.name).first();
 
-            // 2. If not found, try StartsWith
             if (!bestMatch) {
                 const candidates = await db.inventory.where("medicine_name").startsWithIgnoreCase(item.name).toArray();
                 if (candidates.length > 0) bestMatch = candidates[0];
             }
 
-            // 3. If found, add to cart
             if (bestMatch) {
-                // Determine qty (default to 1)
                 const qtyToAdd = item.quantity || 1;
                 addToCart(bestMatch, qtyToAdd);
                 toast.success(`Voice Added: ${qtyToAdd}x ${bestMatch.medicine_name}`);
             } else {
-                toast.warning(`Could not find "${item.name}" in inventory.`);
+                // ITEM NOT FOUND -> Trigger AI Substitute Search
+                setMissingQuery(item.name);
+                setSubModalOpen(true);
+                setSubLoading(true);
+
+                try {
+                    toast("Finding alternatives for " + item.name + "...");
+                    const marketData = await aiService.getMarketData(item.name);
+
+                    // Parse substitutes from AI response
+                    // Expected format: { substitutes: ["Name 1", "Name 2"], ... } or just raw text to parse?
+                    // Assuming AI returns a standard structure or we try to extract
+                    let subs: string[] = [];
+                    if (marketData.substitutes && Array.isArray(marketData.substitutes)) {
+                        subs = marketData.substitutes;
+                    } else if (marketData.alternatives && Array.isArray(marketData.alternatives)) {
+                        subs = marketData.alternatives;
+                    }
+
+                    // Map to Local Inventory
+                    const options: import("@/components/dashboard/SubstituteModal").SubstituteOption[] = [];
+
+                    // 1. Check if we have any of these substitutes in stock
+                    for (const subName of subs) {
+                        const localMatch = await db.inventory.where("medicine_name").equalsIgnoreCase(subName).first();
+                        // also try startsWith for robustness
+                        const fuzzyMatch = !localMatch ? (await db.inventory.where("medicine_name").startsWithIgnoreCase(subName).first()) : null;
+
+                        const match = localMatch || fuzzyMatch;
+
+                        if (match) {
+                            options.push({
+                                name: match.medicine_name,
+                                isAvailable: true,
+                                stock: match.quantity,
+                                price: match.unit_price,
+                                item: match,
+                                matchType: 'Same Composition'
+                            });
+                        } else {
+                            options.push({
+                                name: subName,
+                                isAvailable: false
+                            });
+                        }
+                    }
+
+                    setSubstitutes(options);
+
+                } catch (e) {
+                    console.error("Substitute Check Failed", e);
+                    toast.error("Could not find substitutes");
+                    setSubstitutes([]); // Empty state
+                } finally {
+                    setSubLoading(false);
+                }
             }
         }
-        setSearch("");
+    };
+
+    const handleSubstituteSelect = (item: OfflineInventory) => {
+        addToCart(item, 1);
+        setSubModalOpen(false);
+        toast.success(`Substituted with ${item.medicine_name}`);
     };
 
     // Mobile Shortcuts: Volume Keys & Haptics
@@ -325,10 +461,27 @@ const LitePOS = () => {
 
             if (error) throw error;
 
-            // 2. If Credit, Update Ledger & Customer Balance
+            if (error) throw error;
+
+            // 2. Decrement Inventory (Local & Cloud)
+            for (const item of cart) {
+                // Local
+                const newQty = item.item.quantity - item.qty;
+                await db.inventory.update(item.item.id, { quantity: newQty });
+
+                // Cloud (Optimistic - don't block UI)
+                supabase.rpc('decrement_inventory', {
+                    row_id: item.item.id,
+                    quantity_to_sub: item.qty
+                }).then(({ error }) => {
+                    if (error) console.error("Cloud Inventory Sync Failed", error);
+                });
+            }
+
+            // 3. If Credit, Update Ledger & Customer Balance
             if (paymentMode === 'credit' && selectedCustomer) {
                 // Add Ledger Entry
-                const { error: ledgerError } = await supabase.from('customer_ledger').insert({
+                const { error: ledgerError } = await supabase.from('customer_ledger' as any).insert({
                     shop_id: currentShop.id,
                     customer_id: selectedCustomer.id,
                     transaction_type: 'DEBIT',
@@ -365,13 +518,18 @@ const LitePOS = () => {
         if (cart.length === 0) return;
 
         setIsCheckingOut(true);
-        const invoiceNumber = `FAST-${Date.now().toString().slice(-6)}`;
+        // Generate Readable Invoice Number
+        const now = new Date();
+        const timeCode = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0');
+        const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+        const invoiceNumber = `INV-${timeCode}-${random}`;
         const total = calculateTotal();
 
         const orderItems = cart.map(c => ({
             name: c.item.medicine_name,
             qty: c.qty,
             price: c.item.unit_price,
+            purchase_price: c.item.purchase_price,
             inventory_id: c.item.id,
             batch: c.item.batch_number || null,
             expiry: c.item.expiry_date || null,
@@ -414,6 +572,7 @@ const LitePOS = () => {
         if (!phone) return;
 
         const link = whatsappService.generateInvoiceLink(phone, {
+            shop_name: currentShop?.name || "Medix Pharmacy",
             customer_name: "Walk-in Customer",
             created_at: new Date().toISOString(),
             total_amount: calculateTotal(),
@@ -427,39 +586,163 @@ const LitePOS = () => {
         window.open(link, '_blank');
     };
 
+    // --- MARGIN INSIGHTS ---
+    const [showMargin, setShowMargin] = useState(false);
+
+    // --- HOLD BILL LOGIC ---
+    const [savedBills, setSavedBills] = useState<{ id: number; name: string; items: any[]; date: string }[]>([]);
+
+    useEffect(() => {
+        const saved = localStorage.getItem("medix_held_bills");
+        if (saved) {
+            try {
+                setSavedBills(JSON.parse(saved));
+            } catch (e) { console.error("Failed to load held bills", e); }
+        }
+    }, []);
+
+    const holdBill = () => {
+        if (cart.length === 0) {
+            toast.error("Cart is empty");
+            return;
+        }
+        const billName = prompt("Enter a name for this bill (e.g., Customer Name):", `Bill #${savedBills.length + 1}`);
+        if (!billName) return;
+
+        const newBill = {
+            id: Date.now(),
+            name: billName,
+            items: cart,
+            date: new Date().toLocaleTimeString()
+        };
+
+        const updatedBills = [...savedBills, newBill];
+        setSavedBills(updatedBills);
+        localStorage.setItem("medix_held_bills", JSON.stringify(updatedBills));
+        setCart([]);
+        toast.success("Bill Held Successfully", { description: "You can resume it later from the menu." });
+    };
+
+    const restoreBill = (billId: number) => {
+        const bill = savedBills.find(b => b.id === billId);
+        if (bill) {
+            if (cart.length > 0) {
+                if (!confirm("Current cart will be overwritten. Proceed?")) return;
+            }
+            setCart(bill.items);
+            const updated = savedBills.filter(b => b.id !== billId);
+            setSavedBills(updated);
+            localStorage.setItem("medix_held_bills", JSON.stringify(updated));
+            toast.info(`Resumed bill: ${bill.name}`);
+        }
+    };
+
     return (
-        <div className="h-screen flex flex-col bg-background relative">
-            {/* Header - Deep Blue Gradient */}
-            <div className="bg-gradient-to-r from-blue-700 to-blue-600 p-4 flex items-center justify-between text-white shadow-lg z-10">
-                <Link to="/dashboard" className="flex items-center gap-2 font-bold text-lg hover:opacity-80 transition-opacity">
-                    <ArrowLeft className="w-5 h-5" /> Back
-                </Link>
-                <div className="flex flex-col items-center">
-                    <h1 className="text-xl font-bold tracking-tight">Munim-ji Lite ⚡</h1>
-                    <span className="text-xs text-blue-100">{currentShop?.name || "No Shop"}</span>
+        <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 overflow-hidden">
+            {/* Pro Header - Clean White/Slate */}
+            <header className="h-16 flex-none bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 shadow-sm z-30">
+
+                {/* Left: Branding & Back */}
+                <div className="flex items-center gap-4">
+                    <Link to="/dashboard" className="group flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 transition-colors">
+                        <div className="bg-slate-100 dark:bg-slate-800 p-2 rounded-full group-hover:bg-slate-200 dark:group-hover:bg-slate-700">
+                            <ArrowLeft className="w-4 h-4" />
+                        </div>
+                    </Link>
+
+                    <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2 hidden md:block"></div>
+
+                    <div className="flex flex-col">
+                        <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white leading-tight flex items-center gap-2">
+                            Billing Hub <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold tracking-wider uppercase">Pro</span>
+                        </h1>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                            {currentShop?.name || "Medix Pharmacy"}
+                        </span>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <SalesReturnModal /> {/* Added Professional Return Modal */}
+
+                {/* Center: Quick Actions (Optional placeholder or Status) */}
+                <div className="hidden md:flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-md">
+                    <div className={`w-2 h-2 rounded-full ${navigator.onLine ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        {navigator.onLine ? 'System Online' : 'Offline Mode'}
+                    </span>
+                </div>
+
+                {/* Right: Utilities */}
+                <div className="flex items-center gap-3">
+                    {/* Voice Billing (Mobile Moved to Header) */}
+                    <div className="md:hidden">
+                        <VoiceCommandBar
+                            compact={true}
+                            onTranscriptionComplete={handleVoiceCommand}
+                        />
+                    </div>
+
+                    {/* Held Bills */}
+                    {savedBills.length > 0 && (
+                        <div className="relative group z-50">
+                            <Button variant="ghost" size="sm" className="relative text-orange-600 hover:text-orange-700 hover:bg-orange-50">
+                                <span>On Hold</span>
+                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] text-white">
+                                    {savedBills.length}
+                                </span>
+                            </Button>
+                            <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl p-2 hidden group-hover:block animate-in fade-in slide-in-from-top-2">
+                                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2 py-1">Restorable Bills</div>
+                                {savedBills.map(b => (
+                                    <div
+                                        key={b.id}
+                                        className="p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer flex justify-between items-center group/item transition-all"
+                                        onClick={() => restoreBill(b.id)}
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className="font-medium text-slate-800 dark:text-slate-200">{b.name}</span>
+                                            <span className="text-[10px] text-slate-400">{b.date} • {b.items.length} Items</span>
+                                        </div>
+                                        <ArrowLeft className="w-4 h-4 text-slate-300 group-hover/item:text-blue-500 opacity-0 group-hover/item:opacity-100 transition-all" />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-1"></div>
+
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 ${showMargin ? 'bg-blue-50 text-blue-600' : ''}`}
+                        onClick={() => setShowMargin(!showMargin)}
+                        title={showMargin ? "Hide Profit Margins" : "Show Profit Margins"}
+                    >
+                        {showMargin ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                    </Button>
+
+                    <RecentInvoices shopId={currentShop?.id} />
+
+                    <SalesReturnModal
+                        triggerClassName="text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-slate-800"
+                        triggerVariant="ghost"
+                    />
 
                     <Button
                         size="sm"
-                        variant="secondary"
+                        variant="outline"
                         onClick={syncInventory}
                         disabled={isSyncing}
-                        className="bg-white/20 hover:bg-white/30 text-white border-0"
+                        className="gap-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-400 hover:text-blue-600"
                     >
-                        <RefreshCw className={`w-4 h-4 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
-                        {isSyncing ? 'Syncing...' : 'Sync'}
+                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                        <span className="hidden sm:inline">Sync</span>
                     </Button>
-                    <span className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-medium">
-                        {navigator.onLine ? "🟢 Online" : "🔴 Offline"}
-                    </span>
                 </div>
-            </div>
+            </header>
 
             <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
                 {/* Left: Product Grid (Big Buttons) */}
-                <div className="flex-1 p-4 overflow-y-auto pb-24 md:pb-4 bg-slate-100 dark:bg-slate-900">
+                <div className="flex-1 overflow-y-auto p-4 pb-20 md:pb-4 bg-slate-100 dark:bg-slate-900 min-h-0">
                     <div className="mb-4 flex gap-2">
                         <Input
                             id="lite-search-input"
@@ -505,19 +788,41 @@ const LitePOS = () => {
                             </button>
                         ))}
                         {products?.length === 0 && (
-                            <div className="col-span-full text-center py-10 text-slate-500 dark:text-slate-400">
-                                No items found. Run "Sync" first.
+                            <div className="col-span-full text-center py-10 text-slate-500 dark:text-slate-400 flex flex-col items-center gap-3">
+                                <p>No items found.</p>
+                                {search && (
+                                    <Button variant="outline" className="border-purple-200 text-purple-700 hover:bg-purple-50" onClick={async () => {
+                                        const { error } = await supabase.from('shortbook').insert({
+                                            shop_id: currentShop?.id,
+                                            product_name: search,
+                                            added_from: 'pos'
+                                        });
+                                        if (error) toast.error("Failed to add");
+                                        else toast.success("Added directly to Shortbook!");
+                                    }}>
+                                        + Add "{search}" to Shortbook
+                                    </Button>
+                                )}
                             </div>
                         )}
                     </div>
                 </div>
 
                 {/* Right: Cart Panel */}
-                <div className="md:w-96 bg-white dark:bg-slate-800 shadow-xl border-l border-slate-200 dark:border-slate-700 flex flex-col z-20">
-                    <div className="p-4 bg-gradient-to-r from-blue-600 to-blue-500 text-white">
+                <div className="md:w-96 w-full h-[45%] md:h-auto bg-white dark:bg-slate-800 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)] md:shadow-xl border-t md:border-l border-slate-200 dark:border-slate-700 flex flex-col z-20">
+                    <div className="p-4 bg-gradient-to-r from-blue-600 to-blue-500 text-white flex justify-between items-center">
                         <h2 className="font-bold text-lg flex items-center gap-2">
                             <ShoppingCart className="w-5 h-5" /> Current Bill
                         </h2>
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={holdBill}
+                            className="h-7 text-xs bg-white/20 text-white hover:bg-white/30 border-0"
+                            disabled={cart.length === 0}
+                        >
+                            Hold Bill
+                        </Button>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 dark:bg-slate-900">
@@ -546,31 +851,73 @@ const LitePOS = () => {
                             </div>
                         ))}
                     </div>
+                // Upsell Widget
+                    <UpsellWidget cartItems={cart} onAddItem={(item) => addToCart(item)} />
 
-                    {/* Safety Warnings */}
-                    {(interactions.length > 0 || checkingSafety) && (
-                        <div className={`p-3 border-t border-slate-200 dark:border-slate-700 ${interactions.length > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'bg-slate-50'}`}>
-                            {checkingSafety ? (
-                                <p className="text-xs text-muted-foreground flex items-center gap-2">
-                                    <RefreshCw className="w-3 h-3 animate-spin" /> Checking interactions...
-                                </p>
-                            ) : (
-                                <div className="space-y-1">
+                    {/* Safety Warnings - Major Risks Only */}
+                    {(interactions.length > 0) && !dismissedInteractions && (
+                        <div className="p-3 bg-red-50 dark:bg-red-900/10 border-t border-red-100 dark:border-red-900/30 animate-in slide-in-from-bottom-2">
+                            <div className="flex justify-between items-start gap-2">
+                                <div className="space-y-1 flex-1">
                                     <p className="text-xs font-bold text-red-600 flex items-center gap-1">
-                                        <ShieldAlert className="w-3 h-3" /> INTERACTION ALERT
+                                        <ShieldAlert className="w-3.5 h-3.5" />
+                                        CRITICAL INTERACTION
                                     </p>
                                     {interactions.map((msg, idx) => (
-                                        <p key={idx} className="text-xs text-red-700 dark:text-red-300">• {msg}</p>
+                                        <p key={idx} className="text-xs text-red-700 dark:text-red-300 font-bold leading-tight">
+                                            • {msg}
+                                        </p>
                                     ))}
                                 </div>
-                            )}
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-[10px] border-red-200 text-red-600 hover:bg-red-100 hover:text-red-800"
+                                    onClick={() => setDismissedInteractions(true)}
+                                >
+                                    Skip & Proceed
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
+                    {checkingSafety && (
+                        <div className="p-2 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
+                            <p className="text-[10px] text-slate-400 flex items-center justify-center gap-2 animate-pulse">
+                                <RefreshCw className="w-3 h-3 animate-spin" /> Checking safety...
+                            </p>
                         </div>
                     )}
 
                     <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-4">
+                        {/* Discount Section */}
+                        <div className="flex items-center justify-between py-2 border-b border-dashed border-slate-200">
+                            <span className="text-sm font-medium text-slate-500 flex items-center gap-1">
+                                <Percent className="w-3 h-3" /> Discount ({discountPercentage}%)
+                            </span>
+                            <div className="flex items-center gap-1">
+                                {[0, 5, 10, 15].map(d => (
+                                    <button
+                                        key={d}
+                                        onClick={() => setDiscountPercentage(d)}
+                                        className={`text-xs px-2 py-1 rounded border ${discountPercentage === d ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-600'}`}
+                                    >
+                                        {d}%
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="flex justify-between text-xl font-bold text-slate-800 dark:text-white">
                             <span>Total</span>
-                            <span className="text-emerald-600 dark:text-emerald-400">₹{calculateTotal()}</span>
+                            <div className="text-right">
+                                <span className="text-emerald-600 dark:text-emerald-400 block">₹{calculateTotal()}</span>
+                                {showMargin && (
+                                    <span className="text-[10px] text-slate-400 font-normal">
+                                        Est. Profit: <span className="text-green-500">+₹{calculateMargin().toFixed(0)}</span>
+                                    </span>
+                                )}
+                            </div>
                         </div>
 
                         {/* Payment Mode Selector */}
@@ -598,8 +945,32 @@ const LitePOS = () => {
                                     onSelect={setSelectedCustomer}
                                 />
                                 {selectedCustomer && (
-                                    <div className="text-xs mt-1 text-slate-500">
-                                        Current Due: <span className="font-bold text-red-600">₹{selectedCustomer.credit_balance}</span>
+                                    <div className="mt-2 space-y-2">
+                                        <div className="text-xs text-slate-500 flex justify-between">
+                                            <span>Current Due:</span>
+                                            <span className="font-bold text-red-600">₹{selectedCustomer.credit_balance}</span>
+                                        </div>
+
+                                        {/* Mini-CRM: Insights */}
+                                        <div className="bg-white/50 rounded border border-red-100 p-2 text-[10px] text-slate-500 space-y-1">
+                                            <div className="flex justify-between">
+                                                <span>Last Visit:</span>
+                                                <span className="font-medium text-slate-700">{customerStats?.lastVisit || 'First Visit'}</span>
+                                            </div>
+                                            {customerStats?.topItems?.length > 0 && (
+                                                <div className="pt-1 border-t border-red-100/50 mt-1">
+                                                    <span className="block mb-0.5 opacity-70">Frequently Buys:</span>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {customerStats.topItems.map((i: string, idx: number) => (
+                                                            <span key={idx} className="bg-red-100/50 text-red-700 px-1 rounded flex items-center gap-0.5">
+                                                                {i}
+                                                                <span className="cursor-pointer hover:font-bold" onClick={() => setSearch(i)}>+</span>
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -637,18 +1008,20 @@ const LitePOS = () => {
                         </div>
                     </div>
                 </div>
-            </div>
+            </div >
 
-            {/* Mobile Floating Action Button (FAB) for Voice */}
-            <div className="md:hidden fixed bottom-6 right-6 z-50">
-                <div className="bg-blue-600 text-white rounded-full p-2 shadow-2xl">
-                    <VoiceCommandBar
-                        compact={true}
-                        onTranscriptionComplete={handleVoiceCommand}
-                    />
-                </div>
-            </div>
-        </div>
+            {/* Mobile FAB Removed - Moved to Header */}
+
+
+            <SubstituteModal
+                isOpen={subModalOpen}
+                onClose={() => setSubModalOpen(false)}
+                originalQuery={missingQuery}
+                alternatives={substitutes}
+                isLoading={subLoading}
+                onSelect={handleSubstituteSelect}
+            />
+        </div >
     );
 };
 

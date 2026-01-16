@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mic, ScanBarcode, ArrowRight, Stethoscope, Sparkles, FileText } from "lucide-react";
+import { Mic, ScanBarcode, ArrowRight, Stethoscope, Sparkles, FileText, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -42,17 +42,17 @@ export const QuickActions = () => {
                 <div className="grid grid-cols-2 gap-4">
                     <Button
                         className="h-28 flex flex-col items-start justify-between p-4 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white border-0 shadow-lg shadow-blue-900/20 rounded-2xl transition-all duration-300 hover:scale-[1.02] active:scale-95 group relative overflow-hidden"
-                        onClick={() => navigate("/dashboard/orders")}
+                        onClick={() => navigate("/lite-pos")}
                     >
                         <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <Mic className="w-16 h-16" />
+                            <Zap className="w-16 h-16" />
                         </div>
                         <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                            <Mic className="w-5 h-5" />
+                            <Zap className="w-5 h-5" />
                         </div>
                         <div className="text-left">
-                            <span className="text-lg font-bold block">New Sale</span>
-                            <span className="text-[10px] opacity-80 font-normal">Voice or Manual</span>
+                            <span className="text-lg font-bold block">Billing Hub</span>
+                            <span className="text-[10px] opacity-80 font-normal">Offline POS & Billing</span>
                         </div>
                     </Button>
 

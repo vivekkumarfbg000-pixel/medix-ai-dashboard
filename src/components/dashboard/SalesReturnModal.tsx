@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 
-export function SalesReturnModal() {
+export function SalesReturnModal({ triggerClassName, triggerVariant }: { triggerClassName?: string, triggerVariant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" }) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [loading, setLoading] = useState(false);
@@ -128,7 +128,11 @@ export function SalesReturnModal() {
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-slate-600 hover:text-red-600 hover:bg-red-50">
+                <Button
+                    variant={triggerVariant || "ghost"}
+                    size="sm"
+                    className={triggerClassName || "text-slate-600 hover:text-red-600 hover:bg-red-50"}
+                >
                     <RotateCcw className="w-4 h-4 mr-2" />
                     Sales Return
                 </Button>

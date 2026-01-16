@@ -31,84 +31,15 @@ const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
 const AuditLogs = lazy(() => import("./pages/dashboard/AuditLogs"));
 const Customers = lazy(() => import("./pages/dashboard/Customers"));
 const Shortbook = lazy(() => import("./pages/dashboard/Shortbook"));
+const Distributors = lazy(() => import("./pages/dashboard/Distributors"));
 const Reports = lazy(() => import("./pages/dashboard/Reports"));
-const Suppliers = lazy(() => import("./pages/dashboard/Suppliers"));
-const Purchases = lazy(() => import("./pages/dashboard/Purchases"));
-const ScheduleH1 = lazy(() => import("./pages/dashboard/ScheduleH1"));
-const EnvDebug = lazy(() => import("./pages/EnvDebug"));
-const AiDebug = lazy(() => import("./pages/AiDebug"));
 
+// ...
 
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes data retention (prevents refetching)
-      gcTime: 1000 * 60 * 30, // 30 minutes garbage collection
-      retry: 1, // Fail fast after 1 retry
-      refetchOnWindowFocus: false, // Don't refetch on tab switch (save bandwidth)
-    },
-  },
-});
-
-const LoadingFallback = () => (
-  <div className="flex items-center justify-center h-screen bg-background">
-    <div className="flex flex-col items-center gap-4">
-      <div className="relative">
-        <Activity className="w-12 h-12 text-primary animate-pulse" />
-        <div className="absolute inset-0 animate-ping border-2 border-primary rounded-full opacity-20"></div>
-      </div>
-      <p className="text-muted-foreground text-sm font-medium animate-pulse">Loading MedixAI OS...</p>
-    </div>
-  </div>
-);
-
-import { syncService } from "./services/syncService";
-
-const MobileNavHandler = () => {
-  useMobileBackHandler();
-  return null;
-};
-
-import { ErrorBoundary } from "./components/ErrorBoundary";
-
-const App = () => {
-  useEffect(() => {
-    try {
-      syncService.startSync();
-    } catch (e) {
-      console.error("Failed to start sync service:", e);
-    }
-  }, []);
-
-  return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <MobileNavHandler />
-            <Suspense fallback={<LoadingFallback />}>
-              <Routes>
-                <Route path="/" element={<Navigate to="/auth" replace />} />
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/lite-pos" element={<LitePOS />} />
-                <Route path="/dashboard" element={<DashboardLayout />}>
-                  <Route index element={<ErrorBoundary><Overview /></ErrorBoundary>} />
-                  <Route path="inventory" element={<ErrorBoundary><Inventory /></ErrorBoundary>} />
-                  <Route path="diary-scan" element={<ErrorBoundary><DiaryScan /></ErrorBoundary>} />
-                  <Route path="lab-analyzer" element={<ErrorBoundary><LabAnalyzer /></ErrorBoundary>} />
-                  <Route path="compliance" element={<ErrorBoundary><Compliance /></ErrorBoundary>} />
-                  <Route path="orders" element={<ErrorBoundary><Orders /></ErrorBoundary>} />
-                  <Route path="ai-insights" element={<ErrorBoundary><AIInsights /></ErrorBoundary>} />
-                  <Route path="forecasting" element={<ErrorBoundary><Forecasting /></ErrorBoundary>} />
-                  <Route path="alerts" element={<ErrorBoundary><Alerts /></ErrorBoundary>} />
-                  <Route path="marketplace" element={<ErrorBoundary><Marketplace /></ErrorBoundary>} />
-                  <Route path="prescriptions" element={<ErrorBoundary><Prescriptions /></ErrorBoundary>} />
-                  <Route path="analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
                   <Route path="customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
                   <Route path="shortbook" element={<ErrorBoundary><Shortbook /></ErrorBoundary>} />
+                  <Route path="distributors" element={<ErrorBoundary><Distributors /></ErrorBoundary>} />
+                  <Route path="reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
                   <Route path="reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
                   <Route path="suppliers" element={<ErrorBoundary><Suppliers /></ErrorBoundary>} />
                   <Route path="purchases" element={<ErrorBoundary><Purchases /></ErrorBoundary>} />
@@ -118,13 +49,13 @@ const App = () => {
                   <Route path="env-debug" element={<ErrorBoundary><EnvDebug /></ErrorBoundary>} />
                   <Route path="ai-debug" element={<ErrorBoundary><AiDebug /></ErrorBoundary>} />
                 </Route >
-                <Route path="*" element={<NotFound />} />
+  <Route path="*" element={<NotFound />} />
               </Routes >
             </Suspense >
           </BrowserRouter >
         </TooltipProvider >
       </QueryClientProvider >
-    </ErrorBoundary>
+    </ErrorBoundary >
   );
 };
 

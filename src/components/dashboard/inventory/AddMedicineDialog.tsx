@@ -59,43 +59,71 @@ export const AddMedicineDialog = ({ open, onOpenChange, onSuccess }: AddMedicine
     });
 
     const onSubmit = async (values: MedicineFormValues) => {
-        if (!currentShop?.id) return;
-        setIsSubmitting(true);
-
-        const toastId = toast.loading("Checking compliance...");
-        let complianceResult: ComplianceResult = { is_banned: false, is_h1: false, reason: "" };
+        const debugId = toast.loading("Processing...");
 
         try {
-            complianceResult = await aiService.checkCompliance(values.medicine_name);
-        } catch (e) {
-            logger.warn("Compliance check offline", e);
-        }
+            if (!currentShop?.id) {
+                toast.error("No Shop Selected", { id: debugId });
+                return;
+            }
+            setIsSubmitting(true);
 
-        toast.dismiss(toastId);
+            // 1. AI Compliance Check (Fail-safe)
+            let complianceResult: ComplianceResult = { is_banned: false, is_h1: false, reason: "" };
+            try {
+                // Determine if we should skip AI for speed or if offline
+                // For now, simple timeout wrapper
+                const aiPromise = aiService.checkCompliance(values.medicine_name);
+                const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), 3000)); // 3s max
 
-        if (complianceResult.is_banned) {
-            toast.error(`BLOCKED: ${values.medicine_name} is a BANNED DRUG!`, {
-                description: complianceResult.reason || "CDSCO Regulatory Ban detected.",
-                duration: 5000,
-            });
-            setIsSubmitting(false);
-            return;
-        }
+                const result = await Promise.race([aiPromise, timeoutPromise]);
+                if (result) {
+                    complianceResult = result as ComplianceResult;
+                } else {
+                    console.warn("AI Check Timed out - Skipping");
+                }
+            } catch (e) {
+                console.warn("AI Service Error - Skipping", e);
+            }
 
-        if (complianceResult.is_h1 && !values.medicine_name.toLowerCase().includes('h1')) {
-            toast.info("Note: This is a Schedule H1 Drug", {
-                description: "It has been auto-tagged for the Compliance Register."
-            });
-        }
+            // 2. Handle Banned Status
+            if (complianceResult.is_banned) {
+                if (!window.confirm(`⚠️ AI WARNING: This appears to be a BANNED DRUG.\n\nReason: ${complianceResult.reason}\n\nDo you want to FORCE SAVE this item?`)) {
+                    toast.error(`Cancelled addition of banned drug: ${values.medicine_name}`, { id: debugId });
+                    setIsSubmitting(false);
+                    return;
+                }
+                toast.warning(`Force saving flaged item...`, { id: debugId });
+            }
 
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Request timed out")), 10000)
-        );
+            // 3. Database Insert
+            // 3. Database Insert (Secure RPC)
+            toast.loading("Saving to Inventory...", { id: debugId });
 
-        try {
-            // @ts-ignore
-            const { error } = await Promise.race([
-                supabase.from("inventory").insert({
+            // Payload for RPC
+            const payload = {
+                p_shop_id: currentShop.id,
+                p_medicine_name: values.medicine_name,
+                p_quantity: values.quantity,
+                p_unit_price: values.unit_price,
+                p_batch_number: values.batch_number || null,
+                p_expiry_date: values.expiry_date || null,
+                p_manufacturer: values.manufacturer || null,
+                p_category: values.category || null,
+                p_generic_name: values.generic_name || null,
+                p_rack_number: values.rack_number || null,
+                p_shelf_number: values.shelf_number || null,
+                p_gst_rate: values.gst_rate || 0,
+                p_hsn_code: values.hsn_code || null,
+                p_source: 'manual'
+            };
+
+            const { data: rpcData, error: rpcError } = await supabase.rpc('add_inventory_secure', payload);
+
+            if (rpcError) {
+                console.warn("RPC Error, falling back to direct insert:", rpcError);
+                // Fallback
+                const { error: directError } = await supabase.from("inventory").insert({
                     shop_id: currentShop.id,
                     medicine_name: values.medicine_name,
                     generic_name: values.generic_name,
@@ -109,24 +137,27 @@ export const AddMedicineDialog = ({ open, onOpenChange, onSuccess }: AddMedicine
                     rack_number: values.rack_number,
                     shelf_number: values.shelf_number,
                     gst_rate: values.gst_rate,
-                    hsn_code: values.hsn_code
-                }),
-                timeoutPromise
-            ]) as any;
-
-            if (error) {
-                // @ts-ignore
-                throw new Error(error.message || "Database Insert Failed");
+                    hsn_code: values.hsn_code,
+                    source: 'manual'
+                });
+                if (directError) throw directError;
+            } else if (rpcData && !rpcData.success) {
+                throw new Error(rpcData.error || "Insertion Failed via RPC");
             }
 
-            toast.success("Item added successfully");
+            // If we reach here, Success!
+
+            toast.success("Medicine Added!", { id: debugId });
             form.reset();
             onOpenChange(false);
             if (onSuccess) onSuccess();
 
         } catch (error: any) {
-            console.error("Add Medicine Error:", error);
-            toast.error("Failed to add item: " + (error.message || "Unknown error"));
+            console.error("Add Medicine Fail:", error);
+            toast.error("Failed to add medicine", {
+                id: debugId,
+                description: error.message || "Unknown Database Error"
+            });
         } finally {
             setIsSubmitting(false);
         }

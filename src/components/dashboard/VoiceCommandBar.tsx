@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Mic, MicOff, Loader2, Volume2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -76,6 +76,19 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
       animationRef.current = requestAnimationFrame(updateAudioLevel);
     }
   }, [isRecording]);
+
+  // Keyboard Shortcut (F2)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        if (isRecording) stopRecording();
+        else startRecording();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isRecording, isProcessing]); // Re-bind when state changes to capture correct 'isRecording' value
 
   const startRecording = async () => {
     try {
