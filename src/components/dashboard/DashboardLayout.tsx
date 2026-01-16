@@ -164,6 +164,9 @@ export function DashboardLayout() {
         // Handle redirect in the inner component or here
       }
       setLoading(false);
+    }).catch((err) => {
+      console.error("Session check failed", err);
+      setLoading(false);
     });
   }, []);
 
