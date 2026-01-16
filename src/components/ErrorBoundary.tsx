@@ -38,8 +38,14 @@ export class ErrorBoundary extends Component<Props, State> {
 
                         <h1 className="text-2xl font-bold text-gray-900">Something went wrong</h1>
 
-                        <div className="bg-red-50 p-4 rounded text-left text-sm text-red-800 font-mono overflow-auto max-h-32">
-                            {this.state.error?.message || "Unknown Application Error"}
+                        <div className="bg-red-50 p-4 rounded text-left text-sm text-red-800 font-mono overflow-auto max-h-64 whitespace-pre-wrap">
+                            <p className="font-bold mb-2">Error Details:</p>
+                            {this.state.error instanceof Error ? this.state.error.message : String(this.state.error)}
+                            {this.state.error instanceof Error && this.state.error.stack && (
+                                <div className="mt-4 pt-4 border-t border-red-200 text-xs opacity-75">
+                                    {this.state.error.stack}
+                                </div>
+                            )}
                         </div>
 
                         <p className="text-gray-600">

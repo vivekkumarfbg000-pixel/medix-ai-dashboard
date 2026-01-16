@@ -48,9 +48,47 @@ const queryClient = new QueryClient({
   },
 });
 
-const App = () => {
+const AppRoutes = () => {
   useMobileBackHandler();
 
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><Activity className="h-8 w-8 animate-spin text-primary" /></div>}>
+      <Routes>
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/" element={<DashboardLayout />}>
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<Overview />} />
+          <Route path="inventory" element={<ErrorBoundary><Inventory /></ErrorBoundary>} />
+          <Route path="diary" element={<ErrorBoundary><DiaryScan /></ErrorBoundary>} />
+          <Route path="lab" element={<ErrorBoundary><LabAnalyzer /></ErrorBoundary>} />
+          <Route path="orders" element={<ErrorBoundary><Orders /></ErrorBoundary>} />
+          <Route path="compliance" element={<ErrorBoundary><Compliance /></ErrorBoundary>} />
+          <Route path="ai-insights" element={<ErrorBoundary><AIInsights /></ErrorBoundary>} />
+          <Route path="forecasting" element={<ErrorBoundary><Forecasting /></ErrorBoundary>} />
+          <Route path="alerts" element={<ErrorBoundary><Alerts /></ErrorBoundary>} />
+          <Route path="settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
+          <Route path="sales/pos" element={<ErrorBoundary><LitePOS /></ErrorBoundary>} />
+          <Route path="marketplace" element={<ErrorBoundary><Marketplace /></ErrorBoundary>} />
+          <Route path="prescriptions" element={<ErrorBoundary><Prescriptions /></ErrorBoundary>} />
+          <Route path="analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
+          <Route path="audit-logs" element={<ErrorBoundary><AuditLogs /></ErrorBoundary>} />
+          <Route path="customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
+          <Route path="shortbook" element={<ErrorBoundary><Shortbook /></ErrorBoundary>} />
+          <Route path="distributors" element={<ErrorBoundary><Distributors /></ErrorBoundary>} />
+          <Route path="reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
+          <Route path="suppliers" element={<ErrorBoundary><Suppliers /></ErrorBoundary>} />
+          <Route path="purchases" element={<ErrorBoundary><Purchases /></ErrorBoundary>} />
+          <Route path="schedule-h1" element={<ErrorBoundary><ScheduleH1 /></ErrorBoundary>} />
+          <Route path="env-debug" element={<ErrorBoundary><EnvDebug /></ErrorBoundary>} />
+          <Route path="ai-debug" element={<ErrorBoundary><AiDebug /></ErrorBoundary>} />
+        </Route>
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
+  );
+};
+
+const App = () => {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -58,39 +96,7 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Suspense fallback={<div className="flex items-center justify-center h-screen"><Activity className="h-8 w-8 animate-spin text-primary" /></div>}>
-              <Routes>
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/" element={<DashboardLayout />}>
-                  <Route index element={<Navigate to="/dashboard" replace />} />
-                  <Route path="dashboard" element={<Overview />} />
-                  <Route path="inventory" element={<ErrorBoundary><Inventory /></ErrorBoundary>} />
-                  <Route path="diary" element={<ErrorBoundary><DiaryScan /></ErrorBoundary>} />
-                  <Route path="lab" element={<ErrorBoundary><LabAnalyzer /></ErrorBoundary>} />
-                  <Route path="orders" element={<ErrorBoundary><Orders /></ErrorBoundary>} />
-                  <Route path="compliance" element={<ErrorBoundary><Compliance /></ErrorBoundary>} />
-                  <Route path="ai-insights" element={<ErrorBoundary><AIInsights /></ErrorBoundary>} />
-                  <Route path="forecasting" element={<ErrorBoundary><Forecasting /></ErrorBoundary>} />
-                  <Route path="alerts" element={<ErrorBoundary><Alerts /></ErrorBoundary>} />
-                  <Route path="settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
-                  <Route path="sales/pos" element={<ErrorBoundary><LitePOS /></ErrorBoundary>} />
-                  <Route path="marketplace" element={<ErrorBoundary><Marketplace /></ErrorBoundary>} />
-                  <Route path="prescriptions" element={<ErrorBoundary><Prescriptions /></ErrorBoundary>} />
-                  <Route path="analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
-                  <Route path="audit-logs" element={<ErrorBoundary><AuditLogs /></ErrorBoundary>} />
-                  <Route path="customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
-                  <Route path="shortbook" element={<ErrorBoundary><Shortbook /></ErrorBoundary>} />
-                  <Route path="distributors" element={<ErrorBoundary><Distributors /></ErrorBoundary>} />
-                  <Route path="reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
-                  <Route path="suppliers" element={<ErrorBoundary><Suppliers /></ErrorBoundary>} />
-                  <Route path="purchases" element={<ErrorBoundary><Purchases /></ErrorBoundary>} />
-                  <Route path="schedule-h1" element={<ErrorBoundary><ScheduleH1 /></ErrorBoundary>} />
-                  <Route path="env-debug" element={<ErrorBoundary><EnvDebug /></ErrorBoundary>} />
-                  <Route path="ai-debug" element={<ErrorBoundary><AiDebug /></ErrorBoundary>} />
-                </Route>
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
+            <AppRoutes />
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>
