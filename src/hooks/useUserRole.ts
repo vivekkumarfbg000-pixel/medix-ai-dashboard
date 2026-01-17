@@ -28,17 +28,28 @@ export function useUserRole(shopId?: string | null): UserRoleState {
           return;
         }
 
-        const { data, error } = await supabase
+        // 1. Check direct role assignment
+        const { data: roleData } = await supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", user.id)
           .eq("shop_id", shopId)
           .maybeSingle();
 
-        if (error) {
-          console.error("Error fetching role:", error);
-        } else if (data) {
-          setRole(data.role as AppRole);
+        if (roleData) {
+          setRole(roleData.role as AppRole);
+        } else {
+          // 2. Fallback: Check if they are the OWNER via Profiles
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("user_id", user.id)
+            .eq("shop_id", shopId)
+            .maybeSingle();
+
+          if (profileData?.role) {
+            setRole(profileData.role as AppRole);
+          }
         }
       } catch (err) {
         console.error("Error:", err);
@@ -53,7 +64,7 @@ export function useUserRole(shopId?: string | null): UserRoleState {
   return {
     role,
     loading,
-    canModify: role === "admin" || role === "pharmacist",
-    isAdmin: role === "admin",
+    canModify: role === "admin" || role === "pharmacist" || role === "owner",
+    isAdmin: role === "admin" || role === "owner",
   };
 }

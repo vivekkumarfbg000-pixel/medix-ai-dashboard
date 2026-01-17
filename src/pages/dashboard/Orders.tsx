@@ -77,23 +77,27 @@ const Orders = () => {
   const [customerPhone, setCustomerPhone] = useState("");
 
   useEffect(() => {
-    if (currentShop?.id) {
-      fetchOrders();
+    const backupId = localStorage.getItem("currentShopId");
+    const activeId = currentShop?.id || backupId;
+
+    if (activeId) {
+      fetchOrders(activeId);
     }
   }, [currentShop?.id]);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (shopId: string) => {
     setLoading(true);
     const { data, error } = await supabase
       .from('orders')
       .select('*')
-      .eq('shop_id', currentShop?.id)
+      .eq('shop_id', shopId)
       .order('created_at', { ascending: false });
 
     if (error) {
+      console.error("Orders Load Error:", error);
       toast.error("Failed to load orders");
     } else {
-      setOrders(data || []);
+      setOrders((data as unknown as Order[]) || []);
     }
     setLoading(false);
   };

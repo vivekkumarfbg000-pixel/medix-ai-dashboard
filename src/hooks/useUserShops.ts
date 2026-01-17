@@ -58,9 +58,11 @@ export function useUserShops(): UserShopsState {
             address: us.shops?.address,
             is_primary: us.is_primary,
           })).filter(shop => shop.id); // Double check id exists
-        } else {
-          // FALLBACK: Check profile if no user_shops mapping exists (Migration safety)
-          console.warn("No user_shops found, checking profile fallback...");
+        }
+
+        // FALLBACK: If regular fetch failed or returned nothing (RLS Issue?), check Profile directly
+        if (mappedShops.length === 0) {
+          // console.warn("No user_shops found, checking profile fallback...");
           const { data: profile } = await supabase
             .from("profiles")
             .select("shop_id")
@@ -72,7 +74,7 @@ export function useUserShops(): UserShopsState {
               .from("shops")
               .select("id, name, address")
               .eq("id", profile.shop_id)
-              .single();
+              .maybeSingle();
 
             if (shop) {
               mappedShops = [{
@@ -88,15 +90,23 @@ export function useUserShops(): UserShopsState {
         if (mappedShops.length > 0) {
           setShops(mappedShops);
 
-          // Set current shop to primary or first available
-          const primary = mappedShops.find((s: Shop) => s.is_primary);
+          // Priority: LocalStorage > Primary > First
           const savedShopId = localStorage.getItem("currentShopId");
           const savedShop = savedShopId ? mappedShops.find((s: Shop) => s.id === savedShopId) : null;
+          // If saved shop is not in list (e.g. data wipe), fallback to primary
+          const defaultShopId = savedShop?.id || mappedShops.find(s => s.is_primary)?.id || mappedShops[0]?.id || null;
 
-          const defaultShopId = savedShop?.id || primary?.id || mappedShops[0]?.id || null;
           setCurrentShopId(defaultShopId);
           if (defaultShopId) {
             localStorage.setItem("currentShopId", defaultShopId);
+          }
+        } else {
+          // FINAL FALLBACK: If completely empty, try reading localstorage anyway (Ghost State)
+          const ghostId = localStorage.getItem("currentShopId");
+          if (ghostId) {
+            setCurrentShopId(ghostId);
+            // We don't have details, but we have an ID to try queries with
+            // This helps if the 'shops' table read is blocked but 'inventory' read is allowed
           }
         }
       } catch (err) {

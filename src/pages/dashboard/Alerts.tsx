@@ -29,10 +29,11 @@ const Alerts = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!currentShop?.id) return;
       setLoading(true);
       const [inventoryRes, remindersRes] = await Promise.all([
-        supabase.from("inventory").select("id, medicine_name, quantity, expiry_date, reorder_level"),
-        supabase.from("patient_reminders").select("*").order("reminder_date")
+        supabase.from("inventory").select("id, medicine_name, quantity, expiry_date, reorder_level").eq("shop_id", currentShop.id),
+        supabase.from("patient_reminders").select("*").eq("shop_id", currentShop.id).order("reminder_date")
       ]);
 
       if (inventoryRes.data) setInventory(inventoryRes.data as InventoryItem[]);
@@ -42,7 +43,7 @@ const Alerts = () => {
     };
 
     fetchData();
-  }, []);
+  }, [currentShop?.id]);
 
   const generateAlerts = () => {
     const alerts: any[] = [];

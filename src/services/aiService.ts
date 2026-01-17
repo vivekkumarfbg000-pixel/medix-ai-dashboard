@@ -297,32 +297,43 @@ export const aiService = {
     /**
      * Interaction Checker (n8n / External API)
      */
-    async checkInteractions(drugs: string[]): Promise<any[]> {
+    async checkInteractions(drugs: string[]): Promise<string[]> {
         if (drugs.length < 2) return [];
 
-        logger.log("[N8N Request] Interactions:", { drugs });
-        const response = await fetch(ENDPOINTS.INTERACTIONS, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ drugs }),
-        });
-        if (!response.ok) throw new Error("Interaction Check Failed");
+        // STRICT BUSINESS LOGIC: Only show SEVERE, selling-blocking interactions.
+        // Language: Hinglish (for local relevance)
+        const prompt = `
+        Analyze these medicines: ${drugs.join(', ')}.
+        TASK: Identify ONLY SEVERE or LIFE-THREATENING interactions.
+        IGNORE: Minor, moderate, or theoretical interactions. (Do not reduce sales for minor issues).
+        OUTPUT: Return a JSON array of strings in HINGLISH (Hindi+English) explaining the danger.
+        Example: ["⚠️ Danger: Aspirin aur Warfarin saath lene se internal bleeding ka khatra badh jata hai."]
+        If no severe interaction, return empty array [].
+        JSON ONLY. No markdown.
+        `;
 
-        const text = await response.text();
-        if (!text) {
-            logger.error("N8N Interaction Check returned Empty Body");
-            throw new Error("Interaction Check: Backend returned empty response. Check n8n workflow.");
+        try {
+            // Use Chat Agent for flexible reasoning
+            const response = await this.chatWithAgent(prompt);
+
+            let cleanParams = response.reply.replace(/```json/g, '').replace(/```/g, '').trim();
+            // Extract JSON array if embedded in text
+            const firstBracket = cleanParams.indexOf('[');
+            const lastBracket = cleanParams.lastIndexOf(']');
+            if (firstBracket !== -1 && lastBracket !== -1) {
+                cleanParams = cleanParams.substring(firstBracket, lastBracket + 1);
+            } else if (!cleanParams.startsWith('[')) {
+                // If AI returns plain text describing 'Safe', treat as empty
+                if (cleanParams.toLowerCase().includes('safe') || cleanParams.toLowerCase().includes('no severe')) return [];
+                return [cleanParams]; // Return raw text as single warning if parsing fails but danger implies
+            }
+
+            const parsed = JSON.parse(cleanParams);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            logger.warn("Severe Interaction Check Failed (Fail Information Only):", e);
+            return []; // Fail safe to empty (Don't block sales on network error)
         }
-
-        const data = cleanN8NResponse(text);
-        logger.log("[N8N Response] Interactions:", data);
-
-        // Handle nested output structure
-        if (data.output && data.output.interactions) {
-            return data.output.interactions;
-        }
-
-        return data.interactions || [];
     },
 
     /**

@@ -32,12 +32,17 @@ class MedixDatabase extends Dexie {
     constructor() {
         super('MedixLiteDB');
         this.version(1).stores({
-            inventory: 'id, medicine_name, batch_number, is_synced', // Primary key and indexes
-            orders: '++id, created_at, is_synced'      // Auto-increment ID for offline orders
+            inventory: 'id, medicine_name, batch_number, is_synced',
+            orders: '++id, created_at, is_synced'
         });
         this.version(2).stores({
-            inventory: 'id, medicine_name, batch_number, rack_number, is_synced', // Added rack_number index
+            inventory: 'id, medicine_name, batch_number, rack_number, is_synced',
             orders: '++id, created_at, is_synced'
+        });
+        // VERSION 3: Multi-Shop Isolation & Security
+        this.version(3).stores({
+            inventory: 'id, shop_id, [shop_id+medicine_name], batch_number, is_synced',
+            orders: '++id, shop_id, created_at, is_synced'
         });
     }
 }
@@ -57,6 +62,7 @@ export interface OfflineInventory {
     generic_name?: string; // For smart substitution
     composition?: string; // For accurate matching
     purchase_price?: number; // For margin calculation
+    shop_id?: string; // Critical for isolation
     is_synced: number; // 1 = Synced, 0 = Pending Upload
 }
 

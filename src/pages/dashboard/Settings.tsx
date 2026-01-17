@@ -85,35 +85,41 @@ const Settings = () => {
         if (!user) return;
         setUserEmail(user.email || "");
 
+        // 1. Try to find shop via profile
         const { data: profile } = await supabase
           .from("profiles")
           .select("shop_id")
           .eq('user_id', user.id)
           .maybeSingle();
 
-        if (profile?.shop_id) {
-          console.log("Found profile, fetching shop:", profile.shop_id);
+        let currentShopId = profile?.shop_id;
+
+        // 2. Fallback: Try to find shop via ownership if profile link is missing
+        if (!currentShopId) {
+          const { data: ownedShop } = await supabase.from('shops').select('id').eq('owner_id', user.id).limit(1).maybeSingle();
+          if (ownedShop) currentShopId = ownedShop.id;
+        }
+
+        if (currentShopId) {
+          console.log("Found shop:", currentShopId);
           const { data: shopData, error: shopError } = await supabase
             .from("shops")
             .select("*")
-            .eq("id", profile.shop_id)
+            .eq("id", currentShopId)
             .single();
 
           if (shopError) {
             console.error("Shop fetch error:", shopError);
-            toast.error(`Shop Load Error: ${shopError.message} (${shopError.code})`);
-            throw shopError;
+            // Don't throw, just allow creating a new one if this fails
           }
           if (shopData) setShop(shopData);
 
           // Fetch Settings
-          const { data: settingsData, error: settingsError } = await supabase
+          const { data: settingsData } = await supabase
             .from("shop_settings")
             .select("*")
-            .eq("shop_id", profile.shop_id)
+            .eq("shop_id", currentShopId)
             .maybeSingle();
-
-          if (settingsError) console.error("Settings fetch error:", settingsError);
 
           if (settingsData) {
             setShopSettings({
@@ -124,12 +130,13 @@ const Settings = () => {
             });
           }
         } else {
-          console.warn("No profile or shop_id found for user:", user.id);
-          toast.error("Profile not linked to any shop.");
+          console.warn("No shop found. Initializing empty for creation.");
+          // Initialize empty shop for creation flow
+          setShop({ id: "", name: "", address: "", phone: "" });
         }
       } catch (e: any) {
         console.error("Error fetching shop details:", e);
-        toast.error(`Detailed Error: ${e.message || "Unknown error"}`);
+        toast.error(`Load Error: ${e.message}`);
       } finally {
         setLoading(false);
       }
@@ -141,9 +148,63 @@ const Settings = () => {
   const handleSaveShop = async () => {
     if (!shop) return;
     setSaving(true);
+    const toastId = toast.loading("Processing...");
 
     try {
-      // 1. Update Shop Core
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      let activeShopId = shop.id;
+
+      // SCENARIO 1: CREATE NEW SHOP
+      if (!activeShopId) {
+        toast.loading("Creating new shop...", { id: toastId });
+
+        const { data: newShop, error: createError } = await supabase
+          .from("shops")
+          .insert({
+            name: shop.name || "My Pharmacy",
+            address: shop.address,
+            phone: shop.phone,
+            owner_id: user.id
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        if (!newShop) throw new Error("Failed to create shop");
+
+        activeShopId = newShop.id;
+        setShop(newShop); // Update local state
+
+        // Link to Profile
+        const { error: linkError } = await supabase
+          .from("profiles")
+          .upsert({
+            user_id: user.id,
+            shop_id: activeShopId,
+            role: 'owner'
+          });
+
+        // Link to User Shops
+        await supabase.from("user_shops").insert({
+          user_id: user.id,
+          shop_id: activeShopId,
+          is_primary: true
+        });
+
+        if (linkError) console.error("Link Error:", linkError);
+
+        toast.success("Shop Created Successfully!", { id: toastId });
+        // Set local storage for immediate recover
+        localStorage.setItem("currentShopId", activeShopId);
+
+        // Force reload after short delay to sync all hooks
+        setTimeout(() => window.location.reload(), 1500);
+        return;
+      }
+
+      // SCENARIO 2: UPDATE EXISTING SHOP
       const { error: shopError } = await supabase
         .from("shops")
         .update({
@@ -151,7 +212,7 @@ const Settings = () => {
           address: shop.address,
           phone: shop.phone
         })
-        .eq("id", shop.id);
+        .eq("id", activeShopId);
 
       if (shopError) throw shopError;
 
@@ -159,7 +220,7 @@ const Settings = () => {
       const { error: settingsError } = await supabase
         .from("shop_settings")
         .upsert({
-          shop_id: shop.id,
+          shop_id: activeShopId,
           gstin: shopSettings.gstin,
           dl_number: shopSettings.dl_number,
           invoice_footer_text: shopSettings.invoice_footer_text,
@@ -168,9 +229,10 @@ const Settings = () => {
 
       if (settingsError) throw settingsError;
 
-      toast.success("All settings updated successfully");
+      toast.success("Settings updated successfully", { id: toastId });
     } catch (error: any) {
-      toast.error(`Failed to save: ${error.message}`);
+      console.error(error);
+      toast.error(`Failed to save: ${error.message}`, { id: toastId });
     } finally {
       setSaving(false);
     }
@@ -319,7 +381,7 @@ const Settings = () => {
                   className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                  Save Changes
+                  {shop?.id ? "Save Changes" : "Create & Link Shop"}
                 </Button>
               </div>
             </CardContent>

@@ -64,8 +64,13 @@ export const AddMedicineDialog = ({ open, onOpenChange, onSuccess }: AddMedicine
         const debugId = toast.loading("Processing...");
 
         try {
-            if (!currentShop?.id) {
-                toast.error("No Shop Selected", { id: debugId });
+            // EXPLICIT: Retrieve Shop ID from State OR LocalStorage (Session)
+            const listShopId = currentShop?.id;
+            const sessionShopId = localStorage.getItem("currentShopId");
+            const finalShopId = listShopId || sessionShopId;
+
+            if (!finalShopId) {
+                toast.error("No Shop Selected (Session Missing)", { id: debugId });
                 return;
             }
             setIsSubmitting(true);
@@ -95,7 +100,7 @@ export const AddMedicineDialog = ({ open, onOpenChange, onSuccess }: AddMedicine
                     setIsSubmitting(false);
                     return;
                 }
-                toast.warning(`Force saving flaged item...`, { id: debugId });
+                toast.warning(`Force saving flagged item...`, { id: debugId });
             }
 
             // 3. Database Insert
@@ -104,7 +109,7 @@ export const AddMedicineDialog = ({ open, onOpenChange, onSuccess }: AddMedicine
 
             // Payload for RPC
             const payload = {
-                p_shop_id: currentShop.id,
+                p_shop_id: finalShopId, // EXPLICIT SHOP ID
                 p_medicine_name: values.medicine_name,
                 p_quantity: values.quantity,
                 p_unit_price: values.unit_price,
@@ -127,7 +132,7 @@ export const AddMedicineDialog = ({ open, onOpenChange, onSuccess }: AddMedicine
                 console.warn("RPC Error, falling back to direct insert:", rpcError);
                 // Fallback
                 const { error: directError } = await supabase.from("inventory").insert({
-                    shop_id: currentShop.id,
+                    shop_id: finalShopId, // EXPLICIT SHOP ID
                     medicine_name: values.medicine_name,
                     generic_name: values.generic_name,
                     batch_number: values.batch_number,
