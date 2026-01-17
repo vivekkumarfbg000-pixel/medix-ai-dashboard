@@ -49,12 +49,15 @@ export function useUserShops(): UserShopsState {
         let mappedShops: Shop[] = [];
 
         if (userShops && userShops.length > 0) {
-          mappedShops = userShops.map((us: any) => ({
-            id: us.shops.id,
-            name: us.shops.name,
-            address: us.shops.address,
+          // SAFE GUARD: Filter out any null 'shops' entries (RLS hidden or orphaned)
+          const validShops = userShops.filter((us: any) => us && us.shops);
+
+          mappedShops = validShops.map((us: any) => ({
+            id: us.shops?.id,
+            name: us.shops?.name || "Unknown Shop",
+            address: us.shops?.address,
             is_primary: us.is_primary,
-          }));
+          })).filter(shop => shop.id); // Double check id exists
         } else {
           // FALLBACK: Check profile if no user_shops mapping exists (Migration safety)
           console.warn("No user_shops found, checking profile fallback...");

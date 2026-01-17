@@ -115,26 +115,35 @@ export const aiService = {
             throw new Error("Too many requests. Please wait a moment.");
         }
 
-        const response = await fetch(ENDPOINTS.CHAT, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-        });
+        try {
+            const response = await fetch(ENDPOINTS.CHAT, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
 
-        if (!response.ok) throw new Error(`AI Agent Unreachable: ${response.status}`);
-        const data = await response.json();
-        logger.log("[N8N Response] Chat:", data);
+            if (!response.ok) throw new Error(`AI Agent Unreachable: ${response.status}`);
+            const data = await response.json();
+            logger.log("[N8N Response] Chat:", data);
 
-        if (data.error) {
-            throw new Error(data.error);
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            // Normalize N8N Response (Handle 'output' vs 'reply')
+            if (data.output && !data.reply) {
+                data.reply = data.output;
+            }
+
+            return data;
+        } catch (error: any) {
+            console.error("Chat Error:", error);
+            // Return a safe fallback so the chat UI shows the error instead of crashing
+            return {
+                reply: "⚠️ I am having trouble connecting to the AI Brain right now. Please check your internet connection and try again.",
+                sources: []
+            };
         }
-
-        // Normalize N8N Response (Handle 'output' vs 'reply')
-        if (data.output && !data.reply) {
-            data.reply = data.output;
-        }
-
-        return data;
     },
 
     /**
@@ -487,7 +496,9 @@ export const aiService = {
                 const extracted = JSON.parse(text);
                 if (Array.isArray(extracted)) return { items: extracted, transcription: "Order Extracted" };
                 if (extracted.items) return { items: extracted.items, transcription: extracted.text || "Order Extracted" };
-            } catch (e) { }
+            } catch (e) {
+                logger.warn("Failed to parse AI text output as JSON", e);
+            }
 
             return { transcription: text, items: [] }; // Let frontend parse text
         }

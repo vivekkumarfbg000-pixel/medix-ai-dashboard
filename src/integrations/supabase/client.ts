@@ -21,5 +21,24 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+    detectSessionInUrl: true,
+  },
+  db: {
+    schema: 'public',
+  },
+  global: {
+    headers: { 'x-application-name': 'medix-ai-dashboard' },
+  },
 });
+
+// Connectivity Check Helper
+export const checkConnection = async () => {
+  try {
+    const { error } = await supabase.from('shops').select('id').limit(1).maybeSingle();
+    if (error) throw error;
+    return true;
+  } catch (e) {
+    console.warn("Supabase Connectivity Check Failed", e);
+    return false;
+  }
+};

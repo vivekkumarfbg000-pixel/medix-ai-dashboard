@@ -12,11 +12,16 @@ export interface OfflineInventory {
 
 export interface OfflineOrder {
     id?: number; // Auto-increment (Local ID)
+    shop_id: string; // Required for sync
     customer_name: string;
     customer_phone?: string;
     total_amount: number;
     items: any[];
     created_at: string;
+    source?: string;
+    payment_mode?: string;
+    payment_status?: string;
+    invoice_number?: string;
     is_synced: number; // 0 = Pending Upload
 }
 
@@ -48,7 +53,9 @@ export interface OfflineInventory {
     shelf_number?: string;
     gst_rate?: number;
     hsn_code?: string;
-    composition?: string; // Chemical composition for substitutes
+    description?: string;
+    generic_name?: string; // For smart substitution
+    composition?: string; // For accurate matching
     purchase_price?: number; // For margin calculation
     is_synced: number; // 1 = Synced, 0 = Pending Upload
 }

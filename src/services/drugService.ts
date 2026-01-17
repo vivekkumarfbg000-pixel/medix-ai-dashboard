@@ -443,6 +443,53 @@ class DrugService {
   async validateCompliance(drugName: string): Promise<string> {
     return await aiService.checkCompliance(drugName);
   }
+
+  /**
+   * Find Higher Margin Substitutes (Client-Side Logic)
+   * @param currentItem The item currently in cart
+   * @param inventoryList List of *potential* candidates (fetched by POS)
+   * @returns List of items with better margin
+   */
+  findBetterMarginSubstitutes(currentItem: any, inventoryList: any[]): any[] {
+    if (!currentItem.purchase_price || !currentItem.unit_price) return [];
+
+    const currentMargin = currentItem.unit_price - currentItem.purchase_price;
+    const currentMarginPercent = (currentMargin / currentItem.unit_price) * 100;
+
+    // Filter Logic:
+    // 1. Same Composition (ideal) OR Same Generic Name
+    // 2. Higher Profit Margin (absolute ₹ or %)
+    // 3. Must be in stock (quantity > 0) - assumed pre-filtered by caller
+
+    return inventoryList.filter(candidate => {
+      if (candidate.id === currentItem.id) return false; // Skip self
+
+      // Match Strength
+      const sameComp = currentItem.composition && candidate.composition &&
+        candidate.composition.toLowerCase() === currentItem.composition.toLowerCase();
+
+      // Fallback: If no strict composition, check generic name
+      const sameGeneric = currentItem.generic_name && candidate.generic_name &&
+        candidate.generic_name.toLowerCase() === currentItem.generic_name.toLowerCase();
+
+      if (!sameComp && !sameGeneric) return false;
+
+      // Margin Check
+      const candCost = candidate.purchase_price || (candidate.unit_price * 0.7); // Fallback cost estimate
+      const candMargin = candidate.unit_price - candCost;
+
+      // Threshold: At least ₹5 more profit OR 5% better margin
+      const significantGain = (candMargin > currentMargin + 5) ||
+        ((candMargin / candidate.unit_price * 100) > currentMarginPercent + 5);
+
+      return significantGain;
+    }).sort((a, b) => {
+      // Sort by highest profit first
+      const profitA = a.unit_price - (a.purchase_price || 0);
+      const profitB = b.unit_price - (b.purchase_price || 0);
+      return profitB - profitA;
+    });
+  }
 }
 
 export const drugService = new DrugService();

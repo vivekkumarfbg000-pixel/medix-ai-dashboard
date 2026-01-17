@@ -1,12 +1,16 @@
 import { Suspense, lazy } from "react";
 import { useMobileBackHandler } from "./hooks/use-mobile-back-handler";
 import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster as Sonner, toast } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { DashboardLayout } from "./components/dashboard/DashboardLayout";
 import { Activity } from "lucide-react";
+
+// Services
+import "@/services/syncService"; // Initialize Sync Service
+// Note: importing solely for side-effects (constructor listener)
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // Initial Load
@@ -42,10 +46,30 @@ const AiDebug = lazy(() => import("./pages/AiDebug"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000,
+      staleTime: 0,
       retry: 1,
+      refetchOnWindowFocus: true,
     },
+    mutations: {
+      retry: 0,
+    }
   },
+  queryCache: new QueryCache({
+    onError: (error) => {
+      console.error("Global Query Error:", error);
+      // Only show toast for 5xx errors or network issues, avoid spamming for 404/400 handled locally
+      if (error instanceof Error && (error.message.includes('Network') || error.message.includes('500'))) {
+        toast.error(`Connnection Issue: ${error.message}`);
+      }
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      console.error("Global Mutation Error:", error);
+      // Mutations usually require user feedback on failure
+      toast.error(`Action Failed: ${error.message}`);
+    },
+  }),
 });
 
 const AppRoutes = () => {
@@ -55,12 +79,16 @@ const AppRoutes = () => {
     <Suspense fallback={<div className="flex items-center justify-center h-screen"><Activity className="h-8 w-8 animate-spin text-primary" /></div>}>
       <Routes>
         <Route path="/auth" element={<Auth />} />
-        <Route path="/" element={<DashboardLayout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Overview />} />
+
+        {/* Redirect root to /dashboard */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+        {/* Dashboard Layout wraps all authenticated features */}
+        <Route path="/dashboard" element={<DashboardLayout />}>
+          <Route index element={<Overview />} />
           <Route path="inventory" element={<ErrorBoundary><Inventory /></ErrorBoundary>} />
-          <Route path="diary" element={<ErrorBoundary><DiaryScan /></ErrorBoundary>} />
-          <Route path="lab" element={<ErrorBoundary><LabAnalyzer /></ErrorBoundary>} />
+          <Route path="diary-scan" element={<ErrorBoundary><DiaryScan /></ErrorBoundary>} />
+          <Route path="lab-analyzer" element={<ErrorBoundary><LabAnalyzer /></ErrorBoundary>} />
           <Route path="orders" element={<ErrorBoundary><Orders /></ErrorBoundary>} />
           <Route path="compliance" element={<ErrorBoundary><Compliance /></ErrorBoundary>} />
           <Route path="ai-insights" element={<ErrorBoundary><AIInsights /></ErrorBoundary>} />
@@ -82,6 +110,7 @@ const AppRoutes = () => {
           <Route path="env-debug" element={<ErrorBoundary><EnvDebug /></ErrorBoundary>} />
           <Route path="ai-debug" element={<ErrorBoundary><AiDebug /></ErrorBoundary>} />
         </Route>
+
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
@@ -89,6 +118,7 @@ const AppRoutes = () => {
 };
 
 const App = () => {
+  console.log("🚀 App Component Rendering...");
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>

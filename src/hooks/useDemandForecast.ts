@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export interface Prediction {
-    id: number;
+    id: string;
     shop_id: string;
     medicine_name: string;
     current_stock: number;
@@ -33,8 +33,15 @@ export const useDemandForecast = (shopId?: string) => {
             return;
         }
 
-        // @ts-ignore
-        setPredictions(data || []);
+        const formattedData: Prediction[] = (data || []).map(item => ({
+            ...item,
+            current_stock: item.current_stock || 0,
+            avg_daily_sales: item.avg_daily_sales || 0,
+            confidence_score: item.confidence_score || 0,
+            reason: item.reason || 'Unknown'
+        }));
+
+        setPredictions(formattedData);
         if (data && data.length > 0) {
             setLastRun(new Date(data[0].created_at));
         }
@@ -69,13 +76,16 @@ export const useDemandForecast = (shopId?: string) => {
             // 3. Aggregate Sales (Map <MedicineName, QtySold>)
             const salesMap = new Map<string, number>();
             orders?.forEach(order => {
-                const items = order.order_items as any[];
+                const items = order.order_items;
+                // Safe guard against non-array JSON data
                 if (Array.isArray(items)) {
-                    items.forEach(item => {
-                        const name = item.name || item.medicine_name;
+                    items.forEach((item: any) => {
+                        const name = item?.name || item?.medicine_name;
                         if (name) {
-                            const qty = parseInt(item.qty || item.quantity || 0);
-                            salesMap.set(name, (salesMap.get(name) || 0) + qty);
+                            const qty = parseInt(item.qty || item.quantity || '0', 10); // Parse int safely
+                            if (!isNaN(qty)) {
+                                salesMap.set(name, (salesMap.get(name) || 0) + qty);
+                            }
                         }
                     });
                 }

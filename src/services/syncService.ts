@@ -1,54 +1,86 @@
 import { supabase } from "@/integrations/supabase/client";
-import { db, OfflineInventory } from "@/db/db";
+import { db, OfflineOrder } from "@/db/db";
 import { toast } from "sonner";
-import logger from "@/utils/logger"; // Added logger import
+import { logger } from "@/utils/logger";
 
-export const syncService = {
-    // 1. Pull latest inventory from Supabase -> Dexie
-    async syncInventoryDown() {
-        try {
-            const { data, error } = await supabase.from('inventory').select('*');
-            if (error) throw error;
+class SyncService {
+    private isSyncing = false;
 
-            const offlineData: OfflineInventory[] = data.map((item: any) => ({
-                id: item.id,
-                medicine_name: item.medicine_name,
-                quantity: item.quantity,
-                unit_price: item.unit_price,
-                batch_number: item.batch_number,
-                expiry_date: item.expiry_date,
-                is_synced: 1
-            }));
+    constructor() {
+        // Listen for online status
+        window.addEventListener('online', this.handleOnline);
 
-            await db.inventory.bulkPut(offlineData);
-            logger.log("Offline DB Synced: ", offlineData.length, " items");
-        } catch (e) {
-            logger.error("Sync Down Failed:", e);
+        // Initial check - DEFERRED to prevent startup blocking
+        if (navigator.onLine) {
+            setTimeout(() => {
+                this.syncOrders();
+            }, 2000);
         }
-    },
-
-    // 2. Initial Seed (Run on App Mount)
-    async seedDatabase() {
-        // Only fetch if empty or user requests
-        const count = await db.inventory.count();
-        if (count === 0 && navigator.onLine) {
-            logger.log("Seeding Local DB...");
-            await this.syncInventoryDown();
-        }
-    },
-
-    // 3. Start Background Sync (Push Orders Up)
-    startSync() {
-        // Run immediately
-        this.seedDatabase();
-
-        // Listen to Online/Offline Events
-        window.addEventListener('online', () => {
-            toast.info("Back Online! Syncing...");
-            this.syncInventoryDown();
-        });
     }
-};
 
-// Export standalone alias for App.tsx compatibility
-export const seedDatabase = () => syncService.seedDatabase();
+    private handleOnline = () => {
+        toast.info("Back Online", { description: "Syncing offline data..." });
+        this.syncOrders();
+    };
+
+    public async syncOrders() {
+        if (this.isSyncing) return;
+        this.isSyncing = true;
+
+        try {
+            // 1. Get Pending Orders
+            const pendingOrders = await db.orders.where('is_synced').equals(0).toArray();
+
+            if (pendingOrders.length === 0) {
+                this.isSyncing = false;
+                return;
+            }
+
+            logger.log(`Syncing ${pendingOrders.length} offline orders...`);
+            let syncedCount = 0;
+
+            for (const order of pendingOrders) {
+                try {
+                    // Remove local ID and sync flag before push
+                    const { id, is_synced, items, ...rest } = order;
+
+                    // Map to Supabase Order Insert
+                    const orderPayload = {
+                        ...rest,
+                        order_items: items, // 'items' in local DB maps to 'order_items' in Supabase
+                        status: 'approved'
+                    };
+
+                    // Push to Supabase
+                    const { error } = await supabase.from('orders').insert(orderPayload as any);
+
+                    if (error) {
+                        console.error("Sync Failed for Order", id, error);
+                        // If persistent error (e.g. schema violation), maybe mark as error-ed locally?
+                        // For now we just skip and retry later.
+                    } else {
+                        // Mark as Synced (or delete if you want to keep DB clean)
+                        // We'll update is_synced to 1 to keep history
+                        if (id) {
+                            await db.orders.update(id, { is_synced: 1 });
+                            syncedCount++;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Sync Exception", e);
+                }
+            }
+
+            if (syncedCount > 0) {
+                toast.success(`Synced ${syncedCount} offline orders!`);
+            }
+
+        } catch (e) {
+            console.error("SyncService Error", e);
+        } finally {
+            this.isSyncing = false;
+        }
+    }
+}
+
+export const syncService = new SyncService();

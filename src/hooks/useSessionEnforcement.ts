@@ -10,28 +10,26 @@ export const useSessionEnforcement = () => {
     useEffect(() => {
         const enforceSession = async () => {
             // 1. Get current user
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return; // Not logged in, handled by auth guard
-
-            // 2. Get or create local Device ID
-            let deviceId = localStorage.getItem('medix_device_id');
-            if (!deviceId) {
-                deviceId = crypto.randomUUID();
-                localStorage.setItem('medix_device_id', deviceId);
-            }
-
-            // 3. Register/Update session in DB
-            // We assume the RPC 'register_session' exists from our migration
             try {
-                const { error } = await supabase.rpc('register_session', {
+                const { data, error } = await supabase.auth.getUser();
+                if (error || !data?.user) return;
+                const user = data.user;
+
+                // 2. Get or create local Device ID
+                let deviceId = localStorage.getItem('medix_device_id');
+                if (!deviceId) {
+                    deviceId = crypto.randomUUID();
+                    localStorage.setItem('medix_device_id', deviceId);
+                }
+
+                // 3. Register/Update session in DB
+                const { error: rpcError } = await supabase.rpc('register_session', {
                     p_session_id: deviceId,
                     p_device_info: navigator.userAgent
                 });
 
-                if (error) {
-                    console.warn("Session Registration Warning:", error.message);
-                    // If RPC fails (e.g. function missing), we might skip enforcement to avoid locking user out
-                    // return; 
+                if (rpcError) {
+                    console.warn("Session Registration Warning:", rpcError.message);
                 }
 
                 // 4. Subscribe to changes on active_sessions for this user

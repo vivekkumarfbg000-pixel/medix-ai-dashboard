@@ -1,75 +1,70 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Sparkles, Plus, TrendingUp } from "lucide-react";
+import { Sparkles, Plus } from "lucide-react";
 import { OfflineInventory, db } from "@/db/db";
+import { supabase } from "@/integrations/supabase/client";
+import { useUserShops } from "@/hooks/useUserShops";
 
 interface UpsellWidgetProps {
     cartItems: { item: OfflineInventory; qty: number }[];
     onAddItem: (item: OfflineInventory) => void;
 }
 
-// Simple rule-based engine (Fast & Offline)
-const RULE_ENGINE: Record<string, string[]> = {
-    'antibiotic': ['Probiotic', 'Vitamin B Complex', 'Pantoprazole'],
-    'pain killer': ['Antacid', 'Spray'],
-    'diabetic': ['Needles', 'Alcohol Swabs', 'Stevia'],
-    'syrup': ['Spoon', 'Tissue'],
-    'baby': ['Diapers', 'Wipes', 'Baby Oil'],
-};
-
 export function UpsellWidget({ cartItems, onAddItem }: UpsellWidgetProps) {
     const [recommendations, setRecommendations] = useState<OfflineInventory[]>([]);
+    const { currentShop } = useUserShops();
 
     useEffect(() => {
-        if (cartItems.length === 0) {
+        if (cartItems.length === 0 || !currentShop?.id) {
             setRecommendations([]);
             return;
         }
 
-        const runRecommendations = async () => {
+        const runRealAI = async () => {
             const lastItem = cartItems[cartItems.length - 1].item;
-            const keywords = lastItem.medicine_name.toLowerCase().split(' ');
 
-            let potentialMatches: string[] = [];
+            // 1. Query Real Sales Correlation (RPC)
+            // @ts-ignore
+            const { data } = await supabase.rpc('get_frequently_bought_together', {
+                scan_medicine_name: lastItem.medicine_name,
+                query_shop_id: currentShop.id
+            });
 
-            // 1. Check Rules
-            // very basic keyword matching against our rule engine
-            for (const [key, suggestions] of Object.entries(RULE_ENGINE)) {
-                if (lastItem.medicine_name.toLowerCase().includes(key) ||
-                    (lastItem.composition || "").toLowerCase().includes(key)) {
-                    potentialMatches = [...potentialMatches, ...suggestions];
-                }
+            const aiSuggestions = (data || []) as any[];
+
+            let potentialNames: string[] = [];
+
+            if (aiSuggestions && aiSuggestions.length > 0) {
+                potentialNames = aiSuggestions.map((s: any) => s.medicine_name);
+            } else {
+                // 2. Fallback: Category-based or High Margin items if no history
+                // Find items with same category but not the same item
+                const fallback = ['Vitamin', 'Mask', 'Sanitizer', 'Balm'];
+                potentialNames = fallback;
             }
 
-            // 2. If no rules, try 'Frequently Bought Together' simulation
-            // In a real app, this queries the 'orders' table for correlation. 
-            // Here we just find items with similar tags or random high-margin items for demo
-            if (potentialMatches.length === 0) {
-                // Fallback: Suggest popular categories
-                potentialMatches = ['Vitamin', 'Mask', 'Sanitizer'];
-            }
-
-            // 3. Resolve names to Inventory Items
+            // 3. Resolve to In-Stock Local Inventory
             const verifiedRecs: OfflineInventory[] = [];
-            for (const term of potentialMatches) {
-                // Find ANY item that matches this term and has stock
+
+            for (const name of potentialNames) {
+                // Fuzzy search in local DB
                 const match = await db.inventory
                     .filter(i =>
-                        i.medicine_name.toLowerCase().includes(term.toLowerCase()) &&
+                        i.medicine_name.toLowerCase().includes(name.toLowerCase()) &&
                         i.quantity > 0 &&
-                        !cartItems.find(c => c.item.id === i.id) // Don't suggest if already in cart
+                        !cartItems.find(c => c.item.id === i.id)
                     )
                     .first();
 
                 if (match) verifiedRecs.push(match);
             }
 
-            setRecommendations(verifiedRecs.slice(0, 3)); // Limit to 3
+            setRecommendations(verifiedRecs.slice(0, 3));
         };
 
-        runRecommendations();
-    }, [cartItems]);
+        const timer = setTimeout(runRealAI, 500); // Debounce
+        return () => clearTimeout(timer);
+
+    }, [cartItems, currentShop?.id]);
 
     if (recommendations.length === 0) return null;
 
@@ -79,7 +74,7 @@ export function UpsellWidget({ cartItems, onAddItem }: UpsellWidgetProps) {
                 <div className="flex items-center gap-2 mb-2">
                     <Sparkles className="w-4 h-4 text-purple-600 animate-pulse" />
                     <h4 className="text-xs font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider">
-                        Smart Suggestions
+                        People also buy
                     </h4>
                 </div>
                 <div className="flex flex-wrap gap-2">

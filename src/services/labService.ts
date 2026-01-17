@@ -39,7 +39,7 @@ class LabService {
             // Parse raw analysis if it's a string
             let rawAnalysis = data.raw_analysis || {};
             if (typeof rawAnalysis === 'string') {
-                try { rawAnalysis = JSON.parse(rawAnalysis); } catch (e) { }
+                try { rawAnalysis = JSON.parse(rawAnalysis); } catch (e) { logger.warn("Pre-parsed rawAnalysis check failed", e); }
             }
 
             // Map response to Frontend Model

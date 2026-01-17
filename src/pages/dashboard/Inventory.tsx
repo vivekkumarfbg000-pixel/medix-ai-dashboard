@@ -98,7 +98,6 @@ const Inventory = () => {
     try {
       const { data, error } = await supabase
         .from("inventory")
-        // @ts-ignore
         .select("*")
         .eq("shop_id", currentShop.id) // EXPLICIT FILTER
         .order("medicine_name");
@@ -107,11 +106,19 @@ const Inventory = () => {
         console.error("fetchInventory Error:", error);
         toast.error("Failed to load inventory: " + error.message);
       } else {
-        // @ts-ignore
-        setInventory(data || []);
+        // Safe cast with fallback for missing fields
+        const safeData = (data || []).map((item: any) => ({
+          ...item,
+          // Ensure critical fields exist to prevent render crashes
+          medicine_name: item.medicine_name || "Unknown Item",
+          quantity: item.quantity ?? 0,
+          unit_price: item.unit_price ?? 0
+        })) as InventoryItem[];
+        setInventory(safeData);
       }
     } catch (e) {
       console.error("fetchInventory Exception:", e);
+      toast.error("Critical Error loading inventory");
     } finally {
       setLoading(false);
     }
@@ -370,6 +377,7 @@ const Inventory = () => {
           const name = row['medicine name'] || row['name'] || row['medicine'] || 'Unknown';
           const quantity = parseInt(row['qty'] || row['quantity'] || row['stock'] || '0');
           const price = parseFloat(row['mrp'] || row['price'] || row['unit price'] || '0');
+          const cost = parseFloat(row['cost'] || row['purchase price'] || row['buying price'] || '0');
 
           return {
             shop_id: currentShop.id,
@@ -377,6 +385,7 @@ const Inventory = () => {
             batch_number: row['batch'] || row['batch number'] || null,
             quantity: isNaN(quantity) ? 0 : quantity,
             unit_price: isNaN(price) ? 0 : price,
+            purchase_price: isNaN(cost) ? 0 : cost, // Added for Profit Reports
             expiry_date: row['expiry'] || row['expiry date'] || null,
             barcode: row['barcode'] || null,
             manufacturer: row['manufacturer'] || null,

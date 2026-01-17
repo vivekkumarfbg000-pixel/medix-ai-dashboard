@@ -19,6 +19,7 @@ const medicineSchema = z.object({
     batch_number: z.string().min(1, "Batch number is required"),
     quantity: z.coerce.number().min(0, "Quantity cannot be negative"),
     unit_price: z.coerce.number().min(0, "Price cannot be negative"),
+    purchase_price: z.coerce.number().min(0, "Cost cannot be negative").optional(),
     expiry_date: z.string().optional(),
     manufacturer: z.string().optional(),
     category: z.string().optional(),
@@ -48,6 +49,7 @@ export const AddMedicineDialog = ({ open, onOpenChange, onSuccess }: AddMedicine
             batch_number: "",
             quantity: 0,
             unit_price: 0,
+            purchase_price: 0,
             expiry_date: "",
             manufacturer: "",
             category: "",
@@ -106,6 +108,7 @@ export const AddMedicineDialog = ({ open, onOpenChange, onSuccess }: AddMedicine
                 p_medicine_name: values.medicine_name,
                 p_quantity: values.quantity,
                 p_unit_price: values.unit_price,
+                p_purchase_price: values.purchase_price || 0,
                 p_batch_number: values.batch_number || null,
                 p_expiry_date: values.expiry_date || null,
                 p_manufacturer: values.manufacturer || null,
@@ -130,6 +133,7 @@ export const AddMedicineDialog = ({ open, onOpenChange, onSuccess }: AddMedicine
                     batch_number: values.batch_number,
                     quantity: values.quantity,
                     unit_price: values.unit_price,
+                    purchase_price: values.purchase_price || 0,
                     expiry_date: values.expiry_date || null,
                     manufacturer: values.manufacturer,
                     category: values.category,
@@ -198,17 +202,30 @@ export const AddMedicineDialog = ({ open, onOpenChange, onSuccess }: AddMedicine
                             />
                         </div>
 
-                        <FormField
-                            control={form.control}
-                            name="unit_price"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>MRP</FormLabel>
-                                    <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                                control={form.control}
+                                name="unit_price"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>MRP (Selling Price)</FormLabel>
+                                        <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="purchase_price"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Cost Price (Buying)</FormLabel>
+                                        <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <FormField

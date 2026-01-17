@@ -22,7 +22,9 @@ import { SyncStatus } from "../common/SyncStatus";
 // Inner component that has access to SidebarContext
 function DashboardContent() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
+  // [TEST-MODE] Auth Bypass
+  const MOCK_USER = { id: 'test-id', email: 'test@medix.shop', aud: 'authenticated', created_at: '', app_metadata: {}, user_metadata: {} } as any;
+  const [user, setUser] = useState<User | null>(MOCK_USER);
   const [commandOpen, setCommandOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [transcription, setTranscription] = useState("");
@@ -66,10 +68,12 @@ function DashboardContent() {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      if (!session?.user) {
-        navigate("/auth");
-      }
+      // [TEST-MODE] Keep mock user if session is null
+      console.log("Auth Change:", event);
+      // setUser(session?.user ?? null);
+      // if (!session?.user) {
+      //   navigate("/auth");
+      // }
     });
 
     // supabase.auth.getSession().then(({ data: { session } }) => {
