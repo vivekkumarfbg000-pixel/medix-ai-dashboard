@@ -169,15 +169,32 @@ const Settings = () => {
             owner_id: user.id
           })
           .select()
-          .single();
+          .maybeSingle();
 
-        if (createError) throw createError;
-        if (!newShop) throw new Error("Failed to create shop");
+        if (createError) {
+          // RECOVERY: If error is 'duplicate' or RLS, check if shop actually exists
+          console.warn("Create failed, checking for existing shop...", createError);
+          const { data: existingShop } = await supabase
+            .from("shops")
+            .select("id, name")
+            .eq("owner_id", user.id)
+            .maybeSingle();
 
-        activeShopId = newShop.id;
-        setShop(newShop); // Update local state
+          if (existingShop) {
+            activeShopId = existingShop.id;
+            toast.info(`Recovered existing shop: ${existingShop.name}`);
+          } else {
+            throw createError;
+          }
+        } else if (newShop) {
+          activeShopId = newShop.id;
+          setShop(newShop);
+        } else {
+          // Fallback if neither created nor found (should be rare)
+          throw new Error("Failed to create or locate shop.");
+        }
 
-        // Link to Profile
+        // Link to Profile (Upsert to be safe)
         const { error: linkError } = await supabase
           .from("profiles")
           .upsert({
