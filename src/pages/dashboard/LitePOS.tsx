@@ -116,8 +116,8 @@ const LitePOS = () => {
                 </div>
 
                 {/* MOBILE: Center Voice Trigger */}
-                <div className="md:hidden">
-                    <VoiceCommandBar onTranscriptionComplete={(txt) => { setSearch(txt); setShowMobileCatalog(true); }} />
+                <div className="md:hidden max-w-[50px]">
+                    <VoiceCommandBar compact={true} onTranscriptionComplete={(txt) => { setSearch(txt); setShowMobileCatalog(true); }} />
                 </div>
 
                 {/* MOBILE: Toggle Catalog */}
@@ -127,7 +127,7 @@ const LitePOS = () => {
                     className={`md:hidden ${showMobileCatalog ? 'bg-slate-700 text-white' : 'bg-cyan-600 text-black hover:bg-cyan-500'}`}
                     onClick={() => setShowMobileCatalog(!showMobileCatalog)}
                 >
-                    {showMobileCatalog ? <X className="w-4 h-4" /> : <div className="flex items-center gap-1"><Plus className="w-4 h-4" /> <span className="text-[10px] font-bold">ADD</span></div>}
+                    {showMobileCatalog ? <X className="w-4 h-4" /> : <div className="flex items-center gap-1"><Plus className="w-4 h-4" /> <span className="text-[10px] font-bold">ADD MED</span></div>}
                 </Button>
             </div>
 
@@ -155,7 +155,7 @@ const LitePOS = () => {
                             </div>
                             {/* Desktop Voice Trigger */}
                             <div className="hidden md:block">
-                                <VoiceCommandBar onTranscriptionComplete={(txt) => setSearch(txt)} />
+                                <VoiceCommandBar compact={true} onTranscriptionComplete={(txt) => setSearch(txt)} />
                             </div>
                         </div>
                         {/* Zero State / Shortbook */}
@@ -288,7 +288,7 @@ const LitePOS = () => {
                                     <button className="w-full mb-3 flex items-center justify-between bg-red-950/40 border border-red-900/50 rounded px-3 py-2 text-red-400 hover:bg-red-900/20 transition-colors group">
                                         <div className="flex items-center gap-2">
                                             <ShieldAlert className="w-4 h-4 animate-pulse" />
-                                            <span className="text-[10px] font-bold uppercase tracking-wider">Safety Warning Detected</span>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider">⚠️ Dawa Reaction Alert</span>
                                         </div>
                                         <ChevronRight className="w-4 h-4 opacity-50 group-hover:opacity-100" />
                                     </button>
@@ -296,7 +296,7 @@ const LitePOS = () => {
                                 <DialogContent className="max-w-[90%] md:max-w-md bg-slate-950 border-slate-800 text-slate-200 rounded-xl">
                                     <DialogHeader>
                                         <DialogTitle className="text-red-400 flex items-center gap-2">
-                                            <ShieldAlert className="w-5 h-5" /> Critical Interaction
+                                            <ShieldAlert className="w-5 h-5" /> 🚫 Khatarnak Interaction Detected
                                         </DialogTitle>
                                     </DialogHeader>
                                     <div className="space-y-3 mt-2">
@@ -306,7 +306,7 @@ const LitePOS = () => {
                                             </div>
                                         ))}
                                         <Button className="w-full bg-slate-800 hover:bg-slate-700 text-white mt-4" onClick={() => { }}>
-                                            Review & Proceed
+                                            Samajh Gaya (Proceed)
                                         </Button>
                                     </div>
                                 </DialogContent>
