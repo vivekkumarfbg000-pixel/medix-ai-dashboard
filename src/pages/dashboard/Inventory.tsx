@@ -31,6 +31,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { FileText as FileTextIcon, History, Scan } from "lucide-react";
 import AuditLogs from "@/pages/dashboard/AuditLogs";
 import { StockAudit } from "@/components/dashboard/inventory/StockAudit";
+import { pdfService } from "@/services/pdfService";
+import { whatsappService } from "@/services/whatsappService";
 
 interface InventoryItem {
   id: string;
@@ -85,6 +87,7 @@ const Inventory = () => {
 
   /* Add Item State */
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isAuditOpen, setIsAuditOpen] = useState(false);
 
   /* Debug Logging */
   /* Debug Logging */
@@ -376,6 +379,17 @@ const Inventory = () => {
           return row;
         });
 
+
+        // Helper: Strict Date Parser (YYYY-MM-DD)
+        const parseDateSafe = (val: string): string | null => {
+          if (!val) return null;
+          try {
+            const mkDate = new Date(val);
+            if (isNaN(mkDate.getTime())) return null;
+            return mkDate.toISOString().split('T')[0];
+          } catch (e) { return null; }
+        };
+
         // Parse and Format ALL Data First
         const formattedDataAll = parsedData.map((row: any) => {
           const name = row['medicine name'] || row['name'] || row['medicine'] || 'Unknown';
@@ -383,14 +397,18 @@ const Inventory = () => {
           const price = parseFloat(row['mrp'] || row['price'] || row['unit price'] || '0');
           const cost = parseFloat(row['cost'] || row['purchase price'] || row['buying price'] || '0');
 
+          // Strict Date Parsing
+          const rawExpiry = row['expiry'] || row['expiry date'];
+          const cleanExpiry = parseDateSafe(rawExpiry);
+
           return {
-            shop_id: currentShop.id,
+            shop_id: currentShop?.id,
             medicine_name: name,
             batch_number: row['batch'] || row['batch number'] || null,
             quantity: isNaN(quantity) ? 0 : quantity,
             unit_price: isNaN(price) ? 0 : price,
-            purchase_price: isNaN(cost) ? 0 : cost, // Added for Profit Reports
-            expiry_date: row['expiry'] || row['expiry date'] || null,
+            purchase_price: isNaN(cost) ? 0 : cost,
+            expiry_date: cleanExpiry,
             barcode: row['barcode'] || null,
             manufacturer: row['manufacturer'] || null,
             rack_number: row['rack'] || row['rack no'] || null,
@@ -405,75 +423,40 @@ const Inventory = () => {
           chunks.push(formattedDataAll.slice(i, i + CHUNK_SIZE));
         }
 
-        const timeoutPromise = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error("Request timed out - check your connection")), ms));
-
-
-
-        // --- DRY RUN: Test Connection & Permissions ---
-        try {
-          toast.loading("Verifying connection...", { id: toastId });
-
-          const dryRunPromise = async () => {
-            // 1. Insert Test Record
-            const testItem = {
-              ...formattedDataAll[0],
-              medicine_name: "Connectivity_Test_" + Date.now(),
-              quantity: 1,
-              source: 'system_test'
-            };
-
-            const { data: testData, error: testError } = await supabase.from('inventory').insert([testItem]).select().single();
-            if (testError) throw testError;
-
-            // 2. Cleanup Test Record (Fire and forget cleanup to avoid waiting)
-            if (testData?.id) {
-              await supabase.from('inventory').delete().eq('id', testData.id);
-            }
-            return true;
-          };
-
-          // Race against 5s timeout
-          await Promise.race([
-            dryRunPromise(),
-            timeoutPromise(5000)
-          ]);
-
-        } catch (e: any) {
-          console.error("Dry Run Failed:", e);
-          if (e.code === '42501' || e.message?.includes("security policy")) {
-            toast.error("Permission Denied: Check Settings -> Pharmacy Profile.", { id: toastId, duration: 5000 });
-          } else {
-            toast.error("Connection Failed. Refresh and try again.", { id: toastId, duration: 4000 });
-          }
-          return; // STOP HERE
-        }
+        // --- SKIP DRY RUN: Proceed directly to import ---
+        toastId = toast.loading("Starting Import...");
         // -----------------------------------------------
 
         for (const chunk of chunks) {
           if (criticalError) break;
-          // Abort if too many errors in a row (prevent infinite loop of failures)
+          // Abort if too many errors
           if (consecutiveErrors >= 3) {
-            toast.error("Too many errors (3 batches failed). Aborting import.", { id: toastId });
+            toast.error("Too many errors. Aborting.", { id: toastId });
             criticalError = true;
             break;
           }
 
           completedChunks++;
-          toast.loading(`Importing batch ${completedChunks}/${chunks.length} (${Math.round((completedChunks / chunks.length) * 100)}%)...`, { id: toastId });
+          if (completedChunks === 1 || completedChunks % 5 === 0 || completedChunks === chunks.length) {
+            toast.loading(`Importing batch ${completedChunks}/${chunks.length}...`, { id: toastId });
+          }
 
-          // chunk is now already formatted data
           const formattedData = chunk;
-
           if (formattedData.length === 0) continue;
 
+          // console.log(`[CSV Import] Uploading Batch ${completedChunks}:`, formattedData);
+
           try {
-            // @ts-ignore
-            const { error } = await Promise.race([
-              supabase.from('inventory').insert(formattedData),
-              timeoutPromise(10000) // Reduced to 10s per chunk
-            ]) as any;
+            // Force Timeout after 15s to prevent hanging
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+            const { error } = await supabase.from('inventory').insert(formattedData).abortSignal(controller.signal);
+
+            clearTimeout(timeoutId);
 
             if (error) {
+
               // --- FALLBACK: Retry without 'source' column if schema is old ---
               if (error.code === '42703') { // undefined_column
                 console.warn("Schema Mismatch: 'source' column missing. Retrying without it...");
@@ -513,8 +496,8 @@ const Inventory = () => {
           } catch (err: any) {
             console.error("Bulk Insert Exception:", err);
             errorCount += chunk.length;
-            toast.error(`Timeout/Network Error: Stopping import.`, { id: toastId });
-            criticalError = true;
+            toast.error(`Network Error: ${err.message}`, { id: toastId });
+            // Don't abort on network blip, just log error
           }
         }
 
@@ -523,7 +506,7 @@ const Inventory = () => {
           // Ensure the user knows why it stopped
           toast.error("Import Aborted due to critical errors.", { id: toastId, duration: 5000 });
         } else if (successCount > 0) {
-          toast.success(`Success! Imported ${successCount} items to Shop (${currentShop.name}).`, { id: toastId });
+          toast.success(`Success! Imported ${successCount} items to Shop (${currentShop?.name}).`, { id: toastId });
         } else if (errorCount > 0) {
           toast.warning(`Import finished with ${errorCount} errors. Check console.`, { id: toastId });
         } else {
@@ -551,7 +534,20 @@ const Inventory = () => {
         <div className="flex flex-col items-center gap-2">
           <RefreshCw className="w-8 h-8 animate-spin text-primary" />
           <p className="text-muted-foreground">Loading Stock...</p>
+
         </div>
+
+        {/* Audit Mode Dialog - Self Contained */}
+        <StockAudit
+          open={isAuditOpen}
+          onOpenChange={setIsAuditOpen}
+          shopId={currentShop?.id || ""}
+          onComplete={() => {
+            fetchInventory(); // Refresh list after audit
+            toast.success("Audit Completed & Stock Updated");
+          }}
+        />
+
       </div>
     );
   }
@@ -580,9 +576,9 @@ const Inventory = () => {
           </p>
         </div>
 
-        const [isAuditOpen, setIsAuditOpen] = useState(false);
 
-        // ... inside return ...
+
+
 
         {/* Bulk Actions Toolbar */}
         <div className="flex gap-2 items-center">
@@ -639,7 +635,20 @@ const Inventory = () => {
               )}
             </div>
           )}
+
         </div>
+
+        {/* Audit Mode Dialog - Using the Self Contained Component Correctly */}
+        <StockAudit
+          open={isAuditOpen}
+          onOpenChange={setIsAuditOpen}
+          shopId={currentShop?.id || ""}
+          onComplete={() => {
+            fetchInventory();
+            toast.success("Audit Completed");
+          }}
+        />
+
       </div>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-4 h-auto p-1">

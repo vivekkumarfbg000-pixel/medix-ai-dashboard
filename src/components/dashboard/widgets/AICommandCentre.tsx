@@ -92,7 +92,7 @@ export const AICommandCentre = () => {
                 .from('orders') // Assuming orders table exists
                 .select('*')
                 .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-                .eq('shop_id', currentShop.id)
+                .eq('shop_id', currentShop?.id)
                 .limit(100);
 
             // Call Service
@@ -101,11 +101,11 @@ export const AICommandCentre = () => {
 
             if (aiResponse && aiResponse.forecast) {
                 // Clear old
-                await supabase.from('restock_predictions' as any).delete().eq('shop_id', currentShop.id);
+                await supabase.from('restock_predictions' as any).delete().eq('shop_id', currentShop?.id);
 
                 // Save new
                 await supabase.from('restock_predictions' as any).insert(aiResponse.forecast.map((item: any) => ({
-                    shop_id: currentShop.id,
+                    shop_id: currentShop?.id,
                     medicine_name: item.product,
                     current_stock: item.current_stock || 0,
                     predicted_quantity: item.suggested_restock || 0,

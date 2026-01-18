@@ -189,7 +189,7 @@ const Compliance = () => {
                                 onClick={async () => {
                                     toast.loading("Scanning Inventory against Banned List...");
                                     try {
-                                        const { data: items } = await supabase.from('inventory').select('medicine_name').limit(5);
+                                        const { data: items } = await supabase.from('inventory').select('medicine_name').eq('shop_id', currentShop?.id).limit(5);
                                         if (items) {
                                             const { aiService } = await import("@/services/aiService");
                                             for (const item of items) {

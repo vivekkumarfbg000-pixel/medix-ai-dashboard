@@ -440,7 +440,7 @@ const DiaryScan = () => {
                         const doctorName = (document.getElementById('doctor-name') as HTMLInputElement)?.value || "Unknown Doctor";
 
                         await supabase.from('prescriptions').insert({
-                          shop_id: currentShop.id,
+                          shop_id: currentShop?.id,
                           customer_name: patientName,
                           doctor_name: doctorName,
                           visit_date: new Date().toISOString(),
@@ -459,7 +459,7 @@ const DiaryScan = () => {
                           const { data: exactMatch } = await supabase
                             .from('inventory')
                             .select('id')
-                            .eq('shop_id', currentShop.id)
+                            .eq('shop_id', currentShop?.id)
                             .ilike('medicine_name', item.medication_name)
                             .maybeSingle();
 
@@ -469,7 +469,7 @@ const DiaryScan = () => {
                             const { data: fuzzy } = await supabase
                               .from('inventory')
                               .select('id')
-                              .eq('shop_id', currentShop.id)
+                              .eq('shop_id', currentShop?.id)
                               .ilike('medicine_name', `${item.medication_name}%`)
                               .limit(1);
                             if (fuzzy && fuzzy.length > 0) inventoryId = fuzzy[0].id;
@@ -511,7 +511,7 @@ const DiaryScan = () => {
                         // We do this asynchronously so we don't block the redirect too long, but ideally await it
                         toast.info("Saving Parcha...");
                         await supabase.from('prescriptions').insert({
-                          shop_id: currentShop.id,
+                          shop_id: currentShop?.id,
                           customer_name: patientName,
                           doctor_name: doctorName,
                           visit_date: new Date().toISOString(),

@@ -83,7 +83,7 @@ const Settings = () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
-        setUserEmail(user.email || "");
+        setUserEmail(user.email || "No Email Linked");
 
         // 1. Try to find shop via profile
         const { data: profile } = await supabase
@@ -529,7 +529,7 @@ const Settings = () => {
                 <div className="space-y-1">
                   <Label className="text-xs uppercase text-slate-400 font-bold tracking-wider">Account Email</Label>
                   <div className="flex items-center gap-2 text-slate-700 font-medium">
-                    <Mail className="w-4 h-4" /> {userEmail || "Loading..."}
+                    <Mail className="w-4 h-4" /> {userEmail === null ? "Loading..." : userEmail}
                   </div>
                 </div>
               </div>

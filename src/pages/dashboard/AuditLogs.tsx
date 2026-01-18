@@ -33,6 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useUserShops } from "@/hooks/useUserShops";
 
 interface AuditLog {
   id: string;
@@ -46,6 +47,7 @@ interface AuditLog {
 }
 
 export default function AuditLogs({ embedded = false }: { embedded?: boolean }) {
+  const { currentShop } = useUserShops();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -56,15 +58,19 @@ export default function AuditLogs({ embedded = false }: { embedded?: boolean }) 
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
-    fetchLogs();
-  }, []);
+    if (currentShop?.id) {
+      fetchLogs();
+    }
+  }, [currentShop?.id]);
 
   async function fetchLogs() {
+    if (!currentShop?.id) return;
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("audit_logs")
         .select("*")
+        .eq("shop_id", currentShop.id)
         .order("created_at", { ascending: false })
         .limit(100);
 

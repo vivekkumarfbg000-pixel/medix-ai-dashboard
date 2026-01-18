@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Activity, Plus, Trash2, Edit, ShoppingCart, Package, Users, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useUserShops } from "@/hooks/useUserShops";
 
 interface AuditLog {
     id: string;
@@ -26,13 +27,16 @@ interface ActivityItem {
 }
 
 export const ActivityFeed = () => {
+    const { currentShop } = useUserShops();
     const [activities, setActivities] = useState<ActivityItem[]>([]);
 
     useEffect(() => {
         const fetchRecentActivity = async () => {
+            if (!currentShop?.id) return;
             const { data, error } = await supabase
                 .from('audit_logs')
                 .select('*')
+                .eq('shop_id', currentShop.id)
                 .order('created_at', { ascending: false })
                 .limit(20);
 
@@ -96,18 +100,20 @@ export const ActivityFeed = () => {
             }
         };
 
-        fetchRecentActivity();
+        if (currentShop?.id) {
+            fetchRecentActivity();
+        }
 
         // Real-time listener
         const channel = supabase
             .channel('audit-feed')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs' }, (payload) => {
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs', filter: `shop_id=eq.${currentShop?.id}` }, (payload) => {
                 fetchRecentActivity(); // Simply re-fetch for simplicity/accuracy
             })
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, []);
+    }, [currentShop?.id]);
 
     const getIconColor = (type: string) => {
         switch (type) {

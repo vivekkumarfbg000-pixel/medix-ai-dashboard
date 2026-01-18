@@ -18,6 +18,7 @@ import { VoiceCommandBar } from "@/components/dashboard/VoiceCommandBar";
 import { useUserShops } from "@/hooks/useUserShops";
 import { aiService } from "@/services/aiService";
 import { CustomerSearch, Customer } from "@/components/dashboard/CustomerSearch";
+import { supabase } from "@/integrations/supabase/client";
 
 const LitePOS = () => {
     const navigate = useNavigate();
@@ -36,7 +37,7 @@ const LitePOS = () => {
     const products = useLiveQuery(
         () => {
             if (!currentShop?.id) return [];
-            let collection = db.inventory.where("shop_id").equals(currentShop.id); // STRICT FILTER
+            let collection = db.inventory.where("shop_id").equals(currentShop.id);
 
             if (search) {
                 return collection.filter(i => i.medicine_name.toLowerCase().startsWith(search.toLowerCase())).limit(20).toArray();
@@ -46,10 +47,64 @@ const LitePOS = () => {
         [search, currentShop?.id]
     );
 
+    // --- CART LOGIC ---
+    const addToCart = async (item: OfflineInventory) => {
+        setCart(prev => {
+            const existing = prev.find(p => p.item.id === item.id);
+            if (existing) {
+                return prev.map(p => p.item.id === item.id ? { ...p, qty: p.qty + 1 } : p);
+            }
+            return [...prev, { item, qty: 1 }];
+        });
+
+        // Simple Interaction Check (Mock/AI)
+        if (cart.length > 0) {
+            const existingNames = cart.map(c => c.item.medicine_name);
+            const checks = await Promise.all(existingNames.map(name => aiService.checkInteraction(item.medicine_name, name)));
+            const warnings = checks.filter(c => c.hasInteraction).map(c => c.warning);
+            // Unique warnings
+            const newWarnings = warnings.filter(w => !interactions.includes(w));
+            if (newWarnings.length > 0) {
+                setInteractions(prev => [...prev, ...newWarnings]);
+                toast.error("Interaction Detected!");
+            }
+        }
+    };
+
+    const updateQty = (id: string, delta: number) => {
+        setCart(prev => prev.map(item => {
+            if (item.item.id === id) {
+                const newQty = Math.max(1, item.qty + delta);
+                return { ...item, qty: newQty };
+            }
+            return item;
+        }));
+    };
+
+    const addToShortbook = () => {
+        toast.success(`'${search}' added to Shortbook`);
+        setSearch("");
+    };
+
+    const calculateTotals = () => {
+        const subtotal = cart.reduce((acc, curr) => acc + (curr.item.unit_price * curr.qty), 0);
+        const totalProfit = cart.reduce((acc, curr) => acc + ((curr.item.unit_price - (curr.item.purchase_price || 0)) * curr.qty), 0);
+        const discountAmount = (subtotal * discountPercentage) / 100;
+        const total = Math.round(subtotal - discountAmount);
+        const margin = subtotal > 0 ? (totalProfit / subtotal) * 100 : 0;
+        return { subtotal, discount: discountAmount, total, totalProfit, margin };
+    };
+
+    // Update profit stats when cart changes
+    useEffect(() => {
+        const { totalProfit, margin } = calculateTotals();
+        setProfitStats({ totalProfit, margin });
+    }, [cart, discountPercentage]);
+
     // --- CHECKOUT LOGIC ---
     const handleCheckout = async () => {
         if (!currentShop?.id || cart.length === 0) return;
-        const { total } = totals();
+        const { total } = calculateTotals();
 
         toast.loading("Processing Order...");
 
@@ -85,7 +140,6 @@ const LitePOS = () => {
             if (itemsError) throw itemsError;
 
             // 3. Update Inventory (Deduct Stock)
-            // Note: Ideally call an RPC for atomicity, but simple loop works for LitePOS MVP
             for (const c of cart) {
                 await supabase.rpc('decrement_stock', {
                     row_id: c.item.id,
@@ -98,6 +152,7 @@ const LitePOS = () => {
             setCart([]);
             setPaymentMode('cash');
             setSelectedCustomer(null);
+            setInteractions([]); // Clear interactions
 
         } catch (err: any) {
             console.error(err);
@@ -106,30 +161,7 @@ const LitePOS = () => {
         }
     };
 
-    return (
-        // ... (Keeping layout same, just updating checkout button)
-        // ...
-        <Button
-            className={`
-                                    col-span-3 h-11 font-bold text-sm shadow-[0_0_15px_rgba(6,182,212,0.1)]
-                                    ${paymentMode === 'cash' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : ''}
-                                    ${paymentMode === 'online' ? 'bg-purple-600 hover:bg-purple-500 text-white' : ''}
-                                    ${paymentMode === 'credit' ? 'bg-orange-600 hover:bg-orange-500 text-white' : ''}
-                                `}
-            onClick={handleCheckout}
-            disabled={cart.length === 0}
-        >
-            <div className="flex items-center gap-2 uppercase tracking-wide">
-                {paymentMode === 'cash' && <IndianRupee className="w-4 h-4" />}
-                {paymentMode === 'online' && <Zap className="w-4 h-4" />}
-                {paymentMode === 'credit' && <User className="w-4 h-4" />}
-                {paymentMode === 'credit' ? 'DEBIT ACCOUNT' : 'COLLECT PAYMENT'}
-            </div>
-        </Button>
-        // ...
-    );
-
-    const { subtotal, discount, total } = totals();
+    const { total } = calculateTotals();
 
     return (
         <div className="h-screen w-full bg-slate-950 text-slate-100 flex flex-col font-sans overflow-hidden selection:bg-cyan-500/30">
@@ -145,15 +177,15 @@ const LitePOS = () => {
                     </div>
                 </div>
 
-                {/* MOBILE: Center Voice Trigger */}
-                <div className="md:hidden max-w-[50px]">
+                {/* MOBILE: Center Voice Trigger - Made Prominent */}
+                <div className="md:hidden">
                     <VoiceCommandBar compact={true} onTranscriptionComplete={(txt) => { setSearch(txt); setShowMobileCatalog(true); }} />
                 </div>
 
                 {/* MOBILE: Toggle Catalog */}
                 <Button
                     size="sm"
-                    variant={showMobileCatalog ? "secondary" : "default"} // Toggle State Visual
+                    variant={showMobileCatalog ? "secondary" : "default"}
                     className={`md:hidden ${showMobileCatalog ? 'bg-slate-700 text-white' : 'bg-cyan-600 text-black hover:bg-cyan-500'}`}
                     onClick={() => setShowMobileCatalog(!showMobileCatalog)}
                 >
@@ -211,8 +243,8 @@ const LitePOS = () => {
                                 className="group flex flex-col p-3 rounded-md bg-slate-900 border border-slate-800 hover:border-cyan-500/50 hover:bg-slate-800 cursor-pointer transition-all"
                             >
                                 <div className="flex justify-between items-start gap-2 mb-1">
-                                    {/* FIX: break-words so name wraps */}
-                                    <span className="text-[11px] font-semibold text-slate-200 leading-snug break-words whitespace-normal w-full">
+                                    {/* FIX: Smaller font for mobile (text-[10px]), allow wrapping */}
+                                    <span className="text-[10px] md:text-[11px] font-semibold text-slate-200 leading-snug break-words whitespace-normal w-full">
                                         {p.medicine_name}
                                     </span>
                                 </div>
@@ -266,8 +298,8 @@ const LitePOS = () => {
                         </div>
                     </div>
 
-                    {/* Cart Workspace */}
-                    <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {/* Cart Workspace - Tighter Spacing space-y-1 */}
+                    <div className="flex-1 overflow-y-auto p-3 space-y-1">
                         {cart.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-slate-700 opacity-40">
                                 <ShoppingCart className="w-16 h-16 mb-4 stroke-1" />
@@ -276,9 +308,9 @@ const LitePOS = () => {
                         ) : (
                             cart.map((c) => (
                                 <div key={c.item.id} className="flex items-center justify-between p-2 pl-3 bg-slate-900/50 border border-slate-800 rounded-md hover:border-slate-700 group">
+                                    {/* FIX: Allow medicine name to wrap nicely */}
                                     <div className="flex-1 min-w-0 mr-3">
-                                        {/* FIX: break-words here too */}
-                                        <h4 className="font-bold text-[11px] text-slate-200 leading-tight break-words mb-1">
+                                        <h4 className="font-bold text-[10px] md:text-[11px] text-slate-200 leading-tight break-words whitespace-normal mb-1">
                                             {c.item.medicine_name}
                                         </h4>
                                         <div className="text-[10px] text-slate-500 font-mono flex gap-2">
@@ -315,7 +347,10 @@ const LitePOS = () => {
                         {interactions.length > 0 && (
                             <Dialog>
                                 <DialogTrigger asChild>
-                                    <button className="w-full mb-3 flex items-center justify-between bg-red-950/40 border border-red-900/50 rounded px-3 py-2 text-red-400 hover:bg-red-900/20 transition-colors group">
+                                    <button
+                                        type="button"
+                                        className="w-full mb-3 flex items-center justify-between bg-red-950/40 border border-red-900/50 rounded px-3 py-2 text-red-400 hover:bg-red-900/20 transition-colors group cursor-pointer"
+                                    >
                                         <div className="flex items-center gap-2">
                                             <ShieldAlert className="w-4 h-4 animate-pulse" />
                                             <span className="text-[10px] font-bold uppercase tracking-wider">⚠️ Dawa Reaction Alert</span>
@@ -384,10 +419,7 @@ const LitePOS = () => {
                                     ${paymentMode === 'online' ? 'bg-purple-600 hover:bg-purple-500 text-white' : ''}
                                     ${paymentMode === 'credit' ? 'bg-orange-600 hover:bg-orange-500 text-white' : ''}
                                 `}
-                                onClick={() => {
-                                    toast.success(`Processing ₹${total}...`);
-                                    setTimeout(() => { setCart([]); toast.success("Paid"); }, 800);
-                                }}
+                                onClick={handleCheckout}
                                 disabled={cart.length === 0}
                             >
                                 <div className="flex items-center gap-2 uppercase tracking-wide">

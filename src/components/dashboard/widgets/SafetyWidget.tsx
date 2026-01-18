@@ -24,11 +24,11 @@ export const SafetyWidget = () => {
     }, [currentShop]);
 
     const checkLASA = async () => {
-        if (!currentShop?.id) return;
+        if (!currentShop?.id) return; // SAFE-001: Prevent crash if shop not loaded
         setScanning(true);
 
         // Fetch all medicine names
-        const { data } = await supabase.from('inventory').select('medicine_name').eq('shop_id', currentShop.id);
+        const { data } = await supabase.from('inventory').select('medicine_name').eq('shop_id', currentShop?.id);
 
         if (data && data.length > 5) {
             // Simple Levenshtein check for demo/speed 

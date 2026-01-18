@@ -24,7 +24,7 @@ export const RefillAlertsWidget = () => {
         const { data, error } = await supabase
             .from('orders')
             .select('id, customer_name, customer_phone, refill_due_date, order_items')
-            .eq('shop_id', currentShop.id) // Secure Filter
+            .eq('shop_id', currentShop?.id) // Secure Filter
             .not('refill_due_date', 'is', null)
             .order('refill_due_date', { ascending: true })
             .limit(5);

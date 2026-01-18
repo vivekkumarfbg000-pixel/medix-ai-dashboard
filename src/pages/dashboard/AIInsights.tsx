@@ -144,7 +144,7 @@ const AIInsights = () => {
       const { data: orders } = await supabase
         .from('orders')
         .select('order_items')
-        .eq('shop_id', currentShop.id)
+        .eq('shop_id', currentShop?.id)
         .order('created_at', { ascending: false })
         .limit(500); // Analyze last 500 orders
 

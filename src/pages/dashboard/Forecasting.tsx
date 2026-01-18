@@ -79,7 +79,7 @@ const Forecasting = () => {
     const { data } = await supabase
       .from('inventory')
       .select('*')
-      .eq('shop_id', currentShop.id)
+      .eq('shop_id', currentShop?.id)
       .gt('quantity', 0)
       .lt('expiry_date', sixMonths)
       .order('expiry_date', { ascending: true });

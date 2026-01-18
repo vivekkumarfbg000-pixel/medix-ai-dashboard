@@ -20,7 +20,7 @@ export const QuickActions = () => {
             const { count: draftCount } = await supabase
                 .from('inventory_staging' as any)
                 .select('*', { count: 'exact', head: true })
-                .eq('shop_id', currentShop.id)
+                .eq('shop_id', currentShop?.id)
                 .eq('status', 'pending');
 
             setStats(prev => ({ ...prev, drafts: draftCount || 0 }));

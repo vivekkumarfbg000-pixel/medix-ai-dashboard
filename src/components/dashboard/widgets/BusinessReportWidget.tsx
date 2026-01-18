@@ -20,7 +20,7 @@ export const BusinessReportWidget = () => {
         const { data, error } = await supabase
             .from('restock_predictions')
             .select('*')
-            .eq('shop_id', currentShop.id) // Secure Filter
+            .eq('shop_id', currentShop?.id) // Secure Filter
             .order('confidence_score', { ascending: false })
             .limit(4);
 

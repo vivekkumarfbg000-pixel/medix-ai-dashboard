@@ -26,7 +26,7 @@ export function UpsellWidget({ cartItems, onAddItem }: UpsellWidgetProps) {
             // @ts-ignore
             const { data } = await supabase.rpc('get_frequently_bought_together', {
                 scan_medicine_name: lastItem.medicine_name,
-                query_shop_id: currentShop.id
+                query_shop_id: currentShop?.id
             });
 
             const aiSuggestions = (data || []) as any[];
