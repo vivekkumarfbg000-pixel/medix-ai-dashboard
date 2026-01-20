@@ -444,64 +444,88 @@ const Inventory = () => {
           const formattedData = chunk;
           if (formattedData.length === 0) continue;
 
-          // console.log(`[CSV Import] Uploading Batch ${completedChunks}:`, formattedData);
-
           try {
-            // Force Timeout after 15s to prevent hanging
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-            const { error } = await supabase.from('inventory').insert(formattedData).abortSignal(controller.signal);
+            // Process batch sequentially or in parallel? Parallel is 20x faster.
+            // We use map to return promises, but handle errors INSIDE the promise so Promise.all doesn't crash
+            const itemPromises = formattedData.map(async (item: any) => {
+              const payload = {
+                p_shop_id: item.shop_id,
+                p_medicine_name: item.medicine_name,
+                p_quantity: item.quantity,
+                p_unit_price: item.unit_price,
+                p_purchase_price: item.purchase_price,
+                p_batch_number: item.batch_number,
+                p_expiry_date: item.expiry_date,
+                p_manufacturer: item.manufacturer,
+                p_category: null,
+                p_generic_name: null,
+                p_rack_number: item.rack_number,
+                p_shelf_number: item.shelf_number,
+                p_gst_rate: item.gst_rate,
+                p_hsn_code: item.hsn_code,
+                p_source: 'bulk_csv'
+              };
 
-            clearTimeout(timeoutId);
+              try {
+                // 1. Try Secure RPC
+                // @ts-ignore
+                const { data, error } = await supabase.rpc('add_inventory_secure', payload);
 
-            if (error) {
+                if (error || (data && !data.success)) {
+                  const errMsg = error?.message || data?.error || "RPC Failed";
+                  console.warn(`RPC Failed for ${item.medicine_name}, trying callback...`, errMsg);
 
-              // --- FALLBACK: Retry without 'source' column if schema is old ---
-              if (error.code === '42703') { // undefined_column
-                console.warn("Schema Mismatch: 'source' column missing. Retrying without it...");
-                const fallbackData = formattedData.map((d: any) => {
-                  const { source, ...rest } = d;
-                  return rest;
-                });
-                const { error: retryError } = await supabase.from('inventory').insert(fallbackData);
-                if (retryError) {
-                  console.error("Fallback Failed:", retryError);
-                  errorCount += chunk.length;
-                  toast.error(`Batch ${completedChunks} failed (even after fallback): ${retryError.message}`, { id: toastId });
-                } else {
-                  successCount += chunk.length;
-                  consecutiveErrors = 0;
+                  // 2. Fallback to Direct Insert (Standard RLS)
+                  const { error: directError } = await supabase.from("inventory").insert({
+                    shop_id: item.shop_id,
+                    medicine_name: item.medicine_name,
+                    quantity: item.quantity,
+                    unit_price: item.unit_price,
+                    purchase_price: item.purchase_price,
+                    batch_number: item.batch_number,
+                    expiry_date: item.expiry_date,
+                    manufacturer: item.manufacturer,
+                    rack_number: item.rack_number,
+                    shelf_number: item.shelf_number,
+                    gst_rate: item.gst_rate,
+                    hsn_code: item.hsn_code,
+                    source: 'bulk_csv'
+                  });
+
+                  if (directError) throw directError;
                 }
-                // Continue to next chunk
-                continue;
+                return { success: true };
+              } catch (err: any) {
+                return { success: false, error: err.message, name: item.medicine_name };
               }
-              // -------------------------------------------------------------
+            });
 
-              console.error("Bulk Insert Error:", error);
-              errorCount += chunk.length;
-              consecutiveErrors++;
+            // Wait for all items in chunk to finish (safePromise ensures no crash)
+            const results = await Promise.all(itemPromises);
 
-              // If RLS error, ABORT immediately don't retry
-              if (error.code === '42501' || error.message?.includes("security policy")) {
-                toast.error(`Permission Error: Stopping import. ${error.message}`, { id: toastId });
-                criticalError = true;
-              } else {
-                toast.error(`Batch ${completedChunks} failed: ${error.message}`, { id: toastId });
+            // Analyze Batch Results
+            const failures = results.filter(r => !r.success);
+            if (failures.length > 0) {
+              errorCount += failures.length;
+              console.warn(`Batch ${completedChunks} failures:`, failures);
+              // Only toast if high failure rate
+              if (failures.length === results.length) {
+                toast.error(`Batch ${completedChunks} failed completely.`);
               }
-            } else {
-              successCount += chunk.length;
-              consecutiveErrors = 0; // Reset
             }
+            successCount += (results.length - failures.length);
+
+
           } catch (err: any) {
-            console.error("Bulk Insert Exception:", err);
+            console.error("Batch Critical Exception:", err);
             errorCount += chunk.length;
-            toast.error(`Network Error: ${err.message}`, { id: toastId });
-            // Don't abort on network blip, just log error
+            toast.error(`Network/Timeout Error: ${err.message}`, { id: toastId });
           }
         }
 
         // --- FINAL STATUS CHECK ---
+        console.log("Import Complete. Success:", successCount, "Errors:", errorCount);
         if (criticalError) {
           // Ensure the user knows why it stopped
           toast.error("Import Aborted due to critical errors.", { id: toastId, duration: 5000 });
@@ -575,9 +599,6 @@ const Inventory = () => {
             {isExpiryFilter ? "Identify and return near-expiry stock (90 Days Monitor)" : "Manage stocks, handle AI drafts, and track expiry."}
           </p>
         </div>
-
-
-
 
 
         {/* Bulk Actions Toolbar */}
