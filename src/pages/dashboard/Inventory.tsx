@@ -468,9 +468,19 @@ const Inventory = () => {
               };
 
               try {
-                // 1. Try Secure RPC
+                // 1. Try Secure RPC with Timeout Protection
+                // Create a timeout promise
+                const TIMEOUT_MS = 20000;
+                const timeoutPromise = new Promise((_, reject) =>
+                  setTimeout(() => reject(new Error("Request Timed Out")), TIMEOUT_MS)
+                );
+
                 // @ts-ignore
-                const { data, error } = await supabase.rpc('add_inventory_secure', payload);
+                const rpcPromise = supabase.rpc('add_inventory_secure', payload);
+
+                // Race against timeout
+                const result: any = await Promise.race([rpcPromise, timeoutPromise]);
+                const { data, error } = result;
 
                 if (error || (data && !data.success)) {
                   const errMsg = error?.message || data?.error || "RPC Failed";
@@ -497,6 +507,7 @@ const Inventory = () => {
                 }
                 return { success: true };
               } catch (err: any) {
+                console.error(`Item Error (${item.medicine_name}):`, err);
                 return { success: false, error: err.message, name: item.medicine_name };
               }
             });
