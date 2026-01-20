@@ -370,15 +370,23 @@ const Inventory = () => {
         const CHUNK_SIZE = 20; // Reduced to 20 for maximum safety
 
         // Parse Logic
-        const parsedData = rows.map(line => {
-          const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-          const row: any = {};
-          headers.forEach((h, i) => {
-            row[h] = values[i];
+        let parsedData = [];
+        try {
+          parsedData = rows.map(line => {
+            const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+            const row: any = {};
+            headers.forEach((h, i) => {
+              row[h] = values[i];
+            });
+            return row;
           });
-          return row;
-        });
+        } catch (parseErr) {
+          console.error("CSV Parse Error", parseErr);
+          toast.error("Failed to parse CSV rows. Check format.");
+          return;
+        }
 
+        console.log(`Parsed ${parsedData.length} rows from CSV`);
 
         // Helper: Strict Date Parser (YYYY-MM-DD)
         const parseDateSafe = (val: string): string | null => {
@@ -419,15 +427,25 @@ const Inventory = () => {
           };
         }).filter((item: any) => item.medicine_name !== 'Unknown');
 
+        console.log(`Formatted ${formattedDataAll.length} valid items for import`);
+
+        if (formattedDataAll.length === 0) {
+          toast.error("No valid medicines found in CSV. Check column headers.");
+          return;
+        }
+
         for (let i = 0; i < formattedDataAll.length; i += CHUNK_SIZE) {
           chunks.push(formattedDataAll.slice(i, i + CHUNK_SIZE));
         }
 
         // --- SKIP DRY RUN: Proceed directly to import ---
-        toastId = toast.loading("Starting Import...");
+        toastId = toast.loading(`Starting Import of ${formattedDataAll.length} items...`);
         // -----------------------------------------------
 
         for (const chunk of chunks) {
+          // Check if user navigated away or component unmounted (simple check)
+          if (!document.body.contains(document.getElementById('root'))) break;
+
           if (criticalError) break;
           // Abort if too many errors
           if (consecutiveErrors >= 3) {
@@ -437,9 +455,8 @@ const Inventory = () => {
           }
 
           completedChunks++;
-          if (completedChunks === 1 || completedChunks % 5 === 0 || completedChunks === chunks.length) {
-            toast.loading(`Importing batch ${completedChunks}/${chunks.length}...`, { id: toastId });
-          }
+          // UPDATE TOAST at start of chunk
+          toast.loading(`Importing batch ${completedChunks}/${chunks.length} (${chunk.length} items)...`, { id: toastId });
 
           const formattedData = chunk;
           if (formattedData.length === 0) continue;
