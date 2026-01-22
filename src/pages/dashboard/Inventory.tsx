@@ -33,6 +33,7 @@ import AuditLogs from "@/pages/dashboard/AuditLogs";
 import { StockAudit } from "@/components/dashboard/inventory/StockAudit";
 import { pdfService } from "@/services/pdfService";
 import { whatsappService } from "@/services/whatsappService";
+import Papa from "papaparse";
 
 interface InventoryItem {
   id: string;
@@ -335,7 +336,18 @@ const Inventory = () => {
     return () => window.removeEventListener('keypress', handleKeyPress);
   }, [barcodeBuffer]);
 
-  // Feature: Bulk CSV Upload
+  // Feature: Bulk CSV Upload with Papaparse
+  const handleDownloadTemplate = () => {
+    const headers = ["Medicine Name", "Batch Number", "Expiry Date (YYYY-MM-DD)", "Quantity", "MRP", "Purchase Price", "Manufacturer", "Rack", "Shelf"];
+    const dummy = ["Paracetamol 500mg", "BATCH001", "2026-12-31", "100", "20.50", "15.00", "ABC Pharma", "A1", "2"];
+    const csvContent = [headers.join(","), dummy.join(",")].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "medix_inventory_template.csv";
+    link.click();
+  };
+
   const handleBulkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -345,131 +357,70 @@ const Inventory = () => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      let toastId: string | number | undefined;
-      try {
-        const text = event.target?.result as string;
-        if (!text) {
-          toast.error("Empty file");
+    const toastId = toast.loading("Parsing CSV...");
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        if (results.errors.length > 0) {
+          console.error("CSV Parse Errors:", results.errors);
+          toast.error(`CSV Error: ${results.errors[0].message}`, { id: toastId });
           return;
         }
 
-        const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
-        if (lines.length < 2) {
-          toast.error("Invalid CSV format: Header missing or empty");
+        const rows: any[] = results.data;
+        if (rows.length === 0) {
+          toast.error("No data found in CSV", { id: toastId });
           return;
         }
 
-        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
-        const rows = lines.slice(1);
+        console.log(`Parsed ${rows.length} rows`);
 
-        let successCount = 0;
-        let errorCount = 0;
-        let consecutiveErrors = 0;
-        let completedChunks = 0;
-        let criticalError = false;
-
-        const chunks = [];
-        const CHUNK_SIZE = 20; // Reduced to 20 for maximum safety
-
-        // Parse Logic
-        let parsedData = [];
-        try {
-          parsedData = rows.map(line => {
-            const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-            const row: any = {};
-            headers.forEach((h, i) => {
-              row[h] = values[i];
-            });
-            return row;
-          });
-        } catch (parseErr) {
-          console.error("CSV Parse Error", parseErr);
-          toast.error("Failed to parse CSV rows. Check format.");
-          return;
-        }
-
-        console.log(`Parsed ${parsedData.length} rows from CSV`);
-
-        // Helper: Strict Date Parser (YYYY-MM-DD)
-        const parseDateSafe = (val: string): string | null => {
-          if (!val) return null;
-          try {
-            const mkDate = new Date(val);
-            if (isNaN(mkDate.getTime())) return null;
-            return mkDate.toISOString().split('T')[0];
-          } catch (e) { return null; }
+        // Helper: Flexible Field Matcher
+        const getField = (row: any, keys: string[]) => {
+          const lowerKeys = keys.map(k => k.toLowerCase());
+          const foundKey = Object.keys(row).find(k => lowerKeys.includes(k.toLowerCase().trim()));
+          return foundKey ? row[foundKey] : null;
         };
 
-        // Parse and Format ALL Data First
-        const formattedDataAll = parsedData.map((row: any) => {
-          const name = row['medicine name'] || row['name'] || row['medicine'] || 'Unknown';
-          const quantity = parseInt(row['qty'] || row['quantity'] || row['stock'] || '0');
-          const price = parseFloat(row['mrp'] || row['price'] || row['unit price'] || '0');
-          const cost = parseFloat(row['cost'] || row['purchase price'] || row['buying price'] || '0');
-
-          // Strict Date Parsing
-          const rawExpiry = row['expiry'] || row['expiry date'];
-          const cleanExpiry = parseDateSafe(rawExpiry);
+        const formattedData = rows.map((row) => {
+          const name = getField(row, ["Medicine Name", "Name", "Item Name", "Medicine"]);
+          if (!name) return null;
 
           return {
             shop_id: currentShop?.id,
             medicine_name: name,
-            batch_number: row['batch'] || row['batch number'] || null,
-            quantity: isNaN(quantity) ? 0 : quantity,
-            unit_price: isNaN(price) ? 0 : price,
-            purchase_price: isNaN(cost) ? 0 : cost,
-            expiry_date: cleanExpiry,
-            barcode: row['barcode'] || null,
-            manufacturer: row['manufacturer'] || null,
-            rack_number: row['rack'] || row['rack no'] || null,
-            shelf_number: row['shelf'] || row['shelf no'] || null,
-            gst_rate: parseFloat(row['gst'] || row['gst rate'] || '0'),
-            hsn_code: row['hsn'] || row['hsn code'] || null,
-            source: 'bulk_csv'
+            batch_number: getField(row, ["Batch Number", "Batch", "Batch No"]),
+            expiry_date: getField(row, ["Expiry Date", "Expiry", "Exp Date"]), // Date parsing needed?
+            quantity: parseInt(getField(row, ["Quantity", "Qty", "Stock"]) || "0"),
+            unit_price: parseFloat(getField(row, ["MRP", "Unit Price", "Price", "Selling Price"]) || "0"),
+            purchase_price: parseFloat(getField(row, ["Purchase Price", "Cost", "Buying Price"]) || "0"),
+            manufacturer: getField(row, ["Manufacturer", "Mfg"]),
+            rack_number: getField(row, ["Rack", "Rack No"]),
+            shelf_number: getField(row, ["Shelf", "Shelf No"]),
+            source: 'bulk_csv_papa'
           };
-        }).filter((item: any) => item.medicine_name !== 'Unknown');
+        }).filter(Boolean); // Remove nulls
 
-        console.log(`Formatted ${formattedDataAll.length} valid items for import`);
-
-        if (formattedDataAll.length === 0) {
-          toast.error("No valid medicines found in CSV. Check column headers.");
+        if (formattedData.length === 0) {
+          toast.error("No valid medicines found. Check column headers.", { id: toastId });
           return;
         }
 
-        for (let i = 0; i < formattedDataAll.length; i += CHUNK_SIZE) {
-          chunks.push(formattedDataAll.slice(i, i + CHUNK_SIZE));
-        }
+        // Chunking
+        const CHUNK_SIZE = 50;
+        let successCount = 0;
+        let errorCount = 0;
 
-        // --- SKIP DRY RUN: Proceed directly to import ---
-        toastId = toast.loading(`Starting Import of ${formattedDataAll.length} items...`);
-        // -----------------------------------------------
+        toast.loading(`Importing ${formattedData.length} items...`, { id: toastId });
 
-        for (const chunk of chunks) {
-          // Check if user navigated away or component unmounted (simple check)
-          if (!document.body.contains(document.getElementById('root'))) break;
+        for (let i = 0; i < formattedData.length; i += CHUNK_SIZE) {
+          const chunk = formattedData.slice(i, i + CHUNK_SIZE);
 
-          if (criticalError) break;
-          // Abort if too many errors
-          if (consecutiveErrors >= 3) {
-            toast.error("Too many errors. Aborting.", { id: toastId });
-            criticalError = true;
-            break;
-          }
-
-          completedChunks++;
-          // UPDATE TOAST at start of chunk
-          toast.loading(`Importing batch ${completedChunks}/${chunks.length} (${chunk.length} items)...`, { id: toastId });
-
-          const formattedData = chunk;
-          if (formattedData.length === 0) continue;
-
-          try {
-
-            // Process batch sequentially or in parallel? Parallel is 20x faster.
-            // We use map to return promises, but handle errors INSIDE the promise so Promise.all doesn't crash
-            const itemPromises = formattedData.map(async (item: any) => {
+          const promises = chunk.map(async (item: any) => {
+            try {
+              // 1. Try Secure RPC
               const payload = {
                 p_shop_id: item.shop_id,
                 p_medicine_name: item.medicine_name,
@@ -477,109 +428,43 @@ const Inventory = () => {
                 p_unit_price: item.unit_price,
                 p_purchase_price: item.purchase_price,
                 p_batch_number: item.batch_number,
-                p_expiry_date: item.expiry_date,
+                p_expiry_date: item.expiry_date ? new Date(item.expiry_date).toISOString().split('T')[0] : null,
                 p_manufacturer: item.manufacturer,
                 p_category: null,
                 p_generic_name: null,
                 p_rack_number: item.rack_number,
                 p_shelf_number: item.shelf_number,
-                p_gst_rate: item.gst_rate,
-                p_hsn_code: item.hsn_code,
+                p_gst_rate: 0,
+                p_hsn_code: null,
                 p_source: 'bulk_csv'
               };
 
-              try {
-                // 1. Try Secure RPC with Timeout Protection
-                // Create a timeout promise
-                const TIMEOUT_MS = 20000;
-                const timeoutPromise = new Promise((_, reject) =>
-                  setTimeout(() => reject(new Error("Request Timed Out")), TIMEOUT_MS)
-                );
-
-                // @ts-ignore
-                const rpcPromise = supabase.rpc('add_inventory_secure', payload);
-
-                // Race against timeout
-                const result: any = await Promise.race([rpcPromise, timeoutPromise]);
-                const { data, error } = result;
-
-                if (error || (data && !data.success)) {
-                  const errMsg = error?.message || data?.error || "RPC Failed";
-                  console.warn(`RPC Failed for ${item.medicine_name}, trying callback...`, errMsg);
-
-                  // 2. Fallback to Direct Insert (Standard RLS)
-                  const { error: directError } = await supabase.from("inventory").insert({
-                    shop_id: item.shop_id,
-                    medicine_name: item.medicine_name,
-                    quantity: item.quantity,
-                    unit_price: item.unit_price,
-                    purchase_price: item.purchase_price,
-                    batch_number: item.batch_number,
-                    expiry_date: item.expiry_date,
-                    manufacturer: item.manufacturer,
-                    rack_number: item.rack_number,
-                    shelf_number: item.shelf_number,
-                    gst_rate: item.gst_rate,
-                    hsn_code: item.hsn_code,
-                    source: 'bulk_csv'
-                  });
-
-                  if (directError) throw directError;
-                }
-                return { success: true };
-              } catch (err: any) {
-                console.error(`Item Error (${item.medicine_name}):`, err);
-                return { success: false, error: err.message, name: item.medicine_name };
-              }
-            });
-
-            // Wait for all items in chunk to finish (safePromise ensures no crash)
-            const results = await Promise.all(itemPromises);
-
-            // Analyze Batch Results
-            const failures = results.filter(r => !r.success);
-            if (failures.length > 0) {
-              errorCount += failures.length;
-              console.warn(`Batch ${completedChunks} failures:`, failures);
-              // Only toast if high failure rate
-              if (failures.length === results.length) {
-                toast.error(`Batch ${completedChunks} failed completely.`);
-              }
+              const { data, error } = await supabase.rpc('add_inventory_secure', payload);
+              if (error || (data && !data.success)) throw error || new Error(data?.error);
+              return true;
+            } catch (e) {
+              // Fallback to direct insert
+              const { error } = await supabase.from("inventory").insert({
+                ...item,
+                expiry_date: item.expiry_date ? new Date(item.expiry_date).toISOString().split('T')[0] : null
+              });
+              return !error;
             }
-            successCount += (results.length - failures.length);
+          });
 
-
-          } catch (err: any) {
-            console.error("Batch Critical Exception:", err);
-            errorCount += chunk.length;
-            toast.error(`Network/Timeout Error: ${err.message}`, { id: toastId });
-          }
+          const results = await Promise.all(promises);
+          const passed = results.filter(Boolean).length;
+          successCount += passed;
+          errorCount += (results.length - passed);
         }
 
-        // --- FINAL STATUS CHECK ---
-        console.log("Import Complete. Success:", successCount, "Errors:", errorCount);
-        if (criticalError) {
-          // Ensure the user knows why it stopped
-          toast.error("Import Aborted due to critical errors.", { id: toastId, duration: 5000 });
-        } else if (successCount > 0) {
-          toast.success(`Success! Imported ${successCount} items to Shop (${currentShop?.name}).`, { id: toastId });
-        } else if (errorCount > 0) {
-          toast.warning(`Import finished with ${errorCount} errors. Check console.`, { id: toastId });
-        } else {
-          toast.dismiss(toastId);
-        }
-
-        // Allow UI to update before fetching large inventory
-        setTimeout(() => {
-          fetchInventory();
-        }, 500);
-
-      } catch (err: any) {
-        console.error("CSV Import Error:", err);
-        toast.error("Failed to parse CSV: " + err.message, { id: toastId });
+        toast.success(`Import Complete: ${successCount} added, ${errorCount} failed`, { id: toastId });
+        fetchInventory();
+      },
+      error: (err) => {
+        toast.error(`CSV Parsing Failed: ${err.message}`, { id: toastId });
       }
-    };
-    reader.readAsText(file);
+    });
 
     e.target.value = ''; // Reset input
   };
@@ -642,6 +527,9 @@ const Inventory = () => {
           {/* Default Actions */}
           {!isSelectMode && !isExpiryFilter && (
             <>
+              <Button variant="outline" className="border-dashed" onClick={handleDownloadTemplate}>
+                <Upload className="w-4 h-4 mr-2" /> Download Template
+              </Button>
               <Button variant="outline" className="border-dashed" onClick={() => document.getElementById('csv-upload')?.click()}>
                 <Upload className="w-4 h-4 mr-2" /> Import CSV
               </Button>

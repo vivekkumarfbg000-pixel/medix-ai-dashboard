@@ -91,7 +91,7 @@ export function AppSidebar() {
           <NavLink to="/dashboard" className="flex items-center gap-2">
             {!collapsed ? (
               <img
-                src="/medix-logo.jpg"
+                src="/medix-logo.png?v=5"
                 alt="Medix AI"
                 className="h-[50px] w-auto object-contain"
               />

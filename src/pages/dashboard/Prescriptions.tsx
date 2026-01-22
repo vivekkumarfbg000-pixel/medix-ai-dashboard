@@ -1,21 +1,46 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FileText, Calendar, User, Search, Stethoscope, Pill, Share2, ScanLine } from "lucide-react";
+import { FileText, Calendar, User, Search, Stethoscope, ScanLine, Share2, Eye, Save, IndianRupee } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { whatsappService } from "@/services/whatsappService";
 import { format } from "date-fns";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { toast } from "sonner";
+
+interface Medicine {
+    name: string;
+    dosage?: string;
+    strength?: string;
+    indication?: string;
+    quantity?: number;
+    unit_price?: number;
+}
 
 interface Prescription {
     id: string;
     customer_name: string;
     doctor_name: string;
     visit_date: string;
-    medicines: { name: string; dosage: string }[];
+    medicines: Medicine[];
     created_at: string;
 }
 
@@ -24,6 +49,8 @@ const Prescriptions = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const navigate = useNavigate();
+    const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
+    const [editingMedicines, setEditingMedicines] = useState<Medicine[]>([]);
 
     const fetchPrescriptions = async () => {
         setLoading(true);
@@ -48,6 +75,38 @@ const Prescriptions = () => {
             medicines: p.medicines
         });
         window.open(link, '_blank');
+    };
+
+    const handleViewDetails = (p: Prescription) => {
+        setSelectedPrescription(p);
+        setEditingMedicines(JSON.parse(JSON.stringify(p.medicines || [])));
+    };
+
+    const handlePriceChange = (index: number, price: string) => {
+        const newMedicines = [...editingMedicines];
+        newMedicines[index].unit_price = parseFloat(price) || 0;
+        setEditingMedicines(newMedicines);
+    };
+
+    const calculateTotal = () => {
+        return editingMedicines.reduce((sum, m) => sum + ((m.unit_price || 0) * (m.quantity || 1)), 0);
+    };
+
+    const handleSaveChanges = async () => {
+        if (!selectedPrescription) return;
+
+        const { error } = await supabase
+            .from('prescriptions')
+            .update({ medicines: editingMedicines })
+            .eq('id', selectedPrescription.id);
+
+        if (error) {
+            toast.error("Failed to save changes");
+        } else {
+            toast.success("Prescription updated successfully");
+            fetchPrescriptions(); // Refresh list
+            setSelectedPrescription(null); // Close dialog (optional, or just update local state)
+        }
     };
 
     useEffect(() => {
@@ -168,11 +227,95 @@ const Prescriptions = () => {
                                 </div>
 
                                 <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
+                                    <Dialog>
+                                        <DialogTrigger asChild>
+                                            <Button size="sm" className="flex-1 bg-slate-900 text-white hover:bg-slate-800" onClick={() => handleViewDetails(p)}>
+                                                <Eye className="w-3.5 h-3.5 mr-1.5" /> View
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                                            <DialogHeader>
+                                                <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                                                    <FileText className="w-5 h-5 text-teal-600" />
+                                                    Prescription Details
+                                                </DialogTitle>
+                                            </DialogHeader>
+
+                                            <div className="grid grid-cols-2 gap-4 mb-6 bg-slate-50 p-4 rounded-lg">
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground uppercase font-semibold">Patient</p>
+                                                    <p className="font-medium">{selectedPrescription?.customer_name}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground uppercase font-semibold">Doctor</p>
+                                                    <p className="font-medium">{selectedPrescription?.doctor_name}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground uppercase font-semibold">Date</p>
+                                                    <p className="font-medium">{selectedPrescription?.visit_date}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="border rounded-lg overflow-hidden">
+                                                <Table>
+                                                    <TableHeader className="bg-slate-100">
+                                                        <TableRow>
+                                                            <TableHead className="w-[50px]">#</TableHead>
+                                                            <TableHead>Medicine</TableHead>
+                                                            <TableHead>Dosage / Strength</TableHead>
+                                                            <TableHead>Indication</TableHead>
+                                                            <TableHead className="w-[80px]">Qty</TableHead>
+                                                            <TableHead className="w-[120px]">Price (₹)</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {editingMedicines.map((med, index) => (
+                                                            <TableRow key={index}>
+                                                                <TableCell className="font-medium text-slate-500">{index + 1}</TableCell>
+                                                                <TableCell className="font-semibold text-slate-800">{med.name}</TableCell>
+                                                                <TableCell>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-sm font-medium">{med.strength || '-'}</span>
+                                                                        <span className="text-xs text-slate-500">{med.dosage || '-'}</span>
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="text-sm text-slate-600">{med.indication || '-'}</TableCell>
+                                                                <TableCell>{med.quantity || 1}</TableCell>
+                                                                <TableCell>
+                                                                    <Input
+                                                                        type="number"
+                                                                        className="h-8 w-24"
+                                                                        placeholder="0.00"
+                                                                        value={med.unit_price || ''}
+                                                                        onChange={(e) => handlePriceChange(index, e.target.value)}
+                                                                    />
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+
+                                            <div className="flex justify-between items-center mt-6 p-4 bg-teal-50 rounded-lg border border-teal-100">
+                                                <div className="text-teal-800">
+                                                    <p className="text-sm font-medium">Total Estimated Amount</p>
+                                                    <p className="text-2xl font-bold flex items-center">
+                                                        <IndianRupee className="w-5 h-5 mr-1" />
+                                                        {calculateTotal().toFixed(2)}
+                                                    </p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button variant="outline" onClick={() => setSelectedPrescription(null)}>Cancel</Button>
+                                                    <Button className="bg-teal-600 hover:bg-teal-700 text-white" onClick={handleSaveChanges}>
+                                                        <Save className="w-4 h-4 mr-2" /> Save Changes
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </DialogContent>
+                                    </Dialog>
+
                                     <Button size="sm" variant="outline" className="flex-1 text-teal-700 border-teal-100 hover:bg-teal-50" onClick={() => handleShare(p)}>
                                         <Share2 className="w-3.5 h-3.5 mr-1.5" /> Share
-                                    </Button>
-                                    <Button size="sm" className="flex-1 bg-slate-900 text-white hover:bg-slate-800">
-                                        View
                                     </Button>
                                 </div>
                             </CardContent>
