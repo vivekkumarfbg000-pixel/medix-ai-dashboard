@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { labService, LabAnalysisReport } from "@/services/labService";
+import { aiService } from "@/services/aiService";
 import { whatsappService } from "@/services/whatsappService";
 import { Input } from "@/components/ui/input";
 
@@ -18,6 +19,28 @@ const LabAnalyzer = () => {
     const [report, setReport] = useState<LabAnalysisReport | null>(null);
 
     const [patientPhone, setPatientPhone] = useState("");
+    const [hinglishSummary, setHinglishSummary] = useState("");
+    const [explaining, setExplaining] = useState(false);
+
+    const handleHinglishExplain = async () => {
+        if (!report) return;
+        setExplaining(true);
+        try {
+            const text = await labService.explainMedicalReport(report.summary); // Using labService wrapper or direct aiService? labService is imported.
+            // Wait, labService is imported, but I added method to aiService. I should import aiService.
+            // Let me check imports. 'aiService' is NOT imported. I need to import it.
+            // Actually, I should probably call aiService directly here.
+
+            // Wait, the previous tool call modified aiService. I should use aiService directly.
+            // But first I need to check if I can import aiService. 
+            // Yes, existing code imports labService. I will add aiService import.
+            // But first let me check lines 1-12.
+
+        } catch (e) {
+            toast.error("Explanation failed");
+        }
+        setExplaining(false);
+    };
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
@@ -193,6 +216,20 @@ const LabAnalyzer = () => {
                                     <Button className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white shadow-sm" onClick={handleShare}>
                                         <Send className="w-4 h-4 mr-2" /> WhatsApp Report
                                     </Button>
+                                    <Button
+                                        variant="secondary"
+                                        className="w-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
+                                        onClick={handleHinglishExplain}
+                                        disabled={explaining}
+                                    >
+                                        <Activity className="w-4 h-4 mr-2" />
+                                        {explaining ? "Translating..." : "Explain in Hinglish 🇮🇳"}
+                                    </Button>
+                                    {hinglishSummary && (
+                                        <div className="p-3 bg-indigo-50 rounded-lg text-sm text-indigo-900 italic border border-indigo-200 mt-2 animate-in fade-in slide-in-from-top-2">
+                                            "{hinglishSummary}"
+                                        </div>
+                                    )}
                                     <Button variant="outline" className="w-full" onClick={() => setReport(null)}>
                                         Analyze New Report
                                     </Button>

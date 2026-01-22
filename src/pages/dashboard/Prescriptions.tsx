@@ -5,7 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FileText, Calendar, User, Search, Stethoscope, ScanLine, Share2, Eye, Save, IndianRupee } from "lucide-react";
+import { FileText, Calendar, User, Search, Stethoscope, ScanLine, Share2, Eye, Save, IndianRupee, AlertTriangle, Repeat, Sparkles } from "lucide-react";
+import { aiService } from "@/services/aiService";
 import { useNavigate } from "react-router-dom";
 import { whatsappService } from "@/services/whatsappService";
 import { format } from "date-fns";
@@ -51,6 +52,11 @@ const Prescriptions = () => {
     const navigate = useNavigate();
     const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
     const [editingMedicines, setEditingMedicines] = useState<Medicine[]>([]);
+    const [interactions, setInteractions] = useState<string[]>([]);
+    const [checkingSafe, setCheckingSafe] = useState(false);
+
+    // Mock Substitutes Cache
+    const [substitutes, setSubstitutes] = useState<Record<string, string[]>>({});
 
     const fetchPrescriptions = async () => {
         setLoading(true);
@@ -97,7 +103,7 @@ const Prescriptions = () => {
 
         const { error } = await supabase
             .from('prescriptions')
-            .update({ medicines: editingMedicines })
+            .update({ medicines: editingMedicines as any })
             .eq('id', selectedPrescription.id);
 
         if (error) {
@@ -106,6 +112,40 @@ const Prescriptions = () => {
             toast.success("Prescription updated successfully");
             fetchPrescriptions(); // Refresh list
             setSelectedPrescription(null); // Close dialog (optional, or just update local state)
+        }
+    };
+
+    const handleCheckInteractions = async () => {
+        const meds = editingMedicines.map(m => m.name);
+        if (meds.length < 2) {
+            toast.info("Need at least 2 medicines to check interactions.");
+            return;
+        }
+        setCheckingSafe(true);
+        setInteractions([]);
+        try {
+            const warnings = await aiService.checkInteractions(meds);
+            if (warnings.length > 0) {
+                setInteractions(warnings);
+                toast.warning(`Found ${warnings.length} potential interactions!`);
+            } else {
+                toast.success("✅ No severe interactions found. Safe to dispense.");
+            }
+        } catch (e) {
+            toast.error("Safety Check Failed");
+        }
+        setCheckingSafe(false);
+    };
+
+    const handleFindSubstitute = async (index: number) => {
+        const medName = editingMedicines[index].name;
+        toast.loading(`Finding generics for ${medName}...`, { id: 'gen-load' });
+        try {
+            const subs = await aiService.getGenericSubstitutes(medName);
+            setSubstitutes(prev => ({ ...prev, [medName]: subs }));
+            toast.success("Generics found!", { id: 'gen-load' });
+        } catch (e) {
+            toast.error("Failed to find generics", { id: 'gen-load' });
         }
     };
 
@@ -256,6 +296,17 @@ const Prescriptions = () => {
                                                 </div>
                                             </div>
 
+                                            {interactions.length > 0 && (
+                                                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg animate-in fade-in slide-in-from-top-2">
+                                                    <h4 className="flex items-center gap-2 text-red-800 font-bold mb-1">
+                                                        <AlertTriangle className="w-4 h-4" /> Safety Warning
+                                                    </h4>
+                                                    <ul className="list-disc list-inside text-sm text-red-700">
+                                                        {interactions.map((warn, i) => <li key={i}>{warn}</li>)}
+                                                    </ul>
+                                                </div>
+                                            )}
+
                                             <div className="border rounded-lg overflow-hidden">
                                                 <Table>
                                                     <TableHeader className="bg-slate-100">
@@ -266,6 +317,7 @@ const Prescriptions = () => {
                                                             <TableHead>Indication</TableHead>
                                                             <TableHead className="w-[80px]">Qty</TableHead>
                                                             <TableHead className="w-[120px]">Price (₹)</TableHead>
+                                                            <TableHead className="w-[50px]"></TableHead>
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
@@ -289,6 +341,16 @@ const Prescriptions = () => {
                                                                         value={med.unit_price || ''}
                                                                         onChange={(e) => handlePriceChange(index, e.target.value)}
                                                                     />
+                                                                    {substitutes[med.name] && (
+                                                                        <div className="text-[10px] text-green-600 mt-1">
+                                                                            Generic: {substitutes[med.name][0]}
+                                                                        </div>
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-teal-600" title="Find Generic" onClick={() => handleFindSubstitute(index)}>
+                                                                        <Repeat className="w-4 h-4" />
+                                                                    </Button>
                                                                 </TableCell>
                                                             </TableRow>
                                                         ))}
@@ -296,18 +358,32 @@ const Prescriptions = () => {
                                                 </Table>
                                             </div>
 
-                                            <div className="flex justify-between items-center mt-6 p-4 bg-teal-50 rounded-lg border border-teal-100">
-                                                <div className="text-teal-800">
-                                                    <p className="text-sm font-medium">Total Estimated Amount</p>
-                                                    <p className="text-2xl font-bold flex items-center">
-                                                        <IndianRupee className="w-5 h-5 mr-1" />
-                                                        {calculateTotal().toFixed(2)}
-                                                    </p>
+                                            <div className="mt-6 bg-teal-50 rounded-lg border border-teal-100 overflow-hidden">
+                                                <div className="p-4 flex justify-between items-center">
+                                                    <div className="text-teal-800">
+                                                        <p className="text-sm font-medium">Total Estimated Amount</p>
+                                                        <p className="text-2xl font-bold flex items-center">
+                                                            <IndianRupee className="w-5 h-5 mr-1" />
+                                                            {calculateTotal().toFixed(2)}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <Button variant="outline" onClick={() => setSelectedPrescription(null)}>Cancel</Button>
+                                                        <Button className="bg-teal-600 hover:bg-teal-700 text-white" onClick={handleSaveChanges}>
+                                                            <Save className="w-4 h-4 mr-2" /> Save Changes
+                                                        </Button>
+                                                    </div>
                                                 </div>
-                                                <div className="flex gap-2">
-                                                    <Button variant="outline" onClick={() => setSelectedPrescription(null)}>Cancel</Button>
-                                                    <Button className="bg-teal-600 hover:bg-teal-700 text-white" onClick={handleSaveChanges}>
-                                                        <Save className="w-4 h-4 mr-2" /> Save Changes
+
+                                                <div className="border-t border-teal-200 p-2 bg-teal-100/30">
+                                                    <Button
+                                                        variant="ghost"
+                                                        className="text-orange-700 hover:bg-orange-100 hover:text-orange-800 w-full h-9 flex items-center justify-center gap-2"
+                                                        onClick={handleCheckInteractions}
+                                                        disabled={checkingSafe}
+                                                    >
+                                                        {checkingSafe ? <Sparkles className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
+                                                        {checkingSafe ? "Analyzing Interactions..." : "Check Drug Interactions"}
                                                     </Button>
                                                 </div>
                                             </div>

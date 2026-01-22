@@ -337,17 +337,6 @@ const Inventory = () => {
   }, [barcodeBuffer]);
 
   // Feature: Bulk CSV Upload with Papaparse
-  const handleDownloadTemplate = () => {
-    const headers = ["Medicine Name", "Batch Number", "Expiry Date (YYYY-MM-DD)", "Quantity", "MRP", "Purchase Price", "Manufacturer", "Rack", "Shelf"];
-    const dummy = ["Paracetamol 500mg", "BATCH001", "2026-12-31", "100", "20.50", "15.00", "ABC Pharma", "A1", "2"];
-    const csvContent = [headers.join(","), dummy.join(",")].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "medix_inventory_template.csv";
-    link.click();
-  };
-
   const handleBulkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -527,9 +516,6 @@ const Inventory = () => {
           {/* Default Actions */}
           {!isSelectMode && !isExpiryFilter && (
             <>
-              <Button variant="outline" className="border-dashed" onClick={handleDownloadTemplate}>
-                <Upload className="w-4 h-4 mr-2" /> Download Template
-              </Button>
               <Button variant="outline" className="border-dashed" onClick={() => document.getElementById('csv-upload')?.click()}>
                 <Upload className="w-4 h-4 mr-2" /> Import CSV
               </Button>
