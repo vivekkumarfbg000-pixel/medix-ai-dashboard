@@ -176,6 +176,19 @@ const Inventory = () => {
   const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
   const [supplierName, setSupplierName] = useState("");
 
+  const lowStockItems = inventory.filter(i => i.quantity <= (i.reorder_level || 10));
+
+  const handleEmailPO = () => {
+    if (lowStockItems.length === 0) return;
+
+    const subject = `Purchase Order - ${currentShop?.name}`;
+    const body = `Dear Supplier,\n\nPlease send the following items:\n\n` +
+      lowStockItems.map(i => `- ${i.medicine_name}: ${Math.max(50, (i.reorder_level || 10) * 3)} units`).join('\n') +
+      `\n\nRank Regards,\n${currentShop?.name}`;
+
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
   const filteredInventory = inventory.filter(item => {
     // 1. Text Search
     const matchesSearch = item.medicine_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -598,6 +611,25 @@ const Inventory = () => {
         </TabsContent>
 
         <TabsContent value="stock" className="space-y-6">
+          {/* LOW STOCK ALERT BANNER */}
+          {lowStockItems.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-3">
+                <div className="bg-red-100 p-2 rounded-full">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-red-900">Low Stock Alert ({lowStockItems.length} Items)</h3>
+                  <p className="text-sm text-red-700">Some critical medicines are running low.</p>
+                </div>
+              </div>
+              <Button className="bg-red-600 hover:bg-red-700 text-white shadow-sm" onClick={handleEmailPO}>
+                <NotebookPen className="w-4 h-4 mr-2" />
+                Email Distributor (Generate PO)
+              </Button>
+            </div>
+          )}
+
           {/* AI Reorder Recommendations */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {predictions.filter(p => p.predicted_quantity > 0).slice(0, 2).map((pred, i) => (

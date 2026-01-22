@@ -33,6 +33,13 @@ export const AICommandCentre = () => {
 
         if (!error && data) {
             setPredictions(data);
+
+            // AUTO-FIX: If we see the stale Mock Data (which matches the old hardcoded service), auto-run the new analysis
+            const hasStaleMock = data.some((p: any) => p.medicine_name === "Amoxicillin 500mg" && p.reason.includes("High seasonal"));
+            if (hasStaleMock) {
+                toast.info("Updating AI Model...");
+                runAIAnalysis();
+            }
         }
     };
 

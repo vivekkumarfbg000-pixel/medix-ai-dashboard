@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FileText, Calendar, User, Search, Stethoscope, ScanLine, Share2, Eye, Save, IndianRupee, AlertTriangle, Repeat, Sparkles } from "lucide-react";
+import { FileText, Calendar, User, Search, Stethoscope, ScanLine, Share2, Eye, Save, IndianRupee, AlertTriangle, Repeat, Sparkles, ShoppingCart } from "lucide-react";
 import { aiService } from "@/services/aiService";
 import { useNavigate } from "react-router-dom";
 import { whatsappService } from "@/services/whatsappService";
@@ -386,6 +386,25 @@ const Prescriptions = () => {
                                                         {checkingSafe ? "Analyzing Interactions..." : "Check Drug Interactions"}
                                                     </Button>
                                                 </div>
+
+                                                <div className="p-2 pt-0">
+                                                    <Button
+                                                        className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg"
+                                                        size="lg"
+                                                        onClick={() => {
+                                                            toast.success("Sending to Billing Counter...");
+                                                            navigate("/dashboard/pos", {
+                                                                state: {
+                                                                    importItems: editingMedicines,
+                                                                    customerName: selectedPrescription?.customer_name
+                                                                }
+                                                            });
+                                                        }}
+                                                    >
+                                                        <ShoppingCart className="w-5 h-5 mr-2" />
+                                                        Convert to Bill
+                                                    </Button>
+                                                </div>
                                             </div>
                                         </DialogContent>
                                     </Dialog>
@@ -399,7 +418,7 @@ const Prescriptions = () => {
                     ))
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 

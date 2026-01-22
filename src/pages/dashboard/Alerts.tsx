@@ -50,28 +50,33 @@ const Alerts = () => {
     const today = new Date();
 
     inventory.forEach(item => {
+      // Robust Date Parsing
       if (item.expiry_date) {
-        const daysToExpiry = differenceInDays(new Date(item.expiry_date), today);
-        if (daysToExpiry < 0) {
-          alerts.push({
-            type: "expired",
-            title: "Expired Medicine",
-            description: `${item.medicine_name} expired on ${format(new Date(item.expiry_date), 'PP')}`,
-            severity: "critical",
-            date: new Date()
-          });
-        } else if (daysToExpiry <= 30) {
-          alerts.push({
-            type: "expiry",
-            title: "Expiring Soon",
-            description: `${item.medicine_name} expires in ${daysToExpiry} days`,
-            severity: "high",
-            date: new Date()
-          });
+        const expiryTime = Date.parse(item.expiry_date);
+        if (!isNaN(expiryTime)) {
+          const daysToExpiry = differenceInDays(new Date(expiryTime), today);
+
+          if (daysToExpiry < 0) {
+            alerts.push({
+              type: "expired",
+              title: "Expired Medicine",
+              description: `${item.medicine_name} expired on ${format(new Date(expiryTime), 'PP')}`,
+              severity: "critical",
+              date: new Date()
+            });
+          } else if (daysToExpiry <= 90) { // Extended to 90 days for better visibility
+            alerts.push({
+              type: "expiry",
+              title: "Expiring Soon",
+              description: `${item.medicine_name} expires in ${daysToExpiry} days`,
+              severity: daysToExpiry < 30 ? "high" : "medium",
+              date: new Date()
+            });
+          }
         }
       }
 
-      if (item.quantity <= item.reorder_level) {
+      if (item.quantity <= (item.reorder_level || 10)) { // Default reorder level if missing
         alerts.push({
           type: "stock",
           title: "Low Stock",

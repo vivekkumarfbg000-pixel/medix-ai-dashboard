@@ -13,7 +13,7 @@ import {
     Zap, X, TrendingUp, Search, User, IndianRupee, Sparkles,
     Plus, BookmarkPlus, ChevronRight
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { VoiceCommandBar } from "@/components/dashboard/VoiceCommandBar";
 import { useUserShops } from "@/hooks/useUserShops";
 import { aiService } from "@/services/aiService";
@@ -31,7 +31,121 @@ const LitePOS = () => {
     const [interactions, setInteractions] = useState<string[]>([]);
     const [showMobileCatalog, setShowMobileCatalog] = useState(false);
     const [profitStats, setProfitStats] = useState({ totalProfit: 0, margin: 0 });
+    const [isSyncing, setIsSyncing] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
+
+    // --- SYNC LOGIC ---
+    const syncInventory = async () => {
+        if (!currentShop?.id) return;
+        setIsSyncing(true);
+        try {
+            // 1. Fetch Cloud Inventory
+            const { data, error } = await supabase
+                .from('inventory')
+                .select('*')
+                .eq('shop_id', currentShop.id);
+
+            if (error) throw error;
+
+            // 2. Refresh Local DB
+            await db.transaction('rw', db.inventory, async () => {
+                await db.inventory.where('shop_id').equals(currentShop.id).delete(); // Clear old
+
+                // Map to OfflineInventory format
+                const items = data.map(item => ({
+                    id: item.id,
+                    shop_id: item.shop_id,
+                    medicine_name: item.medicine_name,
+                    quantity: item.quantity,
+                    unit_price: item.unit_price,
+                    batch_number: item.batch_number,
+                    expiry_date: item.expiry_date,
+                    rack_number: item.rack_number,
+                    purchase_price: item.purchase_price,
+                    is_synced: 1
+                }));
+
+                await db.inventory.bulkAdd(items);
+            });
+            toast.success(`Synced ${data.length} items from Cloud`);
+        } catch (e) {
+            console.error("Sync Failed", e);
+            toast.error("Failed to sync inventory");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+    // Auto-Sync on Mount or Shop Change
+    useEffect(() => {
+        if (currentShop?.id) {
+            syncInventory();
+        }
+    }, [currentShop?.id]);
+
+    // --- PARCHA IMPORT LOGIC ---
+    const location = useLocation();
+    const hasImported = useRef(false);
+
+    useEffect(() => {
+        const processImport = async () => {
+            // @ts-ignore
+            const state = location.state as { importItems: any[], customerName: string } | null;
+
+            if (state?.importItems && !hasImported.current && currentShop?.id) {
+                hasImported.current = true;
+                toast.loading("Importing Medicines from Parcha...", { id: 'import-load' });
+
+                const matches = [];
+                const notFound = [];
+
+                for (const imp of state.importItems) {
+                    // Try fuzzy match or exact match in local DB
+                    // Simplest: Filter live array or just query
+                    const found = await db.inventory
+                        .where('shop_id').equals(currentShop.id)
+                        .filter(i => i.medicine_name.toLowerCase() === imp.name.toLowerCase())
+                        .first();
+
+                    if (found) {
+                        matches.push({ item: found, qty: imp.quantity || 1 });
+                    } else {
+                        // Create a TEMP item for billing (careful with ID)
+                        matches.push({
+                            item: {
+                                id: 'TEMP_' + Date.now() + Math.random(),
+                                shop_id: currentShop.id,
+                                medicine_name: imp.name + " (Manual)",
+                                quantity: 999, // Hack to allow billing
+                                unit_price: imp.unit_price || 0,
+                                is_synced: 0
+                            } as OfflineInventory,
+                            qty: imp.quantity || 1
+                        });
+                        notFound.push(imp.name);
+                    }
+                }
+
+                setCart(prev => [...prev, ...matches]);
+
+                if (state.customerName) {
+                    // Hacky: We don't have a full customer object, just create a temp display one
+                    // In real app, we'd search 'customers' table.
+                    // For now, we just skip linking actual customer object but maybe set name in searchable? 
+                    // Or just leave it for user to search.
+                    setSearch(state.customerName); // Just a hint
+                    toast.info(`Customer: ${state.customerName}`);
+                }
+
+                toast.success(`Imported ${matches.length} medicines`, { id: 'import-load' });
+
+                // Clear state so reload doesn't re-import
+                window.history.replaceState({}, document.title);
+            }
+        };
+
+        processImport();
+    }, [location.state, currentShop?.id]);
 
     // --- DATA ---
     const products = useLiveQuery(
@@ -108,6 +222,19 @@ const LitePOS = () => {
 
         toast.loading("Processing Order...");
 
+        // LINKED CUSTOMER CREDIT CHECK
+        const finalTotal = calculateTotals().total;
+        if (paymentMode === 'credit' && selectedCustomer) {
+            const currentBal = selectedCustomer.credit_balance || 0;
+            const limit = selectedCustomer.credit_limit || 5000; // Default limit
+
+            if (currentBal + finalTotal > limit) {
+                toast.dismiss();
+                toast.error(`Credit Limit Exceeded! (Max: ₹${limit})`);
+                return;
+            }
+        }
+
         try {
             // 1. Create Order
             const { data: order, error: orderError } = await supabase
@@ -173,7 +300,10 @@ const LitePOS = () => {
                     </Button>
                     <div className="leading-tight">
                         <div className="font-bold text-base text-white tracking-tight">BILLING<span className="text-cyan-400">HUB</span></div>
-                        <div className="text-[9px] text-slate-500 font-mono uppercase">V3.0 • PRO TERMINAL</div>
+                        <div className="flex items-center gap-2 text-[9px] text-slate-500 font-mono uppercase">
+                            V3.0 • PRO TERMINAL
+                            {isSyncing && <span className="text-yellow-400 animate-pulse flex items-center gap-1">⚡ SYNCING...</span>}
+                        </div>
                     </div>
                 </div>
 
@@ -296,6 +426,20 @@ const LitePOS = () => {
                                 className="h-8 bg-transparent border-none text-slate-200 focus:ring-0 text-xs placeholder:text-slate-600 w-full"
                             />
                         </div>
+                        {selectedCustomer && (
+                            <div className="flex items-center gap-3 text-[10px] font-mono border-l border-slate-700 pl-3">
+                                <div>
+                                    <span className="text-slate-500 block">BALANCE</span>
+                                    <span className={`font-bold ${selectedCustomer.credit_balance > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                        ₹{selectedCustomer.credit_balance || 0}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-500 block">LIMIT</span>
+                                    <span className="text-slate-300">₹{selectedCustomer.credit_limit || 5000}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Cart Workspace - Tighter Spacing space-y-1 */}

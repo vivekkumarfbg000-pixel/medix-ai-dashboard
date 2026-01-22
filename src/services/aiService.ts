@@ -411,17 +411,55 @@ export const aiService = {
             return data;
 
         } catch (error) {
-            console.error("[AI Service] N8N Forecast Failed, using simulation:", error);
-            // Fallback Simulation (so the feature "works" for the user)
-            return {
-                forecast: [
-                    { product: "Amoxicillin 500mg", current_stock: 120, predicted_daily_sales: 15, suggested_restock: 200, confidence: 0.92, reason: "High seasonal demand detected (Winter)" },
-                    { product: "Paracetamol 650mg", current_stock: 45, predicted_daily_sales: 40, suggested_restock: 500, confidence: 0.88, reason: "Consistent daily sales velocity" },
-                    { product: "Cetrizine 10mg", current_stock: 80, predicted_daily_sales: 8, suggested_restock: 150, confidence: 0.85, reason: "Allergy season approaching" },
-                    { product: "Vitamin C Chewable", current_stock: 30, predicted_daily_sales: 12, suggested_restock: 150, confidence: 0.81, reason: "Immunity booster trend" },
-                    { product: "Azithromycin 500mg", current_stock: 15, predicted_daily_sales: 6, suggested_restock: 100, confidence: 0.89, reason: "Antibiotic stockout risk" }
-                ]
-            };
+            console.error("[AI Service] N8N Forecast Failed, using local heuristic:", error);
+            // Fallback: Local Heuristic Analysis (Real calculation, not mock strings)
+            // 1. Group sales by product
+            const salesMap = new Map<string, number>();
+            salesHistory.forEach((order: any) => {
+                // Handle both older 'items' JSON structure and newer 'order_items' structure
+                let items: any[] = [];
+                if (order.order_items) items = typeof order.order_items === 'string' ? JSON.parse(order.order_items) : order.order_items;
+                else if (order.items) items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+
+                items.forEach((item: any) => {
+                    const name = item.medicine_name || item.name;
+                    const qty = parseInt(item.quantity || item.qty || 0);
+                    if (name) salesMap.set(name, (salesMap.get(name) || 0) + qty);
+                });
+            });
+
+            // 2. Generate Predictions based on Velocity
+            const forecast = Array.from(salesMap.entries())
+                .map(([product, totalSold]) => {
+                    const avgDaily = Math.ceil(totalSold / 30); // simplistic 30-day window
+                    const suggested = avgDaily * 10; // 10 days stock
+
+                    // Only suggest if velocity is meaningful
+                    if (totalSold < 2) return null;
+
+                    return {
+                        product,
+                        current_stock: 0, // We don't have stock info here, defaulting for UI to handle
+                        predicted_daily_sales: avgDaily,
+                        suggested_restock: suggested,
+                        confidence: 0.75, // Lower confidence for local heuristic
+                        reason: `High Velocity: ${totalSold} units sold in 30 days`
+                    };
+                })
+                .filter(Boolean)
+                .sort((a, b) => (b?.suggested_restock || 0) - (a?.suggested_restock || 0))
+                .slice(0, 5); // Top 5
+
+            // If no sales history, return a generic "Start Selling" hint or empty
+            if (forecast.length === 0) {
+                return {
+                    forecast: [
+                        { product: "System: No Sales Data", current_stock: 0, predicted_daily_sales: 0, suggested_restock: 10, confidence: 0.5, reason: "Start selling to generate insights." }
+                    ]
+                };
+            }
+
+            return { forecast };
         }
     },
 
