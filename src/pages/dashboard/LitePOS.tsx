@@ -19,6 +19,7 @@ import { useUserShops } from "@/hooks/useUserShops";
 import { aiService } from "@/services/aiService";
 import { CustomerSearch, Customer } from "@/components/dashboard/CustomerSearch";
 import { supabase } from "@/integrations/supabase/client";
+import VoiceInput from "@/components/common/VoiceInput";
 
 const LitePOS = () => {
     const navigate = useNavigate();
@@ -345,9 +346,45 @@ const LitePOS = () => {
                                     autoFocus
                                 />
                             </div>
-                            {/* Desktop Voice Trigger */}
-                            <div className="hidden md:block">
-                                <VoiceCommandBar compact={true} onTranscriptionComplete={(txt) => setSearch(txt)} />
+                            {/* Munim-ji Voice Trigger */}
+                            <div className="">
+                                <VoiceInput
+                                    onTranscript={async (text) => {
+                                        toast.info(`Processing: "${text}"`);
+                                        const result = await aiService.processVoiceText(text);
+
+                                        if (result.items && result.items.length > 0) {
+                                            for (const item of result.items) {
+                                                // 1. Fuzzy Search in DB
+                                                const matches = await db.inventory
+                                                    .where('shop_id').equals(currentShop?.id || '')
+                                                    .filter(i => i.medicine_name.toLowerCase().includes(item.name.toLowerCase()))
+                                                    .toArray();
+
+                                                if (matches.length > 0) {
+                                                    // Pick best match (first one)
+                                                    addToCart(matches[0]);
+                                                    toast.success(`Added ${matches[0].medicine_name}`);
+                                                } else {
+                                                    // Add as Temp
+                                                    toast.warning(`"${item.name}" not found in inventory. Added as Manual Item.`);
+                                                    const tempItem: OfflineInventory = {
+                                                        id: `VOICE_${Date.now()}`,
+                                                        shop_id: currentShop?.id || '',
+                                                        medicine_name: item.name + " (Voice)",
+                                                        quantity: 999,
+                                                        unit_price: 0, // Needs manual price
+                                                        is_synced: 0
+                                                    };
+                                                    setCart(prev => [...prev, { item: tempItem, qty: item.quantity }]);
+                                                }
+                                            }
+                                        } else {
+                                            toast.error("Could not understand order.");
+                                            setSearch(text); // Fallback to search
+                                        }
+                                    }}
+                                />
                             </div>
                         </div>
                         {/* Zero State / Shortbook */}
