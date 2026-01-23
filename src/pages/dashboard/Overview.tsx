@@ -25,11 +25,11 @@ const Overview = () => {
   if (loading) {
     return (
       <div className="p-6 space-y-6">
-        <div className="h-12 w-48 bg-muted rounded animate-pulse" />
+        <div className="h-12 w-48 bg-gradient-to-r from-muted via-muted-foreground/10 to-muted rounded animate-pulse" />
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[400px]">
-          <div className="bg-muted rounded-xl animate-pulse" />
-          <div className="lg:col-span-2 bg-muted rounded-xl animate-pulse" />
-          <div className="bg-muted rounded-xl animate-pulse" />
+          <div className="bg-gradient-to-r from-muted via-muted-foreground/10 to-muted rounded-xl animate-pulse" />
+          <div className="lg:col-span-2 bg-gradient-to-r from-muted via-muted-foreground/10 to-muted rounded-xl animate-pulse" />
+          <div className="bg-gradient-to-r from-muted via-muted-foreground/10 to-muted rounded-xl animate-pulse" />
         </div>
       </div>
     );

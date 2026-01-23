@@ -276,7 +276,17 @@ const LitePOS = () => {
             }
 
             toast.dismiss();
-            toast.success("Order Placed Successfully!");
+
+            // 🎉 CELEBRATION CONFETTI
+            const confetti = (await import('canvas-confetti')).default;
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#10b981', '#3b82f6', '#8b5cf6']
+            });
+
+            toast.success("Order Placed Successfully! 🎉");
             setCart([]);
             setPaymentMode('cash');
             setSelectedCustomer(null);
