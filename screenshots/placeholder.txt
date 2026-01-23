@@ -1,0 +1,4 @@
+Please add the following screenshots to this directory:
+- dashboard_overview.png
+- inventory.png
+- ai_insights.png

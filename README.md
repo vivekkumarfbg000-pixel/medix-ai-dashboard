@@ -1,73 +1,78 @@
-# Welcome to your Lovable project
+# MedixAI Dashboard
 
-## Project info
+**AI-Powered Manager for Medical Shops**
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+MedixAI is a comprehensive dashboard designed to transform pharmacy operations. It integrates smart inventory management, AI-driven insights, compliance tracking, and a B2B marketplace into a single, cohesive platform.
 
-## How can I edit this code?
+## Feature Highlights
 
-There are several ways of editing your application.
+### 📦 Smart Inventory Management
+- Real-time stock tracking with expiration alerts.
+- Automated refill suggestions based on sales velocity.
+- Batch management and low-stock notifications.
 
-**Use Lovable**
+### 🧠 AI Insights & Forecasting
+- **Sales Forecasting**: Predict future demand using historical data.
+- **System Health**: Monitor operational efficiency with an AI-driven health score.
+- **Smart Alerts**: Proactive notifications for irregularities and opportunities.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### ⚖️ Compliance & Regulation
+- **Schedule H/H1 Tracking**: Automated logging for controlled substances.
+- **Narcotics Register**: Secure and compliant record-keeping for narcotics.
+- **TB/Antibiotics Reporting**: Streamlined reporting for recurring compliance needs.
 
-Changes made via Lovable will be committed automatically to this repo.
+### 🏪 B2B Marketplace
+- Connect directly with suppliers.
+- Compare prices and availability in real-time.
+- Seamless ordering process integrated with inventory.
 
-**Use your preferred IDE**
+### 📄 Digital Prescriptions
+- Scan and digitize physical prescriptions.
+- AI-powered transcription (OCR) for handwritten notes.
+- Secure storage and easy retrieval of patient history.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Screenshots
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+<!-- Add screenshots of the dashboard here -->
+*Dashboard Overview*
+![Dashboard Overview](screenshots/dashboard_overview.png)
 
-Follow these steps:
+*Inventory Management*
+![Inventory Management](screenshots/inventory.png)
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+*AI Insights*
+![AI Insights](screenshots/ai_insights.png)
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+> **Note**: Please add screenshots to the `screenshots/` directory with the filenames mentioned above.
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Tech Stack
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+This project is built with a modern, high-performance stack:
 
-**Edit a file directly in GitHub**
+- **Frontend**: [React](https://reactjs.org/) with [Vite](https://vitejs.dev/)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **UI Framework**: [shadcn/ui](https://ui.shadcn.com/) & [Tailwind CSS](https://tailwindcss.com/)
+- **Backend/Database**: [Supabase](https://supabase.com/) (PostgreSQL, Auth, Realtime)
+- **AI/Automation**: [n8n](https://n8n.io/) (Workflow Automation), Gemini API
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Getting Started
 
-**Use GitHub Codespaces**
+1.  **Clone the repository**:
+    ```bash
+    git clone <your-repo-url>
+    cd medix-ai-dashboard-main
+    ```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+2.  **Install dependencies**:
+    ```bash
+    npm install
+    ```
 
-## What technologies are used for this project?
+3.  **Start the development server**:
+    ```bash
+    npm run dev
+    ```
 
-This project is built with:
+## Deployment
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+For detailed deployment instructions, including Docker and VPS setup, please refer to [DEPLOY.md](DEPLOY.md).

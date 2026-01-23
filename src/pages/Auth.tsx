@@ -98,7 +98,7 @@ const Auth = () => {
         <div>
           <div className="flex items-center gap-3 mb-2">
             <div className="w-16 h-16 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20 shadow-xl overflow-hidden">
-              <img src="/medix-logo.png?v=5" alt="MedixAI Logo" className="w-full h-full object-cover" />
+              <img src="/medix-logo.jpg?v=6" alt="MedixAI Logo" className="w-full h-full object-cover" />
             </div>
             <h1 className="text-3xl font-bold text-primary-foreground tracking-tight">MedixAI</h1>
           </div>
@@ -138,7 +138,7 @@ const Auth = () => {
           {/* Mobile Logo */}
           <div className="lg:hidden flex flex-col items-center gap-4 mb-8 justify-center">
             <div className="w-16 h-16 rounded-xl bg-primary/5 flex items-center justify-center overflow-hidden border border-primary/10 shadow-lg">
-              <img src="/medix-logo.png?v=5" alt="MedixAI Logo" className="w-full h-full object-cover" />
+              <img src="/medix-logo.jpg?v=6" alt="MedixAI Logo" className="w-full h-full object-cover" />
             </div>
             <h1 className="text-3xl font-bold text-foreground tracking-tight">MedixAI</h1>
           </div>
