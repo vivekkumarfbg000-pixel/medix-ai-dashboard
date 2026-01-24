@@ -263,6 +263,9 @@ const Inventory = () => {
       } catch (e) { console.error("PDF Gen Failed", e); }
 
       // 4. Success & WhatsApp Prompt
+      const confetti = (await import('canvas-confetti')).default;
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+
       toast.success("Return Note Created & PDF Downloaded!", {
         action: {
           label: "Share on WhatsApp",

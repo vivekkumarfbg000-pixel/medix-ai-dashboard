@@ -12,8 +12,6 @@ import {
   Bell,
   Shield,
   Save,
-  Eye,
-  EyeOff,
   Loader2,
   LogOut,
   Smartphone,
@@ -35,6 +33,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { useUserShops } from "@/hooks/useUserShops";
 
 interface ShopData {
   id: string;
@@ -51,6 +50,7 @@ interface ShopSettingsData {
 }
 
 const Settings = () => {
+  const { currentShop } = useUserShops();
   const [shop, setShop] = useState<ShopData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -128,6 +128,15 @@ const Settings = () => {
               invoice_footer_text: settingsData.invoice_footer_text || "",
               terms_and_conditions: settingsData.terms_and_conditions || ""
             });
+
+            // Load notification prefs if they exist
+            if (settingsData.preferences && typeof settingsData.preferences === 'object') {
+              const prefs = settingsData.preferences as Record<string, any>;
+              setNotifications(prev => ({
+                ...prev,
+                ...prefs // Overwrite defaults with saved values
+              }));
+            }
           }
         } else {
           console.warn("No shop found. Initializing empty for creation.");
@@ -241,7 +250,8 @@ const Settings = () => {
           gstin: shopSettings.gstin,
           dl_number: shopSettings.dl_number,
           invoice_footer_text: shopSettings.invoice_footer_text,
-          terms_and_conditions: shopSettings.terms_and_conditions
+          terms_and_conditions: shopSettings.terms_and_conditions,
+          preferences: notifications // Save current notification state
         });
 
       if (settingsError) throw settingsError;

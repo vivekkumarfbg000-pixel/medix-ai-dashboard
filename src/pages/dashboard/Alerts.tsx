@@ -22,7 +22,10 @@ interface Reminder {
   status: string;
 }
 
+import { useUserShops } from "@/hooks/useUserShops";
+
 const Alerts = () => {
+  const { currentShop } = useUserShops();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);

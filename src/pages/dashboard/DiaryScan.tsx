@@ -523,12 +523,12 @@ const DiaryScan = () => {
                           }))
                         } as any);
 
-                        const cartItems = extractedItems.map(i => ({
+                        const importItems = extractedItems.map(i => ({
                           name: i.medication_name,
-                          qty: 1,
-                          voice_parsed: true
+                          quantity: 1, // Default to 1 pack/strip
+                          unit_price: 0 // POS will fetch or allow manual
                         }));
-                        navigate("/lite-pos", { state: { cartItems } });
+                        navigate("/dashboard/sales/pos", { state: { importItems, customerName: patientName } });
                         toast.success("Redirecting to Billing...");
                       }}
                       className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20"

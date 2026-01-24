@@ -326,113 +326,19 @@ const Orders = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="pos">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2 border-primary/20 bg-card/50 backdrop-blur">
-              <CardHeader>
-                <CardTitle>Billing Counter</CardTitle>
-                <CardDescription>Search and add medicines to cart</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Scan barcode or type medicine name..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleAddItem()}
-                    className="text-lg py-6"
-                  />
-                  <VoiceCommandBar onTranscriptionComplete={handleVoiceItems} compact={true} />
-                  <Button size="lg" onClick={handleAddItem} className="h-full">
-                    <Plus className="w-5 h-5" />
-                  </Button>
-                </div>
-
-                <div className="mt-6 space-y-3">
-                  {cart.map((item, idx) => (
-                    <div key={item.id} className="p-4 rounded-lg border bg-background/50 flex items-center justify-between group animate-in slide-in-from-left-2">
-                      <div>
-                        <h4 className="font-medium">{item.name}</h4>
-                        <div className="flex gap-2 text-sm text-muted-foreground mt-1">
-                          <span>{formatCurrency(item.price)} x {item.quantity}</span>
-                          <span className="text-xs border px-1 rounded bg-muted/50">GST: {item.sgst_rate + item.cgst_rate + item.igst_rate}%</span>
-                        </div>
-
-                        {item.substitute && (
-                          <div
-                            className="mt-2 flex items-center gap-2 p-2 bg-green-500/10 text-green-600 rounded-md border border-green-500/20 cursor-pointer hover:bg-green-500/20 transition-colors"
-                            onClick={() => item.substitute && switchSubstitute(item.id, item.substitute)}
-                          >
-                            <TrendingUp className="w-4 h-4" />
-                            <span className="text-xs font-bold">
-                              High Margin: Switch to {item.substitute.name} (+{item.substitute.margin}%)
-                            </span>
-                            <ArrowRight className="w-3 h-3 ml-auto opacity-50" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <p className="font-bold">{formatCurrency(item.price * item.quantity)}</p>
-                        <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  {cart.length === 0 && (
-                    <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
-                      <ShoppingCart className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                      <p>Cart is empty</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="h-fit">
-              <CardHeader className="bg-muted/50">
-                <CardTitle>Checkout</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 pt-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Customer Name</label>
-                  <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="e.g. Rahul Kumar" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Phone Number</label>
-                  <Input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="e.g. 9876543210" />
-                </div>
-
-                <div className="pt-4 border-t space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Subtotal (Pre-Tax)</span>
-                    <span>{formatCurrency(totals.subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Total GST</span>
-                    <span>{formatCurrency(totals.totalTax)}</span>
-                  </div>
-                  <div className="flex justify-between text-lg font-bold pt-2 border-t">
-                    <span>Grand Total</span>
-                    <span>{formatCurrency(totals.totalPayable)}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground text-center pt-2">
-                    {cart.length} items • GST Compliant Invoice
-                  </p>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button variant="outline" className="w-full h-12 text-lg border-orange-200 text-orange-700 hover:bg-orange-50" disabled={cart.length === 0} onClick={() => completeSale(true)}>
-                    📒 Khata
-                  </Button>
-                  <Button className="w-full h-12 text-lg" disabled={cart.length === 0} onClick={() => completeSale(false)}>
-                    💵 Pay Now
-                  </Button>
-                </div>
-              </CardFooter>
-            </Card>
+        <TabsContent value="pos" className="h-[400px] flex flex-col items-center justify-center text-center space-y-6 border rounded-lg bg-muted/20 border-dashed">
+          <div className="bg-primary/10 p-6 rounded-full">
+            <ShoppingCart className="w-12 h-12 text-primary" />
           </div>
+          <div>
+            <h3 className="text-2xl font-bold">Manage Billing in Billing Hub</h3>
+            <p className="text-muted-foreground max-w-md mx-auto mt-2">
+              We have moved the POS to a dedicated, high-speed terminal for faster checkout.
+            </p>
+          </div>
+          <Button size="lg" className="gap-2" onClick={() => window.location.href = '/dashboard/sales/pos'}>
+            Go to Billing Hub <ArrowRight className="w-4 h-4" />
+          </Button>
         </TabsContent>
       </Tabs>
 

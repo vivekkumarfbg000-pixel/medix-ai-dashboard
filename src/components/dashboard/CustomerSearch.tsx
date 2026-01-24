@@ -34,9 +34,11 @@ export interface Customer {
 interface CustomerSearchProps {
     onSelect: (customer: Customer | null) => void;
     selectedCustomer: Customer | null;
+    placeholder?: string;
+    className?: string; // Also add className since it was used in LitePOS
 }
 
-export function CustomerSearch({ onSelect, selectedCustomer }: CustomerSearchProps) {
+export function CustomerSearch({ onSelect, selectedCustomer, placeholder, className }: CustomerSearchProps) {
     const [open, setOpen] = useState(false);
     const [value, setValue] = useState("");
     const [customers, setCustomers] = useState<Customer[]>([]);
@@ -86,14 +88,14 @@ export function CustomerSearch({ onSelect, selectedCustomer }: CustomerSearchPro
     };
 
     return (
-        <div className="flex gap-2 items-center">
+        <div className={cn("flex gap-2 items-center", className)}>
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
                     <Button
                         variant="outline"
                         role="combobox"
                         aria-expanded={open}
-                        className="w-[250px] justify-between"
+                        className="w-full justify-between"
                     >
                         {selectedCustomer ? (
                             <div className="flex flex-col items-start leading-none gap-1">
@@ -101,7 +103,7 @@ export function CustomerSearch({ onSelect, selectedCustomer }: CustomerSearchPro
                                 <span className="text-[10px] text-muted-foreground">{selectedCustomer.phone}</span>
                             </div>
                         ) : (
-                            "Select Customer for Credit..."
+                            placeholder || "Select Customer for Credit..."
                         )}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>

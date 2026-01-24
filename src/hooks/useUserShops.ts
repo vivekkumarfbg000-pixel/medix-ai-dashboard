@@ -29,6 +29,7 @@ export function useUserShops(): UserShopsState {
           return;
         }
 
+        // OPTIMIZATION: Single efficient query for shop details through the junction table
         const { data: userShops, error } = await supabase
           .from("user_shops")
           .select(`
@@ -44,73 +45,40 @@ export function useUserShops(): UserShopsState {
 
         if (error) {
           console.error("Error fetching shops:", error);
+          throw error;
         }
 
         let mappedShops: Shop[] = [];
 
         if (userShops && userShops.length > 0) {
-          // SAFE GUARD: Filter out any null 'shops' entries (RLS hidden or orphaned)
           const validShops = userShops.filter((us: any) => us && us.shops);
-
           mappedShops = validShops.map((us: any) => ({
             id: us.shops?.id,
             name: us.shops?.name || "Unknown Shop",
             address: us.shops?.address,
             is_primary: us.is_primary,
-          })).filter(shop => shop.id); // Double check id exists
+          })).filter(shop => shop.id);
         }
 
-        // FALLBACK: If regular fetch failed or returned nothing (RLS Issue?), check Profile directly
-        if (mappedShops.length === 0) {
-          // console.warn("No user_shops found, checking profile fallback...");
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("shop_id")
-            .eq("user_id", user.id)
-            .maybeSingle();
-
-          if (profile?.shop_id) {
-            const { data: shop } = await supabase
-              .from("shops")
-              .select("id, name, address")
-              .eq("id", profile.shop_id)
-              .maybeSingle();
-
-            if (shop) {
-              mappedShops = [{
-                id: shop.id,
-                name: shop.name || "My Shop",
-                address: shop.address,
-                is_primary: true
-              }];
-            }
-          }
-        }
+        // REMOVED REDUNDANT FALLBACK: The user_shops table is the source of truth. 
+        // If it's empty, the user has no shops. Profile fallback is legacy and slow.
 
         if (mappedShops.length > 0) {
           setShops(mappedShops);
 
-          // Priority: LocalStorage > Primary > First
+          // Smart Selection: LocalStorage -> Primary -> First
           const savedShopId = localStorage.getItem("currentShopId");
           const savedShop = savedShopId ? mappedShops.find((s: Shop) => s.id === savedShopId) : null;
-          // If saved shop is not in list (e.g. data wipe), fallback to primary
-          const defaultShopId = savedShop?.id || mappedShops.find(s => s.is_primary)?.id || mappedShops[0]?.id || null;
 
-          setCurrentShopId(defaultShopId);
+          const defaultShopId = savedShop?.id || mappedShops.find(s => s.is_primary)?.id || mappedShops[0]?.id;
+
           if (defaultShopId) {
+            setCurrentShopId(defaultShopId);
             localStorage.setItem("currentShopId", defaultShopId);
-          }
-        } else {
-          // FINAL FALLBACK: If completely empty, try reading localstorage anyway (Ghost State)
-          const ghostId = localStorage.getItem("currentShopId");
-          if (ghostId) {
-            setCurrentShopId(ghostId);
-            // We don't have details, but we have an ID to try queries with
-            // This helps if the 'shops' table read is blocked but 'inventory' read is allowed
           }
         }
       } catch (err) {
-        console.error("Error:", err);
+        console.error("Shop Load Error:", err);
       } finally {
         setLoading(false);
       }

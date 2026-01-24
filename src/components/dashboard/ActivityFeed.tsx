@@ -3,10 +3,17 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Plus, Trash2, Edit, ShoppingCart, Package, Users, Settings, Sparkles, Brain, ArrowRight } from "lucide-react";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUserShops } from "@/hooks/useUserShops";
 import { Badge } from "@/components/ui/badge";
+
+// Safe Date Formatter
+const formatDateSafe = (dateString: string) => {
+    if (!dateString) return "Just now";
+    const date = new Date(dateString);
+    return isValid(date) ? format(date, "h:mm a") : "Just now";
+};
 
 interface ActivityItem {
     id: string;
@@ -154,10 +161,10 @@ export const ActivityFeed = () => {
             </Card>
 
             {/* RIGHT: ACTIVITY STREAM */}
-            <Card className="col-span-1 lg:col-span-2 shadow-sm border-slate-200">
-                <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
+            <Card className="col-span-1 lg:col-span-2 shadow-sm border-slate-200 dark:border-slate-800 dark:bg-slate-950">
+                <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
                     <div className="flex items-center justify-between">
-                        <CardTitle className="flex items-center gap-2 text-base text-slate-700">
+                        <CardTitle className="flex items-center gap-2 text-base text-slate-700 dark:text-slate-200">
                             <Activity className="w-4 h-4 text-violet-500" />
                             Live Operations Feed
                         </CardTitle>
@@ -166,23 +173,23 @@ export const ActivityFeed = () => {
                 </CardHeader>
                 <CardContent className="p-0">
                     <ScrollArea className="h-[250px] w-full">
-                        <div className="divide-y divide-slate-100">
+                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
                             {activities.map((log) => {
                                 const IconComponent = log.icon;
                                 return (
-                                    <div key={log.id} className="flex gap-4 items-center p-4 hover:bg-slate-50 transition-colors animate-in fade-in slide-in-from-bottom-1">
-                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm border ${log.type === 'create' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' :
-                                                log.type === 'delete' ? 'bg-red-50 border-red-100 text-red-600' :
-                                                    'bg-blue-50 border-blue-100 text-blue-600'
+                                    <div key={log.id} className="flex gap-4 items-center p-4 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors animate-in fade-in slide-in-from-bottom-1">
+                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm border ${log.type === 'create' ? 'bg-emerald-50 border-emerald-100 text-emerald-600 dark:bg-emerald-900/20 dark:border-emerald-900 dark:text-emerald-400' :
+                                            log.type === 'delete' ? 'bg-red-50 border-red-100 text-red-600 dark:bg-red-900/20 dark:border-red-900 dark:text-red-400' :
+                                                'bg-blue-50 border-blue-100 text-blue-600 dark:bg-blue-900/20 dark:border-blue-900 dark:text-blue-400'
                                             }`}>
                                             <IconComponent className="w-4 h-4" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-slate-900 truncate">{log.description}</p>
-                                            <p className="text-xs text-slate-500">{format(new Date(log.time), "h:mm a")} • {log.user}</p>
+                                            <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{log.description}</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">{formatDateSafe(log.time)} • {log.user}</p>
                                         </div>
                                         {log.amount && (
-                                            <Badge variant="secondary" className="font-mono bg-slate-100 text-slate-700 border-slate-200">
+                                            <Badge variant="secondary" className="font-mono bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
                                                 {log.amount}
                                             </Badge>
                                         )}

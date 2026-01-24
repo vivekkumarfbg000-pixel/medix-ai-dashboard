@@ -162,16 +162,22 @@ export function DashboardLayout() {
   const [loading, setLoading] = useState(true);
 
   // Use a separate effect for initial loading state
+  // OPTIMIZATION: Faster initial load check
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        // Handle redirect in the inner component or here
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          // Let the Router/Page handle redirect, just stop loading
+        }
+      } catch (err) {
+        console.error("Session check failed", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    }).catch((err) => {
-      console.error("Session check failed", err);
-      setLoading(false);
-    });
+    };
+
+    checkSession();
   }, []);
 
   if (loading) {

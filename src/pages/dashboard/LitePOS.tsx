@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, OfflineInventory } from "@/db/db";
@@ -20,6 +21,7 @@ import { aiService } from "@/services/aiService";
 import { CustomerSearch, Customer } from "@/components/dashboard/CustomerSearch";
 import { supabase } from "@/integrations/supabase/client";
 import VoiceInput from "@/components/common/VoiceInput";
+import { whatsappService } from "@/services/whatsappService";
 
 const LitePOS = () => {
     const navigate = useNavigate();
@@ -33,9 +35,126 @@ const LitePOS = () => {
     const [showMobileCatalog, setShowMobileCatalog] = useState(false);
     const [profitStats, setProfitStats] = useState({ totalProfit: 0, margin: 0 });
     const [isSyncing, setIsSyncing] = useState(false);
+    const [showGuestDialog, setShowGuestDialog] = useState(false);
+    const [guestDetails, setGuestDetails] = useState({ name: "", phone: "" });
     const searchInputRef = useRef<HTMLInputElement>(null);
 
-    // --- SYNC LOGIC ---
+    // --- CHECKOUT LOGIC ---
+    const handleCheckout = async () => {
+        if (!currentShop?.id || cart.length === 0) return;
+
+        // If no customer selected, prompt for Guest Details (for WhatsApp)
+        // Only if not already paying by Credit (which requires a real customer)
+        if (!selectedCustomer && paymentMode !== 'credit' && !showGuestDialog) {
+            // Check if we want to prompt? Yes, for WhatsApp value
+            setShowGuestDialog(true);
+            return;
+        }
+
+        // If dialog is open, we proceed to confirmCheckout
+        await confirmCheckout();
+    };
+
+    const confirmCheckout = async () => {
+        setShowGuestDialog(false); // Close dialog if open
+        const { total } = calculateTotals();
+        toast.loading("Processing Order...");
+
+        // LINKED CUSTOMER CREDIT CHECK
+        const finalTotal = calculateTotals().total;
+        if (paymentMode === 'credit' && selectedCustomer) {
+            const currentBal = selectedCustomer.credit_balance || 0;
+            const limit = selectedCustomer.credit_limit || 5000;
+
+            if (currentBal + finalTotal > limit) {
+                toast.dismiss();
+                toast.error(`Credit Limit Exceeded! (Max: ₹${limit})`);
+                return;
+            }
+        }
+
+        // Determine Final Customer Details
+        const finalName = selectedCustomer?.name || guestDetails.name || "Walk-in Customer";
+        const finalPhone = selectedCustomer?.phone || guestDetails.phone || null;
+
+        try {
+            // 1. Create Order
+            const { data: order, error: orderError } = await supabase
+                .from("orders")
+                .insert({
+                    shop_id: currentShop?.id,
+                    customer_name: finalName,
+                    customer_phone: finalPhone,
+                    total_amount: total,
+                    status: "approved",
+                    source: "LitePOS"
+                })
+                .select()
+                .single();
+
+            if (orderError) throw orderError;
+
+            // 2. Create Order Items
+            const orderItems = cart.map(c => ({
+                order_id: order.id,
+                inventory_id: c.item.id,
+                name: c.item.medicine_name,
+                qty: c.qty,
+                price: c.item.unit_price,
+                cost_price: c.item.purchase_price || 0
+            }));
+
+            const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
+            if (itemsError) throw itemsError;
+
+            // 3. Update Inventory (Deduct Stock)
+            for (const c of cart) {
+                await supabase.rpc('decrement_stock', {
+                    row_id: c.item.id,
+                    amount: c.qty
+                });
+            }
+
+            toast.dismiss();
+
+            // 🎉 CELEBRATION CONFETTI
+            const confetti = (await import('canvas-confetti')).default;
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#10b981', '#3b82f6', '#8b5cf6']
+            });
+
+            // WhatsApp Integration (Now works for Walk-ins too!)
+            if (finalPhone) {
+                const waLink = whatsappService.generateInvoiceLink(finalPhone, {
+                    invoice_number: order.id.slice(0, 8).toUpperCase(),
+                    customer_name: finalName,
+                    shop_name: currentShop?.shop_name,
+                    created_at: new Date().toISOString(),
+                    total_amount: total,
+                    status: 'paid',
+                    items: cart.map(c => ({ name: c.item.medicine_name, qty: c.qty, price: c.item.unit_price }))
+                });
+                window.open(waLink, '_blank');
+                toast.success("Order Placed & WhatsApp Sent! 🎉");
+            } else {
+                toast.success("Order Placed Successfully! 🎉");
+            }
+
+            setCart([]);
+            setPaymentMode('cash');
+            setSelectedCustomer(null);
+            setGuestDetails({ name: "", phone: "" }); // Reset Manual
+            setInteractions([]);
+
+        } catch (err: any) {
+            console.error(err);
+            toast.dismiss();
+            toast.error(`Checkout Failed: ${err.message}`);
+        }
+    };
     const syncInventory = async () => {
         if (!currentShop?.id) return;
         setIsSyncing(true);
@@ -90,38 +209,39 @@ const LitePOS = () => {
 
     useEffect(() => {
         const processImport = async () => {
+            // FIX: Support both keys for backward compatibility
             // @ts-ignore
-            const state = location.state as { importItems: any[], customerName: string } | null;
+            const state = location.state as { importItems: any[], cartItems: any[], customerName: string } | null;
+            const itemsToImport = state?.importItems || state?.cartItems; // Support both
 
-            if (state?.importItems && !hasImported.current && currentShop?.id) {
+            if (itemsToImport && !hasImported.current && currentShop?.id) {
                 hasImported.current = true;
                 toast.loading("Importing Medicines from Parcha...", { id: 'import-load' });
 
                 const matches = [];
                 const notFound = [];
 
-                for (const imp of state.importItems) {
+                for (const imp of itemsToImport) {
                     // Try fuzzy match or exact match in local DB
-                    // Simplest: Filter live array or just query
                     const found = await db.inventory
                         .where('shop_id').equals(currentShop.id)
                         .filter(i => i.medicine_name.toLowerCase() === imp.name.toLowerCase())
                         .first();
 
                     if (found) {
-                        matches.push({ item: found, qty: imp.quantity || 1 });
+                        matches.push({ item: found, qty: imp.quantity || imp.qty || 1 });
                     } else {
-                        // Create a TEMP item for billing (careful with ID)
+                        // Create a TEMP item for billing
                         matches.push({
                             item: {
                                 id: 'TEMP_' + Date.now() + Math.random(),
                                 shop_id: currentShop.id,
                                 medicine_name: imp.name + " (Manual)",
-                                quantity: 999, // Hack to allow billing
+                                quantity: 999,
                                 unit_price: imp.unit_price || 0,
                                 is_synced: 0
                             } as OfflineInventory,
-                            qty: imp.quantity || 1
+                            qty: imp.quantity || imp.qty || 1
                         });
                         notFound.push(imp.name);
                     }
@@ -130,17 +250,12 @@ const LitePOS = () => {
                 setCart(prev => [...prev, ...matches]);
 
                 if (state.customerName) {
-                    // Hacky: We don't have a full customer object, just create a temp display one
-                    // In real app, we'd search 'customers' table.
-                    // For now, we just skip linking actual customer object but maybe set name in searchable? 
-                    // Or just leave it for user to search.
-                    setSearch(state.customerName); // Just a hint
+                    // Search Logic Hint
+                    setSearch(state.customerName);
                     toast.info(`Customer: ${state.customerName}`);
                 }
 
                 toast.success(`Imported ${matches.length} medicines`, { id: 'import-load' });
-
-                // Clear state so reload doesn't re-import
                 window.history.replaceState({}, document.title);
             }
         };
@@ -172,16 +287,23 @@ const LitePOS = () => {
             return [...prev, { item, qty: 1 }];
         });
 
-        // Simple Interaction Check (Mock/AI)
+        // Safe Interaction Check
         if (cart.length > 0) {
             const existingNames = cart.map(c => c.item.medicine_name);
-            const checks = await Promise.all(existingNames.map(name => aiService.checkInteraction(item.medicine_name, name)));
-            const warnings = checks.filter(c => c.hasInteraction).map(c => c.warning);
-            // Unique warnings
-            const newWarnings = warnings.filter(w => !interactions.includes(w));
-            if (newWarnings.length > 0) {
-                setInteractions(prev => [...prev, ...newWarnings]);
-                toast.error("Interaction Detected!");
+            const allDrugs = [...new Set([...existingNames, item.medicine_name])]; // De-dupe
+
+            try {
+                const warnings = await aiService.checkInteractions(allDrugs);
+
+                if (Array.isArray(warnings) && warnings.length > 0) {
+                    const newWarnings = warnings.filter(w => !interactions.includes(w));
+                    if (newWarnings.length > 0) {
+                        setInteractions(prev => [...prev, ...newWarnings]);
+                        toast.error("Interaction Detected!");
+                    }
+                }
+            } catch (error) {
+                console.error("Interaction Check Warning:", error);
             }
         }
     };
@@ -215,89 +337,6 @@ const LitePOS = () => {
         const { totalProfit, margin } = calculateTotals();
         setProfitStats({ totalProfit, margin });
     }, [cart, discountPercentage]);
-
-    // --- CHECKOUT LOGIC ---
-    const handleCheckout = async () => {
-        if (!currentShop?.id || cart.length === 0) return;
-        const { total } = calculateTotals();
-
-        toast.loading("Processing Order...");
-
-        // LINKED CUSTOMER CREDIT CHECK
-        const finalTotal = calculateTotals().total;
-        if (paymentMode === 'credit' && selectedCustomer) {
-            const currentBal = selectedCustomer.credit_balance || 0;
-            const limit = selectedCustomer.credit_limit || 5000; // Default limit
-
-            if (currentBal + finalTotal > limit) {
-                toast.dismiss();
-                toast.error(`Credit Limit Exceeded! (Max: ₹${limit})`);
-                return;
-            }
-        }
-
-        try {
-            // 1. Create Order
-            const { data: order, error: orderError } = await supabase
-                .from("orders")
-                .insert({
-                    shop_id: currentShop.id,
-                    customer_name: selectedCustomer?.name || "Walk-in Customer",
-                    customer_phone: selectedCustomer?.phone,
-                    total_amount: total,
-                    payment_mode: paymentMode,
-                    status: "approved",
-                    source: "LitePOS"
-                })
-                .select()
-                .single();
-
-            if (orderError) throw orderError;
-
-            // 2. Create Order Items
-            const orderItems = cart.map(c => ({
-                order_id: order.id,
-                inventory_id: c.item.id,
-                name: c.item.medicine_name,
-                qty: c.qty,
-                price: c.item.unit_price,
-                cost_price: c.item.purchase_price || 0
-            }));
-
-            const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
-            if (itemsError) throw itemsError;
-
-            // 3. Update Inventory (Deduct Stock)
-            for (const c of cart) {
-                await supabase.rpc('decrement_stock', {
-                    row_id: c.item.id,
-                    amount: c.qty
-                });
-            }
-
-            toast.dismiss();
-
-            // 🎉 CELEBRATION CONFETTI
-            const confetti = (await import('canvas-confetti')).default;
-            confetti({
-                particleCount: 100,
-                spread: 70,
-                origin: { y: 0.6 },
-                colors: ['#10b981', '#3b82f6', '#8b5cf6']
-            });
-
-            toast.success("Order Placed Successfully! 🎉");
-            setCart([]);
-            setPaymentMode('cash');
-            setSelectedCustomer(null);
-            setInteractions([]); // Clear interactions
-
-        } catch (err: any) {
-            console.error(err);
-            toast.dismiss();
-            toast.error(`Checkout Failed: ${err.message}`);
-        }
-    };
 
     const { total } = calculateTotals();
 
@@ -413,50 +452,62 @@ const LitePOS = () => {
 
                     {/* Matrix List */}
                     <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                        {products?.map(p => (
-                            <div
-                                key={p.id}
-                                onClick={() => addToCart(p)}
-                                className="group flex flex-col p-3 rounded-md bg-slate-900 border border-slate-800 hover:border-cyan-500/50 hover:bg-slate-800 cursor-pointer transition-all"
-                            >
-                                <div className="flex justify-between items-start gap-2 mb-1">
-                                    {/* FIX: Smaller font for mobile (text-[10px]), allow wrapping */}
-                                    <span className="text-[10px] md:text-[11px] font-semibold text-slate-200 leading-snug break-words whitespace-normal w-full">
-                                        {p.medicine_name}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
-                                        <span>Qty:{p.quantity}</span>
-                                        <span className="text-slate-700">|</span>
-                                        <span>{p.batch_number || "N/A"}</span>
+                        {!products ? (
+                            // SKELETON LOADER STATE
+                            Array.from({ length: 8 }).map((_, i) => (
+                                <div key={i} className="flex flex-col p-3 rounded-md bg-slate-900 border border-slate-800 space-y-2">
+                                    <Skeleton className="h-4 w-3/4 bg-slate-800" />
+                                    <div className="flex justify-between">
+                                        <Skeleton className="h-3 w-1/4 bg-slate-800" />
+                                        <Skeleton className="h-3 w-1/4 bg-slate-800" />
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-bold text-sm text-cyan-400 font-mono">₹{p.unit_price}</span>
+                                </div>
+                            ))
+                        ) : (
+                            products.map(p => (
+                                <div
+                                    key={p.id}
+                                    onClick={() => addToCart(p)}
+                                    className="group flex flex-col p-3 rounded-md bg-slate-900 border border-slate-800 hover:border-cyan-500/50 hover:bg-slate-800 cursor-pointer transition-all"
+                                >
+                                    <div className="flex justify-between items-start gap-2 mb-1">
+                                        {/* FIX: Smaller font for mobile (text-[10px]), allow wrapping */}
+                                        <span className="text-[10px] md:text-[11px] font-semibold text-slate-200 leading-snug break-words whitespace-normal w-full">
+                                            {p.medicine_name}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+                                            <span>Qty:{p.quantity}</span>
+                                            <span className="text-slate-700">|</span>
+                                            <span>{p.batch_number || "N/A"}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-sm text-cyan-400 font-mono">₹{p.unit_price}</span>
 
-                                        {/* Alternative Popover */}
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); }}
-                                                    className="w-6 h-6 flex items-center justify-center rounded-full bg-slate-800 hover:bg-purple-900/50 text-purple-400 transition-colors"
-                                                >
-                                                    <Sparkles className="w-3 h-3" />
-                                                </button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-56 bg-slate-950 border border-purple-500/30 text-slate-300 p-0 shadow-xl" align="end">
-                                                <div className="p-2 bg-purple-900/10 border-b border-purple-500/20 text-xs font-bold text-purple-300 flex items-center gap-2">
-                                                    <Sparkles className="w-3 h-3" /> Smart Substitutes
-                                                </div>
-                                                <div className="p-3 text-[10px] text-slate-400 text-center italic">
-                                                    No direct substitutes found in local DB.
-                                                </div>
-                                            </PopoverContent>
-                                        </Popover>
+                                            {/* Alternative Popover */}
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); }}
+                                                        className="w-6 h-6 flex items-center justify-center rounded-full bg-slate-800 hover:bg-purple-900/50 text-purple-400 transition-colors"
+                                                    >
+                                                        <Sparkles className="w-3 h-3" />
+                                                    </button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-56 bg-slate-950 border border-purple-500/30 text-slate-300 p-0 shadow-xl" align="end">
+                                                    <div className="p-2 bg-purple-900/10 border-b border-purple-500/20 text-xs font-bold text-purple-300 flex items-center gap-2">
+                                                        <Sparkles className="w-3 h-3" /> Smart Substitutes
+                                                    </div>
+                                                    <div className="p-3 text-[10px] text-slate-400 text-center italic">
+                                                        No direct substitutes found in local DB.
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            )))}
                     </div>
                 </div>
 
@@ -580,6 +631,42 @@ const LitePOS = () => {
                                     </span>
                                 </div>
                             </div>
+
+                            {/* MANUAL GUEST DETAILS (Hidden state, shown via Dialog) */}
+                            <Dialog open={showGuestDialog} onOpenChange={setShowGuestDialog}>
+                                <DialogContent className="bg-slate-950 border-slate-800 text-slate-100 max-w-sm">
+                                    <DialogHeader>
+                                        <DialogTitle className="flex items-center gap-2">
+                                            <User className="w-5 h-5 text-cyan-400" /> Walk-in Customer Details
+                                        </DialogTitle>
+                                    </DialogHeader>
+                                    <div className="space-y-4 py-2">
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-slate-400 uppercase font-bold">Customer Name (Optional)</label>
+                                            <Input
+                                                placeholder="Enter Name"
+                                                value={guestDetails.name}
+                                                onChange={e => setGuestDetails(prev => ({ ...prev, name: e.target.value }))}
+                                                className="bg-slate-900 border-slate-800"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-slate-400 uppercase font-bold">WhatsApp Number</label>
+                                            <Input
+                                                placeholder="9876543210"
+                                                value={guestDetails.phone}
+                                                onChange={e => setGuestDetails(prev => ({ ...prev, phone: e.target.value }))}
+                                                className="bg-slate-900 border-slate-800"
+                                                type="tel"
+                                            />
+                                            <p className="text-[10px] text-slate-500">Required for sending digital invoice.</p>
+                                        </div>
+                                        <Button className="w-full bg-cyan-600 hover:bg-cyan-500 text-black font-bold" onClick={confirmCheckout}>
+                                            Confirm & Print Bill
+                                        </Button>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
 
                             <div className="text-right">
                                 <div className="flex items-center justify-end gap-1 mb-1">
