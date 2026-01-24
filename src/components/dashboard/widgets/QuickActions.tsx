@@ -168,14 +168,15 @@ export const QuickActions = () => {
 
                 {/* DEMO TOOLS */}
                 <div className="grid grid-cols-2 gap-2 mt-2">
-                    <div onClick={() => {
+                    {/* DEMO DATA BUTTON HIDDEN FOR PRODUCTION */}
+                    {/* <div onClick={() => {
                         const confirmSeed = window.confirm("Fill Dashboard with Fake Data? (For Demo Only)");
                         // @ts-ignore
                         if (confirmSeed && currentShop?.id) import("@/utils/demoDataSeeder").then(m => m.seedDemoData(currentShop.id));
                     }} className="bg-gradient-to-r from-pink-500/10 to-rose-500/10 border border-pink-500/20 p-2 rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-pink-500/20 transition-all text-pink-600 text-xs font-bold text-center">
                         <Sparkles className="w-3 h-3" />
                         Fill Demo Data
-                    </div>
+                    </div> */}
 
                     <div onClick={() => {
                         const data = JSON.stringify({

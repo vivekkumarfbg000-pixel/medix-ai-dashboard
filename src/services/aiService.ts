@@ -75,9 +75,6 @@ export const aiService = {
     /**
      * Universal AI Query Handler (Chat)
      */
-    /**
-     * Universal AI Query Handler (Chat)
-     */
     async chatWithAgent(message: string, image?: string): Promise<ChatResponse> {
         // DEMO MODE CHECK
         // Enable by running: localStorage.setItem("DEMO_MODE", "true") in console
