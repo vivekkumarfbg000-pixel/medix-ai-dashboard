@@ -78,82 +78,125 @@ const LitePOS = () => {
         const finalPhone = selectedCustomer?.phone || guestDetails.phone || null;
 
         try {
-            // 1. Create Order
-            const { data: order, error: orderError } = await supabase
-                .from("orders")
-                .insert({
-                    shop_id: currentShop?.id,
-                    customer_name: finalName,
-                    customer_phone: finalPhone,
-                    total_amount: total,
-                    status: "approved",
-                    source: "LitePOS"
-                })
-                .select()
-                .single();
+            // 1. Try Online Checkout First
+            if (navigator.onLine) {
+                try {
+                    const { data: order, error: orderError } = await supabase
+                        .from("orders")
+                        .insert({
+                            shop_id: currentShop?.id,
+                            customer_name: finalName,
+                            customer_phone: finalPhone,
+                            total_amount: total,
+                            status: "approved",
+                            source: "LitePOS"
+                        })
+                        .select()
+                        .single();
 
-            if (orderError) throw orderError;
+                    if (orderError) throw orderError;
 
-            // 2. Create Order Items
-            const orderItems = cart.map(c => ({
-                order_id: order.id,
-                inventory_id: c.item.id,
-                name: c.item.medicine_name,
-                qty: c.qty,
-                price: c.item.unit_price,
-                cost_price: c.item.purchase_price || 0
-            }));
+                    // 2. Create Order Items
+                    const orderItems = cart.map(c => ({
+                        order_id: order.id,
+                        inventory_id: c.item.id,
+                        name: c.item.medicine_name,
+                        qty: c.qty,
+                        price: c.item.unit_price,
+                        cost_price: c.item.purchase_price || 0
+                    }));
 
-            const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
-            if (itemsError) throw itemsError;
+                    const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
+                    if (itemsError) throw itemsError;
 
-            // 3. Update Inventory (Deduct Stock)
-            for (const c of cart) {
-                await supabase.rpc('decrement_stock', {
-                    row_id: c.item.id,
-                    amount: c.qty
-                });
-            }
+                    // 3. Update Inventory (Deduct Stock)
+                    for (const c of cart) {
+                        await supabase.rpc('decrement_stock', {
+                            row_id: c.item.id,
+                            amount: c.qty
+                        });
+                    }
 
-            toast.dismiss();
+                    // Success Online
+                    await finalizeSuccess(finalName, finalPhone, order.id, true);
 
-            // 🎉 CELEBRATION CONFETTI
-            const confetti = (await import('canvas-confetti')).default;
-            confetti({
-                particleCount: 100,
-                spread: 70,
-                origin: { y: 0.6 },
-                colors: ['#10b981', '#3b82f6', '#8b5cf6']
-            });
-
-            // WhatsApp Integration (Now works for Walk-ins too!)
-            if (finalPhone) {
-                const waLink = whatsappService.generateInvoiceLink(finalPhone, {
-                    invoice_number: order.id.slice(0, 8).toUpperCase(),
-                    customer_name: finalName,
-                    shop_name: currentShop?.shop_name,
-                    created_at: new Date().toISOString(),
-                    total_amount: total,
-                    status: 'paid',
-                    items: cart.map(c => ({ name: c.item.medicine_name, qty: c.qty, price: c.item.unit_price }))
-                });
-                window.open(waLink, '_blank');
-                toast.success("Order Placed & WhatsApp Sent! 🎉");
+                } catch (onlineError) {
+                    console.warn("Online Checkout Failed, trying offline...", onlineError);
+                    await performOfflineCheckout(finalName, finalPhone, total);
+                }
             } else {
-                toast.success("Order Placed Successfully! 🎉");
+                // Offline immediately
+                await performOfflineCheckout(finalName, finalPhone, total);
             }
-
-            setCart([]);
-            setPaymentMode('cash');
-            setSelectedCustomer(null);
-            setGuestDetails({ name: "", phone: "" }); // Reset Manual
-            setInteractions([]);
 
         } catch (err: any) {
             console.error(err);
             toast.dismiss();
             toast.error(`Checkout Failed: ${err.message}`);
         }
+    };
+
+    const performOfflineCheckout = async (name: string, phone: string | null, amount: number) => {
+        // Save to IndexedDB
+        const orderId = await db.orders.add({
+            shop_id: currentShop?.id || 'OFFLINE',
+            customer_name: name,
+            customer_phone: phone || undefined,
+            total_amount: amount,
+            items: cart.map(c => ({
+                id: c.item.id,
+                name: c.item.medicine_name,
+                qty: c.qty,
+                price: c.item.unit_price
+            })),
+            created_at: new Date().toISOString(),
+            is_synced: 0
+        });
+
+        // Decrement Local Stock
+        for (const c of cart) {
+            const item = await db.inventory.get(c.item.id);
+            if (item) {
+                await db.inventory.update(c.item.id, { quantity: item.quantity - c.qty, is_synced: 0 });
+            }
+        }
+
+        await finalizeSuccess(name, phone, `OFF-${orderId}`, false);
+    };
+
+    const finalizeSuccess = async (name: string, phone: string | null, invoiceId: string, isOnline: boolean) => {
+        toast.dismiss();
+
+        // 🎉 CELEBRATION CONFETTI
+        const confetti = (await import('canvas-confetti')).default;
+        confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#10b981', '#3b82f6', '#8b5cf6']
+        });
+
+        if (isOnline && phone) {
+            const waLink = whatsappService.generateInvoiceLink(phone, {
+                invoice_number: invoiceId.slice(0, 8).toUpperCase(),
+                customer_name: name,
+                shop_name: currentShop?.name || "Medix Pharmacy",
+                created_at: new Date().toISOString(),
+                total_amount: total,
+                status: 'paid',
+                items: cart.map(c => ({ name: c.item.medicine_name, qty: c.qty, price: c.item.unit_price }))
+            });
+            window.open(waLink, '_blank');
+            toast.success("Order Placed & WhatsApp Sent! 🎉");
+        } else {
+            toast.success(isOnline ? "Order Placed Successfully! 🎉" : "Order Saved Offline! (Will Sync Later) 💾");
+        }
+
+        setCart([]);
+        setPaymentMode('cash');
+        setSelectedCustomer(null);
+        setGuestDetails({ name: "", phone: "" });
+        setInteractions([]);
     };
     const syncInventory = async () => {
         if (!currentShop?.id) return;
