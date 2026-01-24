@@ -313,8 +313,8 @@ const Orders = () => {
                           <Button size="sm" variant="outline" className="text-orange-600 border-orange-200 hover:bg-orange-50" onClick={() => handleOpenReturn(order)}>
                             <Undo2 className="w-4 h-4 mr-1" /> Return
                           </Button>
-                          <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleWhatsAppShare(order)}>
-                            <Share2 className="w-4 h-4 mr-1" /> Share
+                          <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white gap-1" onClick={() => handleWhatsAppShare(order)}>
+                            <Share2 className="w-4 h-4" /> WhatsApp Invoice
                           </Button>
                         </div>
                       </div>

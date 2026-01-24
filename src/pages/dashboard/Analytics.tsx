@@ -102,14 +102,16 @@ export default function Analytics() {
 
     // Current month sales
     const currentMonthSales = salesData.filter(sale => {
+      if (!sale.sale_date) return false;
       const saleDate = new Date(sale.sale_date);
-      return saleDate >= currentMonthStart && saleDate <= currentMonthEnd;
+      return !isNaN(saleDate.getTime()) && saleDate >= currentMonthStart && saleDate <= currentMonthEnd;
     });
 
     // Last month sales
     const lastMonthSales = salesData.filter(sale => {
+      if (!sale.sale_date) return false;
       const saleDate = new Date(sale.sale_date);
-      return saleDate >= lastMonthStart && saleDate <= lastMonthEnd;
+      return !isNaN(saleDate.getTime()) && saleDate >= lastMonthStart && saleDate <= lastMonthEnd;
     });
 
     // Total revenue this month
@@ -146,8 +148,9 @@ export default function Analytics() {
       const monthStart = startOfMonth(subMonths(now, i));
       const monthEnd = endOfMonth(subMonths(now, i));
       const monthSales = salesData.filter(sale => {
+        if (!sale.sale_date) return false;
         const saleDate = new Date(sale.sale_date);
-        return saleDate >= monthStart && saleDate <= monthEnd;
+        return !isNaN(saleDate.getTime()) && saleDate >= monthStart && saleDate <= monthEnd;
       });
       const monthRevenue = monthSales.reduce((sum, sale) => sum + Number(sale.total_amount), 0);
       let monthProfit = 0;
@@ -217,8 +220,9 @@ export default function Analytics() {
     const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
     const dailyData = days.map(day => {
       const daySales = salesData.filter(sale => {
+        if (!sale.sale_date) return false;
         const saleDate = new Date(sale.sale_date);
-        return format(saleDate, "yyyy-MM-dd") === format(day, "yyyy-MM-dd");
+        return !isNaN(saleDate.getTime()) && format(saleDate, "yyyy-MM-dd") === format(day, "yyyy-MM-dd");
       });
       return {
         day: format(day, "EEE"),
@@ -228,7 +232,7 @@ export default function Analytics() {
     setDailySalesData(dailyData);
   }
 
-  const revenueGrowth = lastMonthRevenue > 0 
+  const revenueGrowth = lastMonthRevenue > 0
     ? ((totalRevenue - lastMonthRevenue) / lastMonthRevenue * 100).toFixed(1)
     : "0";
 
