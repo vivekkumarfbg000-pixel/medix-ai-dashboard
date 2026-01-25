@@ -17,6 +17,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
     Table,
     TableBody,
@@ -393,7 +394,7 @@ const Prescriptions = () => {
                                                         size="lg"
                                                         onClick={() => {
                                                             toast.success("Sending to Billing Counter...");
-                                                            navigate("/dashboard/pos", {
+                                                            navigate("/dashboard/sales/pos", {
                                                                 state: {
                                                                     importItems: editingMedicines,
                                                                     customerName: selectedPrescription?.customer_name

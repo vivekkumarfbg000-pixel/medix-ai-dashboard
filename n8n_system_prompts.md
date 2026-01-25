@@ -26,3 +26,26 @@ Use this JSON structure in the "Google Gemini Chat Model" or "HTTP Request" node
 ```
 
 **Note:** Ensure your previous node extracts the base64 audio into `$json.body.data`.
+
+# Gemini Flash 1.5 - Prescription Visual Parser
+
+Use this for Image-to-JSON tasks.
+
+**Prompts:**
+```json
+{{ {
+  "contents": [{
+    "parts": [
+      {
+        "text": "You are an expert pharmacist compliant with Indian Medical Standards.\nTask: Analyze this prescription image and extract medicines.\n\nInput: Image of a handwritten or printed prescription.\nOutput: Strict JSON.\n\nRules:\n1. Identify Medicine Name (Brand or Generic). Fix spelling based on Indian pharmacopeia.\n2. Identify Strength (e.g., 500mg, 40mg).\n3. Identify Frequency (e.g., 1-0-1, OD, BD, SOS).\n4. Identify Duration (e.g., 5 days, 1 month).\n5. Return 'confidence' score.\n\nJSON Schema:\n{\n  \"medicines\": [\n    {\n      \"name\": \"string\",\n      \"strength\": \"string\",\n      \"dosage\": \"string\",\n      \"duration\": \"string\",\n      \"confidence\": number\n    }\n  ],\n  \"patient_name\": \"string (if visible)\",\n  \"doctor_name\": \"string (if visible)\",\n  \"diagnosis\": \"string (if visible)\"\n}"
+      },
+      {
+        "inline_data": {
+          "mime_type": "image/jpeg",
+          "data": $json.body.data
+        }
+      }
+    ]
+  }]
+} }}
+```

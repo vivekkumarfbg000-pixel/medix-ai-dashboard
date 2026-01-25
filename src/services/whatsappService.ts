@@ -103,5 +103,18 @@ export const whatsappService = {
             `_Sent via PharmaAssist_`;
 
         return `https://wa.me/${this.formatPhone(phone) || ''}?text=${encodeURIComponent(message)}`;
+    },
+
+    /**
+     * Generate Refill Reminder Message
+     */
+    generateRefillReminder(phone: string | null, details: { patient_name: string, medicine_name: string, shop_name?: string }): string {
+        const message = `👋 Hi ${details.patient_name},\n\n` +
+            `This is a gentle reminder from *${details.shop_name || 'Medix Pharmacy'}*.\n\n` +
+            `Your medicine *${details.medicine_name}* is due for a refill.\n\n` +
+            `Reply 'YES' to order now or click below to call us.\n` +
+            `_Powered by MedixAI_`;
+
+        return `https://wa.me/${this.formatPhone(phone)}?text=${encodeURIComponent(message)}`;
     }
 };

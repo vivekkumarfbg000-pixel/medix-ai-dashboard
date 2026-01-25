@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUserShops } from "@/hooks/useUserShops";
+import { useNavigate } from "react-router-dom";
 import { PatientProfileSheet } from "@/components/dashboard/crm/PatientProfileSheet";
 import { RefillReminderList } from "@/components/dashboard/crm/RefillReminderList";
 
@@ -33,6 +34,7 @@ const Customers = () => {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState("");
+    const navigate = useNavigate();
 
     // CRM State
     const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -233,7 +235,13 @@ const Customers = () => {
                                             <TableCell className={c.credit_balance > 0 ? "text-red-600 font-bold" : "text-green-600"}>
                                                 ₹{c.credit_balance}
                                             </TableCell>
-                                            <TableCell className="text-right">
+                                            <TableCell className="text-right flex justify-end gap-2">
+                                                <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50" onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate("/dashboard/sales/pos", { state: { customer: c } });
+                                                }}>
+                                                    <Tablet className="w-4 h-4 mr-1" /> Bill
+                                                </Button>
                                                 <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedCustomerId(c.id); }}>
                                                     View Profile
                                                 </Button>

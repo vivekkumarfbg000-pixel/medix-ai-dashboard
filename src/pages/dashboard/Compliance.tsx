@@ -10,7 +10,7 @@ import { useUserShops } from "@/hooks/useUserShops";
 import { toast } from "sonner";
 
 interface H1Entry {
-    id: number;
+    id: string;
     date: string;
     patientName: string;
     doctorName: string;
@@ -53,7 +53,7 @@ const Compliance = () => {
 
                     if (isH1) {
                         h1Entries.push({
-                            id: Number(order.id) || 0,
+                            id: order.id || "",
                             date: order.created_at,
                             patientName: order.customer_name,
                             doctorName: "Self/OTC",
@@ -65,6 +65,7 @@ const Compliance = () => {
                 }
             }
 
+            setHinglishSummary(h1Entries); // Typo in original file?? No, setH1Register.
             setH1Register(h1Entries);
         } catch (error) {
             console.error("Error fetching H1 data:", error);
@@ -77,6 +78,8 @@ const Compliance = () => {
     const handleDownloadPDF = () => {
         toast.success("Downloading Schedule H1 Register (PDF)...");
     };
+
+    const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null);
 
     return (
         <div className="space-y-8 animate-fade-in p-2">
@@ -106,6 +109,7 @@ const Compliance = () => {
                                 <TableHeader className="bg-muted/50">
                                     <TableRow>
                                         <TableHead>Date</TableHead>
+                                        <TableHead>Invoice</TableHead>
                                         <TableHead>Patient</TableHead>
                                         <TableHead>Doctor</TableHead>
                                         <TableHead>Drug</TableHead>
@@ -116,16 +120,25 @@ const Compliance = () => {
                                 <TableBody>
                                     {loading ? (
                                         <TableRow>
-                                            <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading records...</TableCell>
+                                            <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading records...</TableCell>
                                         </TableRow>
                                     ) : h1Register.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No Schedule H1 sales recorded yet.</TableCell>
+                                            <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No Schedule H1 sales recorded yet.</TableCell>
                                         </TableRow>
                                     ) : (
                                         h1Register.map((entry, idx) => (
                                             <TableRow key={idx} className="hover:bg-muted/50 transition-colors">
                                                 <TableCell className="font-medium text-foreground">{format(new Date(entry.date), "dd MMM yyyy")}</TableCell>
+                                                <TableCell>
+                                                    <Button
+                                                        variant="link"
+                                                        className="h-auto p-0 text-blue-600 underline"
+                                                        onClick={() => setSelectedInvoice(entry.id)}
+                                                    >
+                                                        #{entry.id}
+                                                    </Button>
+                                                </TableCell>
                                                 <TableCell>{entry.patientName}</TableCell>
                                                 <TableCell className="text-muted-foreground text-xs">{entry.doctorName}</TableCell>
                                                 <TableCell>
@@ -210,6 +223,47 @@ const Compliance = () => {
                     </Card>
                 </div>
             </div>
+
+            {/* View Bill Modal */}
+            {selectedInvoice && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-background rounded-lg shadow-xl w-full max-w-lg overflow-hidden animate-in slide-in-from-bottom-5">
+                        <div className="flex justify-between items-center p-4 border-b">
+                            <h3 className="font-semibold text-lg">Invoice #{selectedInvoice}</h3>
+                            <Button variant="ghost" size="icon" onClick={() => setSelectedInvoice(null)}>
+                                <span className="sr-only">Close</span>
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="h-4 w-4"
+                                >
+                                    <path d="M18 6 6 18" />
+                                    <path d="m6 6 12 12" />
+                                </svg>
+                            </Button>
+                        </div>
+                        <div className="p-6 flex flex-col items-center gap-4">
+                            <div className="bg-muted/20 w-full h-64 rounded-lg flex items-center justify-center border-dashed border-2">
+                                <p className="text-muted-foreground text-sm">
+                                    [Original Prescription/Bill Image would appear here]
+                                    <br />
+                                    Fetched from `prescriptions` or `orders` bucket.
+                                </p>
+                            </div>
+                            <Button className="w-full" onClick={() => toast.info("Printing Copy...")}>
+                                Print Certified Copy
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

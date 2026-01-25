@@ -49,7 +49,7 @@ const Forecasting = () => {
   const [forecastHistory, setForecastHistory] = useState<any[]>([]);
 
   // Use the new hook
-  const { predictions, loading, runAIAnalysis } = useDemandForecast(currentShop?.id);
+  const { predictions, loading, runAIAnalysis, salesTrend } = useDemandForecast(currentShop?.id);
 
   useEffect(() => {
     if (predictions.length > 0) {
@@ -65,6 +65,13 @@ const Forecasting = () => {
       setStockoutRisks(risks);
     }
   }, [predictions]);
+
+  // Sync sales trend to chart
+  useEffect(() => {
+    if (salesTrend && salesTrend.length > 0) {
+      setForecastHistory(salesTrend);
+    }
+  }, [salesTrend]);
 
   useEffect(() => {
     if (!currentShop?.id) return;
@@ -119,8 +126,25 @@ const Forecasting = () => {
 
   /* Rate of Sale (ROS) Engine - Now in useDemandForecast hook */
 
-  const addToReorder = (item: StockoutRisk) => {
-    toast.success(`Added ${item.reorderQty} units of ${item.medicine} to Purchase Order`);
+  const addToReorder = async (item: StockoutRisk) => {
+    if (!currentShop?.id) return;
+
+    // Check if ends with 'mg' etc to clean up name, but exact match is better for inventory
+
+    const { error } = await supabase.from('shortbook').insert({
+      shop_id: currentShop.id,
+      product_name: item.medicine,
+      quantity: item.reorderQty,
+      priority: item.criticality === 'high' ? 'high' : 'medium',
+      added_from: 'ai_forecast'
+    });
+
+    if (error) {
+      toast.error("Failed to add to Shortbook");
+      console.error(error);
+    } else {
+      toast.success(`Added ${item.reorderQty} units of ${item.medicine} to Shortbook`);
+    }
   };
 
   const applyDiscount = (item: ExpiryRisk) => {

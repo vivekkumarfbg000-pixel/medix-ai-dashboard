@@ -61,9 +61,14 @@ function DashboardContent() {
   }, [navigate, openMobile]);
 
   const handleTranscriptionComplete = (text: string, items: ParsedItem[]) => {
-    setTranscription(text);
-    setParsedItems(items);
-    setInvoiceModalOpen(true);
+    // Instead of opening modal, redirect to POS with data
+    navigate("/dashboard/sales/pos", {
+      state: {
+        voiceTranscription: text,
+        voiceItems: items
+      }
+    });
+    toast.success("Redirecting to Billing Hub...");
   };
 
   useEffect(() => {

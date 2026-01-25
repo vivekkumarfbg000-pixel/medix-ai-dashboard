@@ -22,6 +22,7 @@ import { CustomerSearch, Customer } from "@/components/dashboard/CustomerSearch"
 import { supabase } from "@/integrations/supabase/client";
 import VoiceInput from "@/components/common/VoiceInput";
 import { whatsappService } from "@/services/whatsappService";
+import { drugService } from "@/services/drugService";
 
 const LitePOS = () => {
     const navigate = useNavigate();
@@ -41,6 +42,82 @@ const LitePOS = () => {
     const interactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const [alternativeData, setAlternativeData] = useState<{ name: string; substitutes: string[] } | null>(null);
 
+
+    const location = useLocation(); // Hook to get navigation state
+
+    // --- VOICE & SCAN COMMAND HANDLER ---
+    useEffect(() => {
+        const handleIncomingData = async () => {
+            const state = location.state as {
+                voiceItems?: { name: string, quantity: number }[],
+                voiceTranscription?: string,
+                importItems?: { name: string, quantity: number }[],
+                customerName?: string
+            };
+
+            // Set customer name if passed from Scan
+            if (state?.customerName && !selectedCustomer) {
+                // @ts-ignore
+                setSelectedCustomer({ name: state.customerName, phone: "", id: "temp" });
+            }
+
+            const itemsToProcess = state?.voiceItems || state?.importItems;
+
+            if (itemsToProcess && itemsToProcess.length > 0 && currentShop?.id) {
+                const source = state.voiceItems ? "Voice" : "Prescription Scan";
+                const description = state.voiceTranscription || "Imported from Pulse Scan";
+
+                toast.info(`Processing ${source} Data...`, { description });
+
+                const newCartItems: { item: OfflineInventory; qty: number }[] = [];
+
+                // Fetch ALL inventory to match (from Dexie for speed)
+                const inventory = await db.inventory.where('shop_id').equals(currentShop.id).toArray();
+
+                for (const incomingItem of itemsToProcess) {
+                    const searchName = incomingItem.name.toLowerCase().trim();
+
+                    // Match Logic (Direct Includes)
+                    // TODO: Improve with Fuzzy Search if needed
+                    const match = inventory.find(i => i.medicine_name.toLowerCase().includes(searchName));
+
+                    if (match) {
+                        newCartItems.push({
+                            item: match,
+                            qty: incomingItem.quantity || 1
+                        });
+                    } else {
+                        // Notify missing item - maybe add as 'Manual' item?
+                        // For now just warn
+                        toast.warning(`Item not found: ${incomingItem.name}`);
+                    }
+                }
+
+                if (newCartItems.length > 0) {
+                    setCart(prev => {
+                        // Avoid duplicates if React Double Invoke happens
+                        // We will just append for now, user can dedupe in UI
+                        return [...prev, ...newCartItems];
+                    });
+                    toast.success(`Added ${newCartItems.length} items from ${source}`);
+
+                    // Clean state to prevent re-add on refresh
+                    window.history.replaceState({}, '');
+                }
+            }
+        };
+
+        handleIncomingData();
+    }, [location.state, currentShop?.id]);
+
+    // Handle Deep Linking for Customer (e.g. from Customers Page)
+    useEffect(() => {
+        const state = location.state as { customer?: Customer };
+        if (state?.customer) {
+            setSelectedCustomer(state.customer);
+            toast.success(`Customer Selected: ${state.customer.name}`);
+        }
+    }, [location.state]);
 
     // --- CHECKOUT LOGIC ---
     const handleCheckout = async () => {
@@ -92,7 +169,15 @@ const LitePOS = () => {
                             customer_phone: finalPhone,
                             total_amount: total,
                             status: "approved",
-                            source: "LitePOS"
+                            source: "LitePOS",
+                            // FIX: Populate JSONB for Reporting RPC
+                            order_items: cart.map(c => ({
+                                id: c.item.id,
+                                name: c.item.medicine_name,
+                                qty: c.qty,
+                                price: c.item.unit_price,
+                                purchase_price: c.item.purchase_price || 0
+                            }))
                         })
                         .select()
                         .single();
@@ -109,11 +194,13 @@ const LitePOS = () => {
                         cost_price: c.item.purchase_price || 0
                     }));
 
+                    // @ts-ignore
                     const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
                     if (itemsError) throw itemsError;
 
-                    // 3. Update Inventory (Deduct Stock)
+                    {/* 3. Update Inventory (Deduct Stock) */ }
                     for (const c of cart) {
+                        // @ts-ignore
                         await supabase.rpc('decrement_stock', {
                             row_id: c.item.id,
                             amount: c.qty
@@ -219,7 +306,7 @@ const LitePOS = () => {
                 await db.inventory.where('shop_id').equals(currentShop.id).delete(); // Clear old
 
                 // Map to OfflineInventory format
-                const items = data.map(item => ({
+                const items = data.map((item: any) => ({
                     id: item.id,
                     shop_id: item.shop_id,
                     medicine_name: item.medicine_name,
@@ -228,7 +315,10 @@ const LitePOS = () => {
                     batch_number: item.batch_number,
                     expiry_date: item.expiry_date,
                     rack_number: item.rack_number,
-                    purchase_price: item.purchase_price,
+                    // FIX: Map cost_price from DB to purchase_price in local Dexie
+                    purchase_price: item.cost_price || item.purchase_price || 0,
+                    generic_name: item.generic_name,
+                    composition: item.composition,
                     is_synced: 1
                 }));
 
@@ -251,7 +341,8 @@ const LitePOS = () => {
     }, [currentShop?.id]);
 
     // --- PARCHA IMPORT LOGIC ---
-    const location = useLocation();
+    // const location = useLocation(); // Removed duplicate
+
     const hasImported = useRef(false);
 
     useEffect(() => {
@@ -383,22 +474,105 @@ const LitePOS = () => {
         }));
     };
 
+    const manualCheckInteractions = async () => {
+        if (cart.length < 2) return toast.info("Need at least 2 items to check interactions");
+        toast.loading("Checking Interactions...", { id: "manual-check" });
+        try {
+            const drugNames = [...new Set(cart.map(c => c.item.medicine_name))];
+            const warnings = await aiService.checkInteractions(drugNames);
+            setInteractions(warnings);
+            if (warnings.length > 0) {
+                toast.error(`Found ${warnings.length} interactions!`, { id: "manual-check" });
+            } else {
+                toast.success("No interactions found. Safe to proceed.", { id: "manual-check" });
+            }
+        } catch (e) {
+            console.error(e);
+            toast.error("Check failed.", { id: "manual-check" });
+        }
+    };
+
     const showAlternatives = async (medicineName: string) => {
         toast.loading(`Finding alternatives for ${medicineName}...`, { id: 'alt-search' });
         try {
-            const substitutes = await aiService.getGenericSubstitutes(medicineName);
-            setAlternativeData({ name: medicineName, substitutes });
-            toast.success("Alternatives Found!", { id: 'alt-search' });
+            // Use local DB first for matches
+            const currentItem = cart.find(c => c.item.medicine_name === medicineName)?.item;
+            const allItems = await db.inventory.where('shop_id').equals(currentShop?.id || '').toArray();
+
+            let substitutes: any[] = [];
+            if (currentItem) {
+                // Use the robust logic from drugService
+                substitutes = drugService.findBetterMarginSubstitutes(currentItem, allItems);
+            } else {
+                // Fallback if item not in cart (shouldn't happen) or loose match
+                const match = allItems.find(i => i.medicine_name === medicineName);
+                if (match) substitutes = drugService.findBetterMarginSubstitutes(match, allItems);
+            }
+
+            // --- AI FALLBACK (If no local stock found) ---
+            if (substitutes.length === 0) {
+                toast.loading(`No local matches. Asking Market Intelligence...`, { id: 'alt-search' });
+                try {
+                    const aiSuggestions = await aiService.getGenericSubstitutes(medicineName);
+                    // Map AI strings "Name (Brand) - ₹Price" to Mock Inventory Objects
+                    substitutes = aiSuggestions.map((s, idx) => {
+                        const parts = s.split(' - ₹');
+                        const name = parts[0].trim();
+                        const price = parts.length > 1 ? parseFloat(parts[1]) : 0;
+                        return {
+                            id: `AI_GEN_${Date.now()}_${idx}`,
+                            shop_id: currentShop?.id,
+                            medicine_name: name + " (Market)", // Tag as external
+                            unit_price: price,
+                            quantity: 0, // Out of stock
+                            purchase_price: price * 0.7, // Est margin
+                            is_synced: 0,
+                            generic_name: "AI Suggestion",
+                            composition: "Market Substitute"
+                        };
+                    });
+                } catch (aiErr) {
+                    console.warn("AI Fallback failed", aiErr);
+                }
+            }
+
+            setAlternativeData({ name: medicineName, substitutes: substitutes as any[] }); // Cast for now
+            toast.success(`Found ${substitutes.length} options`, { id: 'alt-search' });
         } catch (e) {
+            console.error(e);
             toast.error("Could not fetch alternatives", { id: 'alt-search' });
         }
     };
+
 
 
     const addToShortbook = () => {
         toast.success(`'${search}' added to Shortbook`);
         setSearch("");
     };
+
+    // --- SUBSTITUTE LOGIC ---
+    const handleSubstituteSelect = (sub: any) => {
+        if (!alternativeData) return;
+
+        // "sub" is now a full inventory object from drugService
+
+        setCart(prev => prev.map(c => {
+            // Find the item that initiated the search
+            if (c.item.medicine_name === alternativeData.name) {
+                return {
+                    ...c,
+                    item: sub, // Direct replacement with the inventory item
+                    qty: c.qty // Keep quantity
+                };
+            }
+            return c;
+        }));
+
+        toast.success(`Swapped '${alternativeData.name}' with '${sub.medicine_name}'`);
+        setAlternativeData(null); // Close dialog
+    };
+
 
     const calculateTotals = () => {
         const subtotal = cart.reduce((acc, curr) => acc + (curr.item.unit_price * curr.qty), 0);
@@ -717,26 +891,42 @@ const LitePOS = () => {
                         {/* ALTERNATIVE MEDICINE POPUP */}
                         {alternativeData && (
                             <Dialog open={!!alternativeData} onOpenChange={(o) => !o && setAlternativeData(null)}>
-                                <DialogContent className="bg-slate-950 border-slate-800 text-slate-100">
+                                <DialogContent className="glass-card border-purple-500/30 text-white max-w-md">
                                     <DialogHeader>
                                         <DialogTitle className="flex items-center gap-2 text-purple-400">
                                             <Sparkles className="w-5 h-5" /> Alternatives for {alternativeData.name}
                                         </DialogTitle>
                                     </DialogHeader>
-                                    <div className="space-y-2 mt-2">
-                                        {alternativeData.substitutes.map((sub, i) => (
-                                            <div key={i} className="p-3 bg-slate-900 border border-slate-800 rounded flex justify-between items-center group hover:bg-slate-800 transition-colors cursor-pointer"
-                                                onClick={() => {
-                                                    // Optional: Add logic to swap? Checking complexity so just copy name for now
-                                                    navigator.clipboard.writeText(sub.split(' -')[0]);
-                                                    toast.success("Copied to clipboard!");
-                                                }}
-                                            >
-                                                <span className="text-sm font-medium text-slate-300">{sub}</span>
+                                    <div className="space-y-2 mt-2 max-h-[60vh] overflow-y-auto">
+                                        {alternativeData.substitutes.length === 0 ? (
+                                            <div className="text-center p-4 text-slate-500">
+                                                No direct substitutes found in inventory.
                                             </div>
-                                        ))}
+                                        ) : (
+                                            alternativeData.substitutes.map((sub: any, i: number) => {
+                                                const profit = sub.unit_price - (sub.purchase_price || 0);
+                                                return (
+                                                    <div
+                                                        key={sub.id || i}
+                                                        className="p-3 bg-slate-900/50 border border-purple-500/20 rounded-lg flex justify-between items-center group hover:bg-purple-900/10 cursor-pointer transition-all"
+                                                        onClick={() => handleSubstituteSelect(sub)}
+                                                    >
+                                                        <div>
+                                                            <div className="font-bold text-slate-200">{sub.medicine_name}</div>
+                                                            <div className="text-xs text-slate-500">{sub.composition || sub.generic_name}</div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="font-bold text-lg text-purple-400">₹{sub.unit_price}</div>
+                                                            <div className="text-[10px] text-emerald-400 font-medium">
+                                                                Profit: ₹{profit.toFixed(1)}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
                                     </div>
-                                    <p className="text-[10px] text-slate-500 text-center mt-2">Tap to copy name</p>
+                                    <p className="text-[10px] text-slate-500 text-center mt-2">Tap to replace item in cart</p>
                                 </DialogContent>
                             </Dialog>
                         )}
@@ -750,6 +940,43 @@ const LitePOS = () => {
                                     <span className={`text-[10px] px-1 rounded ${profitStats.margin > 20 ? 'bg-emerald-950 text-emerald-400 border border-emerald-900' : 'bg-yellow-950 text-yellow-400 border border-yellow-900'}`}>
                                         {Math.round(profitStats.margin)}%
                                     </span>
+                                    {/* Manual Sync Button */}
+                                    <button
+                                        onClick={async () => {
+                                            const toastId = toast.loading("Resyncing: Checking Interactions & Profit...");
+
+                                            try {
+                                                // 1. Force Interaction Check
+                                                if (cart.length > 0) {
+                                                    const drugNames = [...new Set(cart.map(c => c.item.medicine_name))];
+                                                    const warnings = await aiService.checkInteractions(drugNames);
+                                                    setInteractions(warnings);
+
+                                                    if (warnings.length > 0) {
+                                                        // Update the loading toast to error
+                                                        toast.error("Interaction Detected!", { id: toastId });
+                                                        return; // Keep error visible
+                                                    } else {
+                                                        toast.success("No Interactions Found", { id: toastId });
+                                                    }
+                                                } else {
+                                                    toast.dismiss(toastId);
+                                                }
+
+                                                // 2. Recalculate Profit
+                                                const { totalProfit, margin } = calculateTotals();
+                                                setProfitStats({ totalProfit, margin });
+
+                                            } catch (e) {
+                                                console.error("Sync Error", e);
+                                                toast.error("Sync Failed", { id: toastId });
+                                            }
+                                        }}
+                                        className="h-4 w-4 flex items-center justify-center rounded bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 ml-1"
+                                        title="Sync Interactions & Profit"
+                                    >
+                                        <Zap className="w-3 h-3" />
+                                    </button>
                                 </div>
                             </div>
 

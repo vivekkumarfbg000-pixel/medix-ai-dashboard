@@ -46,6 +46,8 @@ const RXNAV_API_URL = "https://rxnav.nlm.nih.gov/REST";
 const COMMON_BRAND_MAP: Record<string, string> = {
   // Pain & Fever
   "dolo": "acetaminophen",
+  "paracetamol": "acetaminophen",
+  "paracitamol": "acetaminophen", // Typo handling
   "crocin": "acetaminophen",
   "calpol": "acetaminophen",
   "saridon": "acetaminophen", // + propyphenazone/caffeine -> usually maps to paracetamol base for safety check
@@ -428,20 +430,61 @@ class DrugService {
   async checkInteractions(drugs: string[]): Promise<InteractionResult[]> {
     if (drugs.length < 2) return [];
 
+    const interactions: InteractionResult[] = [];
+
+    // 1. Local Duplicate Therapy Check
     try {
-      // Direct call to N8N via AI Service
-      return await aiService.checkInteractions(drugs);
+      const normalizedNames = await Promise.all(drugs.map(async d => {
+        // Try resolving to generic, or fallback to cleaned name
+        const generic = await this.resolveBrandToGeneric(d);
+        // Handle explicit "Paracetamol" / "Acetaminophen" equivalence manually if not in map
+        const name = (generic || d).toLowerCase();
+        if (name.includes("paracetamol") || name.includes("paracitamol")) return "acetaminophen"; // Typo handling
+        return name;
+      }));
+
+      // Check for duplicates
+      for (let i = 0; i < normalizedNames.length; i++) {
+        for (let j = i + 1; j < normalizedNames.length; j++) {
+          const d1 = normalizedNames[i];
+          const d2 = normalizedNames[j];
+
+          // Direct Match or Substring Match (e.g. "Amoxicillin" vs "Amoxicillin 500")
+          if (d1 === d2 || d1.includes(d2) || d2.includes(d1)) {
+            interactions.push({
+              drug1: drugs[i],
+              drug2: drugs[j],
+              severity: "Major",
+              description: `DUPLICATE THERAPY DETECTED: Both items contain ${d1}. Risk of overdose.`
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Local Duplicate Check Failed", e);
+    }
+
+    if (interactions.length > 0) return interactions;
+
+    try {
+      // 2. Direct call to N8N via AI Service
+      const aiResults = await aiService.checkInteractions(drugs);
+      const mappedResults: InteractionResult[] = aiResults.map(r => ({
+        drug1: drugs[0],
+        drug2: drugs[1] || "Drug B",
+        severity: "Major", // AI service typically returns major warnings
+        description: r.replace("⚠️ Danger: ", "")
+      }));
+      return mappedResults;
     } catch (err) {
       logger.error("Failed to check interactions via AI", err);
-      return [];
+      return interactions;
     }
   }
 
-  // private simulateInteraction(d1: string, d2: string): InteractionResult { // Removed in favor of n8n
-  //   ... 
-  // }
   async validateCompliance(drugName: string): Promise<string> {
-    return await aiService.checkCompliance(drugName);
+    const res = await aiService.checkCompliance(drugName);
+    return res.is_banned ? `BANNED: ${res.reason}` : "Compliant";
   }
 
   /**

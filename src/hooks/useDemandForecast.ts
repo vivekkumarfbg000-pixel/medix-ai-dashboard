@@ -19,6 +19,8 @@ export const useDemandForecast = (shopId?: string) => {
     const [loading, setLoading] = useState(false);
     const [lastRun, setLastRun] = useState<Date | null>(null);
 
+    const [salesTrend, setSalesTrend] = useState<any[]>([]);
+
     const fetchPredictions = async () => {
         if (!shopId) return;
 
@@ -27,6 +29,11 @@ export const useDemandForecast = (shopId?: string) => {
             .select('*')
             .eq('shop_id', shopId)
             .order('predicted_quantity', { ascending: false });
+
+        // Also fetch aggregated sales history for chart if available
+        // ... (Simulated or fetched) 
+        // For now, let's keep predictions fetch simple
+        // In runAIAnalysis we will compute the trend.
 
         if (error) {
             console.error('Error fetching predictions:', error);
@@ -53,17 +60,43 @@ export const useDemandForecast = (shopId?: string) => {
         const toastId = toast.loading("Analyzing Sales Velocity...");
 
         try {
-            // 1. Fetch Sales History (Last 30 Days)
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            // 1. Fetch Sales History (Last 90 Days for Trend)
+            const ninetyDaysAgo = new Date();
+            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
             const { data: orders, error: orderError } = await supabase
                 .from('orders')
-                .select('order_items, created_at')
+                .select('total_amount, created_at, order_items')
                 .eq('shop_id', shopId)
-                .gte('created_at', thirtyDaysAgo.toISOString());
+                .gte('created_at', ninetyDaysAgo.toISOString());
 
             if (orderError) throw orderError;
+
+            // Trend Calculation
+            const monthlySales = new Map<string, number>();
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+            orders?.forEach(o => {
+                const d = new Date(o.created_at);
+                const key = `${monthNames[d.getMonth()]} ${d.getFullYear()}`; // "Jan 2024"
+                monthlySales.set(key, (monthlySales.get(key) || 0) + o.total_amount);
+            });
+
+            // Format for Recharts
+            const trendData = Array.from(monthlySales.entries()).map(([month, sales]) => ({
+                month,
+                sales: sales,
+                forecast: sales * 1.1 // Simple projection
+            }));
+
+            // If empty, mock it for UI feedback
+            if (trendData.length === 0) {
+                const m = new Date();
+                trendData.push({ month: `${monthNames[m.getMonth()]} ${m.getFullYear()}`, sales: 0, forecast: 0 });
+            }
+
+            setSalesTrend(trendData);
+
 
             // 2. Fetch Current Inventory
             const { data: inventory, error: invError } = await supabase
@@ -94,7 +127,7 @@ export const useDemandForecast = (shopId?: string) => {
             // 4. Calculate ROS & Predictions
             const newPredictions = inventory?.map(item => {
                 const totalSold = salesMap.get(item.medicine_name) || 0;
-                const avgDailySales = totalSold / 30; // Simple Moving Average
+                const avgDailySales = totalSold / 90; // Average over 90 days
                 const currentStock = item.quantity;
 
                 // Forecast Logic
@@ -161,6 +194,7 @@ export const useDemandForecast = (shopId?: string) => {
         loading,
         runAIAnalysis,
         refreshPredictions: fetchPredictions,
-        lastRun
+        lastRun,
+        salesTrend // Export new state
     };
 };

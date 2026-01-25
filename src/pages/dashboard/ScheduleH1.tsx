@@ -9,11 +9,16 @@ import { ClipboardList, Search, Download, FileText, AlertTriangle } from "lucide
 import { format } from "date-fns";
 import { toast } from "sonner";
 
+import { BillViewModal } from "./compliance/BillViewModal";
+
 const ScheduleH1 = () => {
     const { currentShop } = useUserShops();
     const [search, setSearch] = useState("");
     const [records, setRecords] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
+
+    // Modal State
+    const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
 
     useEffect(() => {
         if (currentShop?.id) fetchH1Records();
@@ -157,7 +162,14 @@ const ScheduleH1 = () => {
                                 filtered.map((record, idx) => (
                                     <TableRow key={idx} className="hover:bg-red-50/10">
                                         <TableCell>{format(new Date(record.date), "dd MMM yyyy")}</TableCell>
-                                        <TableCell className="font-mono text-xs">{record.invoice}</TableCell>
+                                        <TableCell className="font-mono text-xs">
+                                            <span
+                                                className="text-blue-600 underline cursor-pointer hover:text-blue-800"
+                                                onClick={() => setSelectedInvoice(record)}
+                                            >
+                                                {record.invoice}
+                                            </span>
+                                        </TableCell>
                                         <TableCell>{record.patient}</TableCell>
                                         <TableCell className="italic text-muted-foreground">{record.doctor}</TableCell>
                                         <TableCell className="font-medium">{record.medicine}</TableCell>
@@ -185,6 +197,14 @@ const ScheduleH1 = () => {
                     </CardContent>
                 </Card>
             </div>
+
+            {selectedInvoice && (
+                <BillViewModal
+                    open={!!selectedInvoice}
+                    onOpenChange={(op) => !op && setSelectedInvoice(null)}
+                    invoice={selectedInvoice}
+                />
+            )}
         </div>
     );
 };

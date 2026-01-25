@@ -223,16 +223,22 @@ const Inventory = () => {
     const totalValue = itemsToReturn.reduce((acc, i) => acc + (i.quantity * (i.cost_price || i.unit_price * 0.7)), 0); // Est cost
 
     // 1. Create Return Header
-    // @ts-ignore
-    const { data: returnData, error: headerError } = await supabase.from('purchase_returns').insert({
+    const returnPayload = {
       shop_id: currentShop?.id,
       supplier_name: supplierName,
       total_estimated_value: totalValue,
-      status: 'draft'
-    }).select().single();
+      status: 'draft',
+      return_date: new Date().toISOString()
+    };
+
+    const { data: returnData, error: headerError } = await supabase
+      .from('purchase_returns')
+      .insert(returnPayload as any) // Type assertion until global types update
+      .select()
+      .single();
 
     if (headerError) {
-      toast.error("Failed to create Return Note");
+      toast.error("Failed to create Return Note: " + headerError.message);
       console.error(headerError);
       return;
     }
@@ -244,11 +250,13 @@ const Inventory = () => {
       medicine_name: i.medicine_name,
       batch_number: i.batch_number,
       quantity: i.quantity,
-      reason: 'expired'
+      reason: 'expired',
+      purchase_price: i.cost_price || 0
     }));
 
-    // @ts-ignore
-    const { error: itemsError } = await supabase.from('purchase_return_items').insert(returnItems);
+    const { error: itemsError } = await supabase
+      .from('purchase_return_items')
+      .insert(returnItems as any);
 
     if (itemsError) {
       toast.error("Failed to add items to Note");
@@ -723,7 +731,14 @@ const Inventory = () => {
 
                           <div className="flex justify-between items-center text-sm mb-4">
                             <span className="font-bold text-base">₹{item.unit_price}</span>
-                            <Badge variant={status === 'expired' ? 'destructive' : 'outline'} className="text-[10px]">{status === 'safe' ? `Exp: ${item.expiry_date}` : 'Check Expiry'}</Badge>
+                            <div className="flex gap-1">
+                              {(item.unit_price > 0 && (item.cost_price || item.purchase_price)) ? (
+                                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                                  Margin: {Math.round(((item.unit_price - (item.cost_price || item.purchase_price || 0)) / item.unit_price) * 100)}%
+                                </Badge>
+                              ) : null}
+                              <Badge variant={status === 'expired' ? 'destructive' : 'outline'} className="text-[10px]">{status === 'safe' ? `Exp: ${item.expiry_date}` : 'Check Expiry'}</Badge>
+                            </div>
                           </div>
                         </div>
 
@@ -731,10 +746,29 @@ const Inventory = () => {
                         {canModify && (
                           <div className="flex gap-2 mt-auto pt-3 border-t items-center">
                             <Button variant="outline" size="sm" className="flex-1 text-green-600 hover:text-green-700 hover:bg-green-50 h-8" onClick={() => setAdjustmentDialog({ isOpen: true, item, type: 'IN' })}>
-                              <Plus className="w-3 h-3 mr-1" /> Stock In
+                              <Plus className="w-3 h-3 mr-1" /> In
                             </Button>
                             <Button variant="outline" size="sm" className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 h-8" onClick={() => setAdjustmentDialog({ isOpen: true, item, type: 'OUT' })}>
                               <X className="w-3 h-3 mr-1" /> Out
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="w-8 h-8 text-purple-600 hover:bg-purple-50 border-purple-200"
+                              title="Add to Shortbook"
+                              onClick={async () => {
+                                const { error } = await supabase.from('shortbook').insert({
+                                  shop_id: currentShop?.id,
+                                  product_name: item.medicine_name,
+                                  quantity: 10, // Default reorder qty
+                                  priority: 'medium',
+                                  added_from: 'inventory_card'
+                                });
+                                if (error) toast.error("Failed to add to shortbook");
+                                else toast.success("Added to Shortbook!");
+                              }}
+                            >
+                              <ShoppingCart className="w-4 h-4" />
                             </Button>
                             <Button variant="outline" size="sm" className="flex-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8" onClick={() => handleAddToShortbook(item)}>
                               <NotebookPen className="w-3 h-3 mr-1" /> Note

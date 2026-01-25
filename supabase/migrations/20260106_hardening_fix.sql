@@ -1,15 +1,18 @@
--- CONSOLIDATED HARDENING FIX (Run this to fix errors)
+-- CONSOLIDATED HARDENING FIX (Select ALL lines and click Run)
+-- Context: Fixes "Policy already exists" errors by aggressively dropping old ones first.
 
--- 1. Cleaning up old/conflicting policies on b2b_orders
+-- 1. DROP ALL POTENTIAL EXISTING POLICIES (Safety First)
 DROP POLICY IF EXISTS "Enable all access" ON public.b2b_orders;
 DROP POLICY IF EXISTS "Enable read access for authenticated users" ON public.b2b_orders;
 DROP POLICY IF EXISTS "Enable insert access for authenticated users" ON public.b2b_orders;
 DROP POLICY IF EXISTS "Enable update access for authenticated users" ON public.b2b_orders;
+
+-- Drop the specific ones we are about to create (in case of partial run)
 DROP POLICY IF EXISTS "Users can view their shop orders" ON public.b2b_orders;
 DROP POLICY IF EXISTS "Users can create orders for their shop" ON public.b2b_orders;
 DROP POLICY IF EXISTS "Users can update their shop orders" ON public.b2b_orders;
 
--- 2. Ensure Table Exists (Idempotent)
+-- 2. Ensure Table Exists
 CREATE TABLE IF NOT EXISTS public.b2b_orders (
     id uuid default gen_random_uuid() primary key,
     shop_id uuid references public.shops(id) on delete cascade not null,

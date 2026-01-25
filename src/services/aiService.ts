@@ -345,7 +345,10 @@ export const aiService = {
                 body: JSON.stringify({ drugs }),
             });
 
-            if (!response.ok) throw new Error("Interaction Service Failed");
+            if (!response.ok) {
+                logger.error(`Interaction Service Failed: ${response.status} ${response.statusText}`);
+                throw new Error("Interaction Service Failed");
+            }
 
             const result = await response.json();
 
@@ -355,8 +358,9 @@ export const aiService = {
                 const uniqueInteractions = new Map<string, any>();
 
                 result.interactions.forEach((i: any) => {
-                    if (i.severity === 'Major' || i.severity === 'Severe') {
-                        // Create a unique key for the pair (e.g., "Aspirin|Warfarin")
+                    // Include Moderate interactions if crucial, for now sticking to Major/Severe
+                    if (i.severity === 'Major' || i.severity === 'Severe' || i.severity === 'Moderate') {
+                        // Create a unique key for the pair
                         const key = [i.drug1, i.drug2].sort().join('|');
                         if (!uniqueInteractions.has(key)) {
                             uniqueInteractions.set(key, i);
@@ -365,7 +369,7 @@ export const aiService = {
                 });
 
                 return Array.from(uniqueInteractions.values())
-                    .map((i: any) => `⚠️ Danger: ${i.drug1} + ${i.drug2}: ${i.description}`);
+                    .map((i: any) => `⚠️ ${i.severity}: ${i.drug1} + ${i.drug2}: ${i.description}`);
             }
 
             // Fallback for simple array return
@@ -374,7 +378,9 @@ export const aiService = {
             return [];
         } catch (e) {
             logger.warn("Interaction Check Failed:", e);
-            return []; // Fail safe
+            // Return a special error string so UI knows it failed (optional, or just log)
+            // returning [] implies "Safe". Ideally finding a way to signal "Unknown".
+            return []; // Fail safe for now
         }
     },
 
@@ -726,6 +732,32 @@ export const aiService = {
             return response.reply;
         } catch (e) {
             return "Maaf kijiye, abhi main isey explain nahi kar pa raha hu. Kripya doctor se sampark karein.";
+        }
+    },
+
+    /**
+     * Sales Pulse Analysis
+     */
+    async analyzeSalesPulse(salesData: any[]): Promise<{ insight: string; action: string }> {
+        const prompt = `
+        Analyze this pharmacy sales trend for the last 7 days:
+        ${JSON.stringify(salesData)}
+        
+        Identify the key trend (Up/Down) and give 1 specific actionable advice for a Pharmacy Owner.
+        Response Format: JSON { "insight": "Start with trend...", "action": "One concrete step..." }
+        Keep it very short (max 15 words each).
+        `;
+
+        try {
+            const response = await this.chatWithAgent(prompt);
+            let clean = response.reply.replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(clean);
+        } catch (e) {
+            // Fallback
+            return {
+                insight: "Data analysis unavailable right now.",
+                action: "Check inventory levels manually."
+            };
         }
     }
 };

@@ -15,9 +15,11 @@ export interface ParsedItem {
   name: string;
   quantity: number;
   contact?: string;
+  intent?: 'add' | 'search';
 }
 
 export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: VoiceCommandBarProps) {
+  // ... state ...
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -27,9 +29,23 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
   const animationRef = useRef<number | null>(null);
 
   const parseTranscription = (text: string): ParsedItem[] => {
-    // Simple parsing logic - can be enhanced with n8n AI processing
+    // Enhanced Local Parsing
     const items: ParsedItem[] = [];
-    const parts = text.toLowerCase().split(",").map(p => p.trim());
+    const lowerText = text.toLowerCase();
+
+    // Check for Search Intent
+    const isSearch = lowerText.startsWith("search") || lowerText.startsWith("find") || lowerText.startsWith("lookup");
+
+    if (isSearch) {
+      // Extract term after keyword
+      const searchTerm = lowerText.replace(/^(search|find|lookup)\s+(for\s+)?/, "").trim();
+      if (searchTerm) {
+        items.push({ name: searchTerm, quantity: 0, intent: 'search' });
+      }
+      return items;
+    }
+
+    const parts = lowerText.split(",").map(p => p.trim());
     let contact: string | undefined;
 
     parts.forEach(part => {
@@ -46,13 +62,15 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
         items.push({
           name: quantityMatch[2].trim(),
           quantity: parseInt(quantityMatch[1], 10),
-          contact
+          contact,
+          intent: 'add'
         });
       } else if (part.length > 0) {
         items.push({
           name: part,
           quantity: 1,
-          contact
+          contact,
+          intent: 'add'
         });
       }
     });

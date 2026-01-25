@@ -39,7 +39,7 @@ interface ExtractedItem {
   lasa_alert?: boolean; // Look-alike Sound-alike alert
 }
 
-const DiaryScan = () => {
+export const DiaryScan = () => {
   const { currentShop } = useUserShops();
   const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -49,6 +49,10 @@ const DiaryScan = () => {
   const [progress, setProgress] = useState(0);
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
   const [suggestion, setSuggestion] = useState<any>(null); // For ComparisonCard demo
+
+  // Patient/Doctor info state
+  const [patientName, setPatientName] = useState("");
+  const [doctorName, setDoctorName] = useState("");
 
   useEffect(() => {
     return () => {
@@ -133,6 +137,10 @@ const DiaryScan = () => {
         items = result[0].json.prescription;
       }
 
+      // Extract metadata if available
+      if (result?.patient_name) setPatientName(result.patient_name);
+      if (result?.doctor_name) setDoctorName(result.doctor_name);
+
       if (items && items.length > 0) {
         // Ensure IDs exist and map fields if necessary
         const mappedItems = items.map((item: any, index: number) => ({
@@ -168,6 +176,8 @@ const DiaryScan = () => {
           { id: 1, sequence: 1, medication_name: "Metformin", strength: "500mg", dosage_frequency: "1-0-1", duration: "30 Days", notes: "After food" },
           { id: 2, sequence: 2, medication_name: "Atorvastatin", strength: "10mg", dosage_frequency: "0-0-1", duration: "30 Days", notes: "Before sleep" }
         ]);
+        setPatientName("Rajesh Kumar");
+        setDoctorName("Dr. S. Gupta");
       }
 
     } catch (error: any) {
@@ -177,6 +187,8 @@ const DiaryScan = () => {
         { id: 1, sequence: 1, medication_name: "Metformin", strength: "500mg", dosage_frequency: "1-0-1", duration: "30 Days", notes: "After food" },
         { id: 2, sequence: 2, medication_name: "Atorvastatin", strength: "10mg", dosage_frequency: "0-0-1", duration: "30 Days", notes: "Before sleep" }
       ]);
+      setPatientName("Rajesh Kumar");
+      setDoctorName("Dr. S. Gupta");
     }
 
     setIsProcessing(false);
@@ -194,10 +206,10 @@ const DiaryScan = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border/40 pb-6">
         <div>
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-500 to-emerald-600">
-            Smart Diary Scan
+            Pulse Scan
           </h1>
           <p className="text-muted-foreground mt-1 text-lg">
-            Convert Handwritten Notes to Digital Orders
+            Prescription & Handwriting Digitization
           </p>
         </div>
         <Badge variant="outline" className="border-teal-500/20 bg-teal-500/10 text-teal-600 px-3 py-1">
@@ -330,7 +342,7 @@ const DiaryScan = () => {
                 {isConfirmed && (
                   <Badge className="bg-green-100 text-green-700 border-green-200 py-1.5 px-4 text-sm font-medium">
                     <CheckCircle className="w-4 h-4 mr-1.5" />
-                    Inventory Synced
+                    Parcha Synced
                   </Badge>
                 )}
               </div>
@@ -408,16 +420,18 @@ const DiaryScan = () => {
                     <Input
                       placeholder="Optional"
                       className="h-9 bg-background"
-                      id="patient-name"
-                      onChange={(e) => {
-                        // Use a ref or simple state if needed, but for now we can access by ID in the handler
-                        // or better, let's use a local variable in the handler by reading the DOM element
-                      }}
+                      value={patientName}
+                      onChange={(e) => setPatientName(e.target.value)}
                     />
                   </div>
                   <div className="space-y-1 w-full md:w-48">
                     <label className="text-xs font-medium text-muted-foreground uppercase">Prescriber</label>
-                    <Input placeholder="Optional" className="h-9 bg-background" id="doctor-name" />
+                    <Input
+                      placeholder="Optional"
+                      className="h-9 bg-background"
+                      value={doctorName}
+                      onChange={(e) => setDoctorName(e.target.value)}
+                    />
                   </div>
                 </div>
 
@@ -428,92 +442,14 @@ const DiaryScan = () => {
                     </Button>
                     <Button
                       onClick={async () => {
-                        if (!currentShop?.id) {
-                          toast.error("Shop ID mismatch. Please refresh.");
-                          return;
-                        }
-                        if (!confirm("This will deduct stock for all items listed above. Proceed?")) return;
-                        toast.loading("Adjusting Inventory...");
-
-                        // Save to Prescriptions History
-                        const patientName = (document.getElementById('patient-name') as HTMLInputElement)?.value || "Walk-in Customer";
-                        const doctorName = (document.getElementById('doctor-name') as HTMLInputElement)?.value || "Unknown Doctor";
-
-                        await supabase.from('prescriptions').insert({
-                          shop_id: currentShop?.id,
-                          customer_name: patientName,
-                          doctor_name: doctorName,
-                          visit_date: new Date().toISOString(),
-                          medicines: extractedItems.map(i => ({
-                            name: i.medication_name,
-                            dosage: i.dosage_frequency,
-                            strength: i.strength,
-                            duration: i.duration
-                          }))
-                        } as any);
-
-                        // Logic preserved from original
-                        let successCount = 0;
-                        for (const item of extractedItems) {
-                          // ... existing stock adjustment logic ...
-                          const { data: exactMatch } = await supabase
-                            .from('inventory')
-                            .select('id')
-                            .eq('shop_id', currentShop?.id)
-                            .ilike('medicine_name', item.medication_name)
-                            .maybeSingle();
-
-                          let inventoryId = exactMatch?.id;
-
-                          if (!inventoryId) {
-                            const { data: fuzzy } = await supabase
-                              .from('inventory')
-                              .select('id')
-                              .eq('shop_id', currentShop?.id)
-                              .ilike('medicine_name', `${item.medication_name}%`)
-                              .limit(1);
-                            if (fuzzy && fuzzy.length > 0) inventoryId = fuzzy[0].id;
-                          }
-
-                          if (inventoryId) {
-                            // @ts-ignore
-                            const { error } = await supabase.rpc('adjust_inventory_stock', {
-                              p_inventory_id: inventoryId,
-                              p_quantity_change: -1,
-                              p_movement_type: 'OUT',
-                              p_reason: 'Diary Scan: Sold'
-                            });
-                            if (!error) successCount++;
-                          }
-                        }
-
-                        toast.dismiss();
-                        if (successCount > 0) {
-                          setIsConfirmed(true);
-                          toast.success(`Stock adjusted for ${successCount} items. Parcha Saved.`);
-                        } else {
-                          toast.warning("No matching stock found, but Parcha saved.");
-                        }
-                      }}
-                      className="bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Log Sale
-                    </Button>
-                    <Button
-                      onClick={async () => {
                         if (!currentShop?.id) return;
 
                         // Save to Prescriptions History first
-                        const patientName = (document.getElementById('patient-name') as HTMLInputElement)?.value || "Walk-in Customer";
-                        const doctorName = (document.getElementById('doctor-name') as HTMLInputElement)?.value || "Unknown Doctor";
-
-                        // We do this asynchronously so we don't block the redirect too long, but ideally await it
                         toast.info("Saving Parcha...");
                         await supabase.from('prescriptions').insert({
                           shop_id: currentShop?.id,
-                          customer_name: patientName,
-                          doctor_name: doctorName,
+                          customer_name: patientName || "Walk-in Customer",
+                          doctor_name: doctorName || "Unknown Doctor",
                           visit_date: new Date().toISOString(),
                           medicines: extractedItems.map(i => ({
                             name: i.medication_name,
@@ -525,10 +461,17 @@ const DiaryScan = () => {
 
                         const importItems = extractedItems.map(i => ({
                           name: i.medication_name,
-                          quantity: 1, // Default to 1 pack/strip
-                          unit_price: 0 // POS will fetch or allow manual
+                          quantity: 1, // Default to 1 pack/strip - user can adjust in POS
+                          unit_price: 0 // POS will fetch
                         }));
-                        navigate("/dashboard/sales/pos", { state: { importItems, customerName: patientName } });
+
+                        navigate("/dashboard/sales/pos", {
+                          state: {
+                            importItems,
+                            customerName: patientName,
+                            source: 'pulse_scan'
+                          }
+                        });
                         toast.success("Redirecting to Billing...");
                       }}
                       className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20"
@@ -546,5 +489,6 @@ const DiaryScan = () => {
     </div>
   );
 };
+
 
 export default DiaryScan;

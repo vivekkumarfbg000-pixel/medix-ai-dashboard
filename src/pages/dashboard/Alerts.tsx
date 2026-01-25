@@ -3,8 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, Clock, Package, Users, CheckCircle } from "lucide-react";
+import { Bell, Clock, Package, Users, CheckCircle, ArrowRight } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
+import { useNavigate } from "react-router-dom";
 
 interface InventoryItem {
   id: string;
@@ -20,9 +21,11 @@ interface Reminder {
   medicine_name: string;
   reminder_date: string;
   status: string;
+  patient_phone?: string; // Enhanced
 }
 
 import { useUserShops } from "@/hooks/useUserShops";
+import { whatsappService } from "@/services/whatsappService"; // Import
 
 const Alerts = () => {
   const { currentShop } = useUserShops();
@@ -34,13 +37,31 @@ const Alerts = () => {
     const fetchData = async () => {
       if (!currentShop?.id) return;
       setLoading(true);
-      const [inventoryRes, remindersRes] = await Promise.all([
-        supabase.from("inventory").select("id, medicine_name, quantity, expiry_date, reorder_level").eq("shop_id", currentShop?.id),
-        supabase.from("patient_reminders").select("*").eq("shop_id", currentShop?.id).order("reminder_date")
-      ]);
 
-      if (inventoryRes.data) setInventory(inventoryRes.data as InventoryItem[]);
-      if (remindersRes.data) setReminders(remindersRes.data as Reminder[]);
+      const { data: inventoryData } = await supabase.from("inventory").select("id, medicine_name, quantity, expiry_date, reorder_level").eq("shop_id", currentShop?.id);
+
+      // Fetch Reminders
+      const { data: reminderData } = await supabase.from("patient_reminders").select("*").eq("shop_id", currentShop?.id).order("reminder_date");
+
+      // Ideally we should join with users/customers to get phone numbers if not in reminder table
+      // Assuming for now simple fetch, but let's try to map phone if available in customer table
+      // Optimization: Fetch customers matching names (Simple approach for MVP)
+      let enhancedReminders: Reminder[] = (reminderData as Reminder[]) || [];
+
+      if (enhancedReminders.length > 0) {
+        const names = enhancedReminders.map(r => r.patient_name);
+        const { data: customers } = await supabase.from('customers').select('name, phone').in('name', names).eq('shop_id', currentShop?.id);
+
+        if (customers) {
+          enhancedReminders = enhancedReminders.map(r => ({
+            ...r,
+            patient_phone: customers.find(c => c.name === r.patient_name)?.phone
+          }));
+        }
+      }
+
+      if (inventoryData) setInventory(inventoryData as InventoryItem[]);
+      setReminders(enhancedReminders);
 
       setLoading(false);
     };
@@ -92,13 +113,14 @@ const Alerts = () => {
 
     reminders.forEach(rem => {
       const due = new Date(rem.reminder_date);
-      if (differenceInDays(due, today) <= 1 && rem.status === 'pending') {
+      if (differenceInDays(due, today) <= 3 && rem.status === 'pending') { // 3 Day lookahead
         alerts.push({
           type: "reminder",
           title: "Patient Reminder",
           description: `Call ${rem.patient_name} for ${rem.medicine_name} refill`,
           severity: "medium",
-          date: due
+          date: due,
+          data: rem // Pass full object for action
         });
       }
     });
@@ -146,6 +168,8 @@ interface AlertsListProps {
 }
 
 const AlertsList = ({ alerts, loading, emptyMessage = "No alerts" }: AlertsListProps) => {
+  const navigate = useNavigate(); // Needs import from react-router-dom
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -200,16 +224,52 @@ const AlertsList = ({ alerts, loading, emptyMessage = "No alerts" }: AlertsListP
                 <p className="text-sm text-muted-foreground">{alert.description}</p>
               </div>
             </div>
+
             <Badge variant={
               alert.severity === "critical" ? "destructive" :
                 alert.severity === "high" ? "secondary" : "outline"
             }>
               {alert.severity}
             </Badge>
+
+            {alert.type === 'reminder' ? (
+              <Button
+                size="sm"
+                className="h-6 text-xs bg-[#25D366] hover:bg-[#128C7E] text-white border-0"
+                onClick={() => {
+                  // WhatsApp Logic
+                  if (alert.data && alert.data.patient_phone) {
+                    const link = whatsappService.generateRefillReminder(alert.data.patient_phone, {
+                      patient_name: alert.data.patient_name,
+                      medicine_name: alert.data.medicine_name
+                    });
+                    window.open(link, '_blank');
+                  } else {
+                    // Fallback if no phone
+                    alert('No phone number linking found for this patient.');
+                  }
+                }}
+              >
+                Reminder <Users className="w-3 h-3 ml-1" />
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 text-xs bg-background hover:bg-slate-100"
+                onClick={() => {
+                  if (alert.type === "stock") navigate("/dashboard/shortbook");
+                  else if (alert.type === "expiry" || alert.type === "expired") navigate("/dashboard/inventory?filter=expiring");
+                  else navigate("/dashboard/customers");
+                }}
+              >
+                Resolve <ArrowRight className="w-3 h-3 ml-1" />
+              </Button>
+            )}
           </CardContent>
-        </Card>
+        </Card >
       ))}
-    </div>
+    </div >
   );
 };
 

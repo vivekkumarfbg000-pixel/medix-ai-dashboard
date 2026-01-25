@@ -14,6 +14,8 @@ export const PulseWidget = () => {
     const [trend, setTrend] = useState(0);
     const [loading, setLoading] = useState(true);
 
+    const [aiInsight, setAiInsight] = useState<{ insight: string; action: string } | null>(null);
+
     useEffect(() => {
         if (!currentShop?.id) return;
         fetchSalesPulse();
@@ -39,7 +41,7 @@ export const PulseWidget = () => {
 
             for (let i = 6; i >= 0; i--) {
                 const date = subDays(today, i);
-                const dateStr = format(date, 'yyyy-MM-dd');
+                // const dateStr = format(date, 'yyyy-MM-dd'); // Unused
 
                 // Sum sales for this day
                 const daySales = sales
@@ -66,6 +68,13 @@ export const PulseWidget = () => {
                 setTrend(100);
             } else {
                 setTrend(0);
+            }
+
+            // --- AI ANALYSIS ---
+            if (chartData.length > 0) {
+                const { aiService } = await import("@/services/aiService");
+                const insight = await aiService.analyzeSalesPulse(chartData);
+                setAiInsight(insight);
             }
         }
         setLoading(false);
@@ -140,9 +149,23 @@ export const PulseWidget = () => {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-sm font-medium text-foreground leading-snug">
-                            "Revenue trending {trend >= 0 ? 'up' : 'down'}. Check <span className="underline decoration-wavy decoration-[#0ea5e9]">Analytics</span> for detailed insights."
-                        </p>
+                        {loading ? (
+                            <div className="animate-pulse space-y-2">
+                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
+                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
+                            </div>
+                        ) : (
+                            <div>
+                                <p className="text-sm font-medium text-foreground leading-snug mb-2">
+                                    "{aiInsight?.insight || "Analyzing business trends..."}"
+                                </p>
+                                {aiInsight?.action && (
+                                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200">
+                                        🚀 Tip: {aiInsight.action}
+                                    </Badge>
+                                )}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>

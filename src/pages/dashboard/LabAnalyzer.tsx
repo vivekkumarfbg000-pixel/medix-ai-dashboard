@@ -10,6 +10,7 @@ import { labService, LabAnalysisReport } from "@/services/labService";
 import { aiService } from "@/services/aiService";
 import { whatsappService } from "@/services/whatsappService";
 import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
 
 const LabAnalyzer = () => {
     const [isDragging, setIsDragging] = useState(false);
@@ -100,6 +101,47 @@ const LabAnalyzer = () => {
 
         window.open(link, '_blank');
         toast.success("WhatsApp opened with report summary!");
+    };
+
+    const [isSaving, setIsSaving] = useState(false);
+    const handleSaveToPatient = async () => {
+        if (!report) return;
+        // In a real flow, we'd select a patient from a dropdown. 
+        // For now, if we have a patientPhone, we try to find them or just save with the phone as metadata.
+        // Ideally, LabAnalyzer should use `CustomerSearch` component.
+
+        setIsSaving(true);
+        try {
+            // 1. Try to find patient by phone
+            let patientId = null;
+            let patientName = "Unknown";
+
+            if (patientPhone) {
+                const { data: customers } = await supabase.from('customers').select('id, name').eq('phone', patientPhone).limit(1);
+                if (customers && customers.length > 0) {
+                    patientId = customers[0].id;
+                    patientName = customers[0].name;
+                }
+            }
+
+            // 2. Insert Report
+            const { error } = await supabase.from('lab_reports').insert({
+                // @ts-ignore
+                shop_id: (await supabase.auth.getUser()).data.user?.user_metadata?.shop_id || 'UNKNOWN', // Ideally use currentShop hook but accessing auth directly for speed in this context if currentShop is null
+                patient_id: patientId,
+                patient_name: patientName,
+                summary_json: report,
+                biomarkers_json: report.results
+            });
+
+            if (error) throw error;
+            toast.success("Report saved to Patient Profile!");
+        } catch (e) {
+            console.error(e);
+            toast.error("Failed to save report.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -215,6 +257,14 @@ const LabAnalyzer = () => {
                                     />
                                     <Button className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white shadow-sm" onClick={handleShare}>
                                         <Send className="w-4 h-4 mr-2" /> WhatsApp Report
+                                    </Button>
+                                    <Button
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                                        onClick={handleSaveToPatient}
+                                        disabled={isSaving}
+                                    >
+                                        <CheckCircle className="w-4 h-4 mr-2" />
+                                        {isSaving ? "Saving..." : "Save to Patient"}
                                     </Button>
                                     <Button
                                         variant="secondary"

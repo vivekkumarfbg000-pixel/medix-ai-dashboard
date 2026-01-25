@@ -85,12 +85,16 @@ const Orders = () => {
     }
   }, [currentShop?.id]);
 
-  const fetchOrders = async (shopId: string) => {
+  const fetchOrders = async (shopId?: string | object) => {
+    // FIX: Handle both direct string call and Event object from click
+    const idToUse = typeof shopId === 'string' ? shopId : currentShop?.id;
+    if (!idToUse) return;
+
     setLoading(true);
     const { data, error } = await supabase
       .from('orders')
       .select('*')
-      .eq('shop_id', shopId)
+      .eq('shop_id', idToUse)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -117,11 +121,18 @@ const Orders = () => {
   };
 
   const handleWhatsAppShare = (order: Order) => {
-    if (!order.customer_phone) {
-      toast.error("No phone number for this order");
-      return;
+    let phone = order.customer_phone;
+
+    if (!phone) {
+      const manualPhone = window.prompt("Customer phone number is missing. Enter number to send invoice:", "");
+      if (manualPhone) {
+        phone = manualPhone;
+      } else {
+        return; // User cancelled
+      }
     }
-    const link = whatsappService.generateInvoiceLink(order.customer_phone, {
+
+    const link = whatsappService.generateInvoiceLink(phone, {
       invoice_number: order.invoice_number || 'INV-000',
       customer_name: order.customer_name,
       created_at: order.created_at,
@@ -347,7 +358,7 @@ const Orders = () => {
         onOpenChange={setReturnModalOpen}
         order={selectedOrderForReturn}
         onSuccess={() => {
-          fetchOrders();
+          if (currentShop?.id) fetchOrders(currentShop.id);
         }}
       />
     </div>

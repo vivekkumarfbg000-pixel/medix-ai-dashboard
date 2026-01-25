@@ -135,6 +135,7 @@ export const PatientProfileSheet = ({ customer, open, onOpenChange, onUpdate }: 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col mt-4">
                     <TabsList className="w-full">
                         <TabsTrigger value="history" className="flex-1">Puchase History</TabsTrigger>
+                        <TabsTrigger value="reports" className="flex-1">Lab Reports</TabsTrigger>
                         <TabsTrigger value="notes" className="flex-1">Clinical Notes</TabsTrigger>
                     </TabsList>
 
@@ -167,6 +168,10 @@ export const PatientProfileSheet = ({ customer, open, onOpenChange, onUpdate }: 
                         </ScrollArea>
                     </TabsContent>
 
+                    <TabsContent value="reports" className="flex-1 overflow-hidden relative">
+                        <LabReportsList customerId={customer.id} />
+                    </TabsContent>
+
                     <TabsContent value="notes" className="flex-1 flex flex-col">
                         <div className="flex-1 p-1">
                             <Textarea
@@ -183,5 +188,70 @@ export const PatientProfileSheet = ({ customer, open, onOpenChange, onUpdate }: 
                 </Tabs>
             </SheetContent>
         </Sheet>
+    );
+};
+
+const LabReportsList = ({ customerId }: { customerId: string }) => {
+    const [reports, setReports] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchReports = async () => {
+            setLoading(true);
+            // @ts-ignore
+            const { data } = await supabase
+                .from('lab_reports' as any)
+                .select('*')
+                .eq('patient_id', customerId)
+                .order('created_at', { ascending: false });
+
+            if (data) setReports(data);
+            setLoading(false);
+        };
+        fetchReports();
+    }, [customerId]);
+
+    if (loading) return <div className="p-4 text-center text-xs text-muted-foreground animate-pulse">Loading reports...</div>;
+
+    if (reports.length === 0) return (
+        <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-6 text-center">
+            <ShoppingBag className="w-8 h-8 mb-2 opacity-20" />
+            <p className="text-sm">No lab reports found.</p>
+            <p className="text-xs">Upload in Lab Analyzer and save to patient.</p>
+        </div>
+    );
+
+    return (
+        <ScrollArea className="h-full pr-4">
+            <div className="space-y-3 pt-2">
+                {reports.map(report => (
+                    <div key={report.id} className="border border-blue-100 bg-blue-50/30 rounded-lg p-3">
+                        <div className="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 className="font-semibold text-sm text-blue-900">Lab Analysis</h4>
+                                <span className="text-[10px] text-blue-600/80">{format(new Date(report.created_at), 'PP p')}</span>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] border-blue-200 bg-white">AI Analyzed</Badge>
+                        </div>
+
+                        {report.summary_json?.recommendations?.diet && (
+                            <div className="text-xs text-slate-600 mb-2">
+                                <span className="font-semibold text-slate-800">Diet:</span> {report.summary_json.recommendations.diet.slice(0, 2).join(", ")}...
+                            </div>
+                        )}
+
+                        <div className="flex gap-2 mt-2">
+                            <Button size="sm" variant="outline" className="h-7 text-xs w-full bg-white hover:bg-blue-50" onClick={() => {
+                                // Ideally open a detailed view
+                                // For now, simple toast
+                                toast.info("Opening Report functionality coming soon");
+                            }}>
+                                View Full Report
+                            </Button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </ScrollArea>
     );
 };
