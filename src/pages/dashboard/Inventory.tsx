@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Plus, Search, Package, AlertTriangle, Filter, Sparkles, Check, X, RefreshCw, Upload, Trash2, NotebookPen, TrendingUp } from "lucide-react";
+import { Plus, Search, Package, AlertTriangle, Filter, Sparkles, Check, X, RefreshCw, Upload, Trash2, NotebookPen, TrendingUp, ShoppingCart } from "lucide-react";
 import { AddMedicineDialog } from "@/components/dashboard/inventory/AddMedicineDialog";
 import { StockAdjustmentDialog } from "@/components/dashboard/inventory/StockAdjustmentDialog";
 import { InventoryDrafts } from "@/components/dashboard/inventory/InventoryDrafts";

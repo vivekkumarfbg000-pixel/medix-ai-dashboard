@@ -65,7 +65,6 @@ const Compliance = () => {
                 }
             }
 
-            setHinglishSummary(h1Entries); // Typo in original file?? No, setH1Register.
             setH1Register(h1Entries);
         } catch (error) {
             console.error("Error fetching H1 data:", error);
