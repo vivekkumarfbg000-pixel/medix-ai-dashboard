@@ -38,6 +38,9 @@ const LitePOS = () => {
     const [showGuestDialog, setShowGuestDialog] = useState(false);
     const [guestDetails, setGuestDetails] = useState({ name: "", phone: "" });
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const interactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const [alternativeData, setAlternativeData] = useState<{ name: string; substitutes: string[] } | null>(null);
+
 
     // --- CHECKOUT LOGIC ---
     const handleCheckout = async () => {
@@ -117,8 +120,9 @@ const LitePOS = () => {
                         });
                     }
 
+
                     // Success Online
-                    await finalizeSuccess(finalName, finalPhone, order.id, true);
+                    await finalizeSuccess(finalName, finalPhone, order.id, true, total);
 
                 } catch (onlineError) {
                     console.warn("Online Checkout Failed, trying offline...", onlineError);
@@ -161,10 +165,10 @@ const LitePOS = () => {
             }
         }
 
-        await finalizeSuccess(name, phone, `OFF-${orderId}`, false);
+        await finalizeSuccess(name, phone, `OFF-${orderId}`, false, amount);
     };
 
-    const finalizeSuccess = async (name: string, phone: string | null, invoiceId: string, isOnline: boolean) => {
+    const finalizeSuccess = async (name: string, phone: string | null, invoiceId: string, isOnline: boolean, totalAmount: number) => {
         toast.dismiss();
 
         // 🎉 CELEBRATION CONFETTI
@@ -182,7 +186,7 @@ const LitePOS = () => {
                 customer_name: name,
                 shop_name: currentShop?.name || "Medix Pharmacy",
                 created_at: new Date().toISOString(),
-                total_amount: total,
+                total_amount: totalAmount,
                 status: 'paid',
                 items: cart.map(c => ({ name: c.item.medicine_name, qty: c.qty, price: c.item.unit_price }))
             });
@@ -266,10 +270,12 @@ const LitePOS = () => {
 
                 for (const imp of itemsToImport) {
                     // Try fuzzy match or exact match in local DB
-                    const found = await db.inventory
-                        .where('shop_id').equals(currentShop.id)
-                        .filter(i => i.medicine_name.toLowerCase() === imp.name.toLowerCase())
-                        .first();
+                    // FIX: Relaxed matching logic for better hits
+                    const allItems = await db.inventory.where('shop_id').equals(currentShop.id).toArray();
+                    const found = allItems.find(i =>
+                        i.medicine_name.toLowerCase() === imp.name.toLowerCase() ||
+                        i.medicine_name.toLowerCase().includes(imp.name.toLowerCase())
+                    );
 
                     if (found) {
                         matches.push({ item: found, qty: imp.quantity || imp.qty || 1 });
@@ -329,27 +335,34 @@ const LitePOS = () => {
             }
             return [...prev, { item, qty: 1 }];
         });
-
-        // Safe Interaction Check
-        if (cart.length > 0) {
-            const existingNames = cart.map(c => c.item.medicine_name);
-            const allDrugs = [...new Set([...existingNames, item.medicine_name])]; // De-dupe
-
-            try {
-                const warnings = await aiService.checkInteractions(allDrugs);
-
-                if (Array.isArray(warnings) && warnings.length > 0) {
-                    const newWarnings = warnings.filter(w => !interactions.includes(w));
-                    if (newWarnings.length > 0) {
-                        setInteractions(prev => [...prev, ...newWarnings]);
-                        toast.error("Interaction Detected!");
-                    }
-                }
-            } catch (error) {
-                console.error("Interaction Check Warning:", error);
-            }
-        }
     };
+
+    // --- INTERACTION CHECK (Centralized) ---
+    useEffect(() => {
+        if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
+
+        if (cart.length > 1) {
+            interactionTimeoutRef.current = setTimeout(async () => {
+                const drugNames = [...new Set(cart.map(c => c.item.medicine_name))];
+                try {
+                    const warnings = await aiService.checkInteractions(drugNames);
+                    setInteractions(warnings); // Replace interactions with current set
+                    if (warnings.length > 0) {
+                        toast.error("Interaction Detected!", { id: "interaction-toast" });
+                    }
+                } catch (e) {
+                    console.error("Interaction check failed", e);
+                }
+            }, 1000); // Debounce 1s
+        } else {
+            setInteractions([]);
+        }
+
+        return () => {
+            if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
+        };
+    }, [cart]);
+
 
     const updateQty = (id: string, delta: number) => {
         setCart(prev => prev.map(item => {
@@ -360,6 +373,27 @@ const LitePOS = () => {
             return item;
         }));
     };
+
+    const updatePrice = (id: string, newPrice: number) => {
+        setCart(prev => prev.map(item => {
+            if (item.item.id === id) {
+                return { ...item, item: { ...item.item, unit_price: newPrice } };
+            }
+            return item;
+        }));
+    };
+
+    const showAlternatives = async (medicineName: string) => {
+        toast.loading(`Finding alternatives for ${medicineName}...`, { id: 'alt-search' });
+        try {
+            const substitutes = await aiService.getGenericSubstitutes(medicineName);
+            setAlternativeData({ name: medicineName, substitutes });
+            toast.success("Alternatives Found!", { id: 'alt-search' });
+        } catch (e) {
+            toast.error("Could not fetch alternatives", { id: 'alt-search' });
+        }
+    };
+
 
     const addToShortbook = () => {
         toast.success(`'${search}' added to Shortbook`);
@@ -598,9 +632,26 @@ const LitePOS = () => {
                                         <h4 className="font-bold text-[10px] md:text-[11px] text-slate-200 leading-tight break-words whitespace-normal mb-1">
                                             {c.item.medicine_name}
                                         </h4>
-                                        <div className="text-[10px] text-slate-500 font-mono flex gap-2">
-                                            <span>₹{c.item.unit_price}</span>
-                                            <span>x {c.qty}</span>
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex items-center bg-slate-950 border border-slate-700 rounded px-1">
+                                                <span className="text-[10px] text-slate-500 mr-1">₹</span>
+                                                <input
+                                                    className="w-12 bg-transparent text-[11px] font-mono text-white outline-none"
+                                                    type="number"
+                                                    value={c.item.unit_price}
+                                                    onChange={(e) => updatePrice(c.item.id, Number(e.target.value))}
+                                                />
+                                            </div>
+                                            <span className="text-[10px] text-slate-500 font-mono">x {c.qty}</span>
+
+                                            {/* Alternative Option Button */}
+                                            <button
+                                                onClick={() => showAlternatives(c.item.medicine_name)}
+                                                className="text-[9px] bg-purple-900/30 text-purple-400 px-1 rounded hover:bg-purple-900/50 flex items-center gap-1"
+                                                title="Find Alternatives"
+                                            >
+                                                <Sparkles className="w-3 h-3" /> Alt
+                                            </button>
                                         </div>
                                     </div>
 
@@ -659,6 +710,33 @@ const LitePOS = () => {
                                             Samajh Gaya (Proceed)
                                         </Button>
                                     </div>
+                                </DialogContent>
+                            </Dialog>
+                        )}
+
+                        {/* ALTERNATIVE MEDICINE POPUP */}
+                        {alternativeData && (
+                            <Dialog open={!!alternativeData} onOpenChange={(o) => !o && setAlternativeData(null)}>
+                                <DialogContent className="bg-slate-950 border-slate-800 text-slate-100">
+                                    <DialogHeader>
+                                        <DialogTitle className="flex items-center gap-2 text-purple-400">
+                                            <Sparkles className="w-5 h-5" /> Alternatives for {alternativeData.name}
+                                        </DialogTitle>
+                                    </DialogHeader>
+                                    <div className="space-y-2 mt-2">
+                                        {alternativeData.substitutes.map((sub, i) => (
+                                            <div key={i} className="p-3 bg-slate-900 border border-slate-800 rounded flex justify-between items-center group hover:bg-slate-800 transition-colors cursor-pointer"
+                                                onClick={() => {
+                                                    // Optional: Add logic to swap? Checking complexity so just copy name for now
+                                                    navigator.clipboard.writeText(sub.split(' -')[0]);
+                                                    toast.success("Copied to clipboard!");
+                                                }}
+                                            >
+                                                <span className="text-sm font-medium text-slate-300">{sub}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 text-center mt-2">Tap to copy name</p>
                                 </DialogContent>
                             </Dialog>
                         )}
@@ -767,7 +845,7 @@ const LitePOS = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 
