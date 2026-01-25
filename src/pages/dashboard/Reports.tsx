@@ -4,12 +4,15 @@ import { Button } from "@/components/ui/button";
 import { useUserShops } from "@/hooks/useUserShops";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
+import { subDays, startOfMonth, endOfMonth } from "date-fns";
 import { Calendar as CalendarIcon, Download, TrendingUp, DollarSign, CreditCard } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { safeFormat } from "@/utils/dateHelpers";
 import { toast } from "sonner";
 
 export default function Reports() {
@@ -203,19 +206,13 @@ export default function Reports() {
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                     <XAxis
                                         dataKey="date"
-                                        tickFormatter={(str) => format(new Date(str), 'MMM dd')}
+                                        tickFormatter={(str) => safeFormat(str, 'MMM dd', 'N/A')}
                                         minTickGap={30}
                                     />
                                     <YAxis />
                                     <Tooltip
                                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                        labelFormatter={(label) => {
-                                            try {
-                                                return label ? format(new Date(label), 'MMM dd, yyyy') : 'N/A';
-                                            } catch (e) {
-                                                return 'Invalid Date';
-                                            }
-                                        }}
+                                        labelFormatter={(label) => safeFormat(label, 'MMM dd, yyyy', 'N/A')}
                                     />
                                     <Area type="monotone" dataKey="sales" stroke="#3b82f6" fillOpacity={1} fill="url(#colorSales)" name="Sales" />
                                     <Area type="monotone" dataKey="profit" stroke="#10b981" fillOpacity={1} fill="url(#colorProfit)" name="Profit" />
