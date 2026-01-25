@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ClipboardList, Search, Download, FileText, AlertTriangle } from "lucide-react";
-import { format } from "date-fns";
+import { safeFormat } from "@/utils/dateHelpers";
 import { toast } from "sonner";
 
 import { BillViewModal } from "./compliance/BillViewModal";
@@ -90,7 +90,7 @@ const ScheduleH1 = () => {
         const csvContent = [
             headers.join(","),
             ...filtered.map(r => [
-                format(new Date(r.date), "yyyy-MM-dd"),
+                safeFormat(r.date, "yyyy-MM-dd"),
                 r.invoice,
                 r.patient,
                 r.doctor,
@@ -104,7 +104,7 @@ const ScheduleH1 = () => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `H1_Register_${format(new Date(), 'yyyyMMdd')}.csv`;
+        a.download = `H1_Register_${safeFormat(new Date(), 'yyyyMMdd')}.csv`;
         a.click();
     };
 
@@ -161,7 +161,7 @@ const ScheduleH1 = () => {
                             ) : (
                                 filtered.map((record, idx) => (
                                     <TableRow key={idx} className="hover:bg-red-50/10">
-                                        <TableCell>{format(new Date(record.date), "dd MMM yyyy")}</TableCell>
+                                        <TableCell>{safeFormat(record.date, "dd MMM yyyy")}</TableCell>
                                         <TableCell className="font-mono text-xs">
                                             <span
                                                 className="text-blue-600 underline cursor-pointer hover:text-blue-800"

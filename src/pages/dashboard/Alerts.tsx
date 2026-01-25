@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Bell, Clock, Package, Users, CheckCircle, ArrowRight } from "lucide-react";
-import { format, differenceInDays } from "date-fns";
+import { format, differenceInDays, parseISO, isValid } from "date-fns";
 import { useNavigate } from "react-router-dom";
 
 interface InventoryItem {
@@ -77,15 +77,18 @@ const Alerts = () => {
     inventory.forEach(item => {
       // Robust Date Parsing
       if (item.expiry_date) {
-        const expiryTime = Date.parse(item.expiry_date);
-        if (!isNaN(expiryTime)) {
-          const daysToExpiry = differenceInDays(new Date(expiryTime), today);
+        try {
+          const expiryTime = parseISO(item.expiry_date);
+          if (!isValid(expiryTime)) return; // Use return to skip this item if date is invalid
 
-          if (daysToExpiry < 0) {
+          const daysToExpiry = differenceInDays(expiryTime, today);
+
+          if (daysToExpiry < 0) { // Already expired
             alerts.push({
-              type: "expired",
-              title: "Expired Medicine",
-              description: `${item.medicine_name} expired on ${format(new Date(expiryTime), 'PP')}`,
+              id: `exp-${item.id}`,
+              type: 'expiry',
+              title: "Expired Medicine", // Retaining original title for consistency
+              description: `${item.medicine_name} expired on ${format(expiryTime, 'PP')}`,
               severity: "critical",
               date: new Date()
             });
@@ -98,6 +101,8 @@ const Alerts = () => {
               date: new Date()
             });
           }
+        } catch (e) {
+          // Skip invalid date
         }
       }
 

@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { PurchaseEntry } from "@/components/dashboard/PurchaseEntryModal";
 import { Plus, Search, FileText, Calendar } from "lucide-react";
-import { format } from "date-fns";
+import { safeFormat } from "@/utils/dateHelpers";
 import { toast } from "sonner";
 
 export default function Purchases({ embedded = false }: { embedded?: boolean }) {
@@ -93,7 +93,7 @@ export default function Purchases({ embedded = false }: { embedded?: boolean }) 
                                     <TableRow key={p.id}>
                                         <TableCell className="flex items-center gap-2">
                                             <Calendar className="w-3 h-3 text-muted-foreground" />
-                                            {format(new Date(p.invoice_date), 'dd MMM yyyy')}
+                                            {safeFormat(p.invoice_date, 'dd MMM yyyy')}
                                         </TableCell>
                                         <TableCell className="font-mono">{p.invoice_number}</TableCell>
                                         <TableCell className="font-medium">{p.suppliers?.name || 'Unknown'}</TableCell>
