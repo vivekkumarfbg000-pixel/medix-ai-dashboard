@@ -279,20 +279,46 @@ const LitePOS = () => {
             colors: ['#10b981', '#3b82f6', '#8b5cf6']
         });
 
-        if (isOnline && phone) {
-            const waLink = whatsappService.generateInvoiceLink(phone, {
-                invoice_number: invoiceId.slice(0, 8).toUpperCase(),
-                customer_name: name,
-                shop_name: currentShop?.name || "Medix Pharmacy",
-                created_at: new Date().toISOString(),
-                total_amount: totalAmount,
-                status: 'paid',
-                items: cart.map(c => ({ name: c.item.medicine_name, qty: c.qty, price: c.item.unit_price }))
-            });
-            window.open(waLink, '_blank');
-            toast.success("Order Placed & WhatsApp Sent! 🎉");
+        // WhatsApp Invoice - Always show option
+        if (isOnline) {
+            if (phone) {
+                const waLink = whatsappService.generateInvoiceLink(phone, {
+                    invoice_number: invoiceId.slice(0, 8).toUpperCase(),
+                    customer_name: name,
+                    shop_name: currentShop?.name || "Medix Pharmacy",
+                    created_at: new Date().toISOString(),
+                    total_amount: totalAmount,
+                    status: paymentMode === 'credit' ? 'pending' : 'paid',
+                    items: cart.map(c => ({ name: c.item.medicine_name, qty: c.qty, price: c.item.unit_price }))
+                });
+                window.open(waLink, '_blank');
+                toast.success("Order Placed & WhatsApp Invoice Sent! 🎉");
+            } else {
+                // Show WhatsApp send button even without phone
+                toast.success("Order Placed Successfully! 🎉", {
+                    description: "Click below to send invoice via WhatsApp",
+                    action: {
+                        label: "Send WhatsApp",
+                        onClick: () => {
+                            const phoneNumber = prompt("Enter customer WhatsApp number (with country code, e.g., +91...):");
+                            if (phoneNumber) {
+                                const waLink = whatsappService.generateInvoiceLink(phoneNumber, {
+                                    invoice_number: invoiceId.slice(0, 8).toUpperCase(),
+                                    customer_name: name,
+                                    shop_name: currentShop?.name || "Medix Pharmacy",
+                                    created_at: new Date().toISOString(),
+                                    total_amount: totalAmount,
+                                    status: paymentMode === 'credit' ? 'pending' : 'paid',
+                                    items: cart.map(c => ({ name: c.item.medicine_name, qty: c.qty, price: c.item.unit_price }))
+                                });
+                                window.open(waLink, '_blank');
+                            }
+                        }
+                    }
+                });
+            }
         } else {
-            toast.success(isOnline ? "Order Placed Successfully! 🎉" : "Order Saved Offline! (Will Sync Later) 💾");
+            toast.success("Order Saved Offline! (Will Sync Later) 💾");
         }
 
         setCart([]);

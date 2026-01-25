@@ -15,7 +15,8 @@ import {
   Loader2,
   Eye,
   BrainCircuit,
-  ScanLine
+  ScanLine,
+  Plus
 } from "lucide-react";
 import {
   Table,
@@ -439,6 +440,50 @@ export const DiaryScan = () => {
                   <div className="flex gap-3 w-full md:w-auto">
                     <Button variant="ghost" onClick={() => setExtractedItems([])}>
                       Discard
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        if (!currentShop?.id) return;
+
+                        toast.loading("Adding medicines to database...", { id: "db-import" });
+
+                        let successCount = 0;
+                        for (const item of extractedItems) {
+                          try {
+                            // Check if medicine already exists
+                            const { data: existing } = await supabase
+                              .from('inventory')
+                              .select('id')
+                              .eq('shop_id', currentShop.id)
+                              .eq('medicine_name', item.medication_name)
+                              .single();
+
+                            if (!existing) {
+                              // Add new medicine to inventory
+                              await supabase.from('inventory').insert({
+                                shop_id: currentShop.id,
+                                medicine_name: item.medication_name,
+                                generic_name: item.medication_name,
+                                quantity: 0,
+                                reorder_level: 10,
+                                unit_price: 0,
+                                salt_composition: item.strength || "",
+                                category: "General"
+                              });
+                              successCount++;
+                            }
+                          } catch (e) {
+                            console.error(`Failed to add ${item.medication_name}:`, e);
+                          }
+                        }
+
+                        toast.success(`Added ${successCount} medicines to database!`, { id: "db-import" });
+                      }}
+                      className="border-green-500/50 bg-green-50 hover:bg-green-100 text-green-700"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add to Database
                     </Button>
                     <Button
                       onClick={async () => {
