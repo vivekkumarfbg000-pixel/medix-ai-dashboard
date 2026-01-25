@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { format, differenceInDays, addMonths } from "date-fns";
+import { safeFormat } from "@/utils/dateHelpers";
 import { Download, ShieldAlert, FileText, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserShops } from "@/hooks/useUserShops";
@@ -128,7 +129,7 @@ const Compliance = () => {
                                     ) : (
                                         h1Register.map((entry, idx) => (
                                             <TableRow key={idx} className="hover:bg-muted/50 transition-colors">
-                                                <TableCell className="font-medium text-foreground">{format(new Date(entry.date), "dd MMM yyyy")}</TableCell>
+                                                <TableCell className="font-medium text-foreground">{safeFormat(entry.date, "dd MMM yyyy")}</TableCell>
                                                 <TableCell>
                                                     <Button
                                                         variant="link"
@@ -167,19 +168,19 @@ const Compliance = () => {
                             <div className="flex justify-between items-center mb-2">
                                 <span className="text-sm text-muted-foreground">Valid Upto</span>
                                 <span className="font-bold text-foreground">
-                                    {licenseExpiry ? format(new Date(licenseExpiry), "dd MMM yyyy") : "Not Set"}
+                                    {licenseExpiry ? safeFormat(licenseExpiry, "dd MMM yyyy") : "Not Set"}
                                 </span>
                             </div>
                             <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
                                 {licenseExpiry && (
                                     <div
-                                        className={`h-full w-[85%] ${differenceInDays(new Date(licenseExpiry), new Date()) < 30 ? 'bg-red-500' : 'bg-green-500'}`}
+                                        className={`h-full w-[85%] ${licenseExpiry && differenceInDays(new Date(licenseExpiry), new Date()) < 30 ? 'bg-red-500' : 'bg-green-500'}`}
                                     ></div>
                                 )}
                             </div>
                             <p className="text-xs text-green-600 mt-2 font-medium">
                                 {licenseExpiry
-                                    ? `Safe. Renewal in ${differenceInDays(new Date(licenseExpiry), new Date())} days.`
+                                    ? `Safe. Renewal in ${licenseExpiry ? differenceInDays(new Date(licenseExpiry), new Date()) : 'N/A'} days.`
                                     : "Configure license in settings."}
                             </p>
                         </CardContent>
