@@ -167,8 +167,10 @@ const LitePOS = () => {
                             shop_id: currentShop?.id,
                             customer_name: finalName,
                             customer_phone: finalPhone,
+                            customer_id: selectedCustomer?.id || null,
                             total_amount: total,
-                            status: "approved",
+                            payment_mode: paymentMode,
+                            status: paymentMode === 'credit' ? "pending" : "approved",
                             source: "LitePOS",
                             // FIX: Populate JSONB for Reporting RPC
                             order_items: cart.map(c => ({
@@ -207,6 +209,16 @@ const LitePOS = () => {
                         });
                     }
 
+                    // 4. Update Customer Credit Balance if payment is credit
+                    if (paymentMode === 'credit' && selectedCustomer?.id) {
+                        const newBalance = (selectedCustomer.credit_balance || 0) + total;
+                        const { error: creditError } = await supabase
+                            .from('customers')
+                            .update({ credit_balance: newBalance })
+                            .eq('id', selectedCustomer.id);
+
+                        if (creditError) console.error("Credit Balance Update Failed:", creditError);
+                    }
 
                     // Success Online
                     await finalizeSuccess(finalName, finalPhone, order.id, true, total);

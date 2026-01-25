@@ -60,10 +60,10 @@ export default function Reports() {
 
         const headers = ["Date", "Orders", "Sales", "Profit"];
         const rows = reportData.sales_by_date.map((d: any) => [
-            format(new Date(d.date), 'yyyy-MM-dd'),
-            d.order_count,
-            d.sales,
-            d.profit
+            d.date ? format(new Date(d.date), 'yyyy-MM-dd') : 'N/A',
+            d.order_count || 0,
+            d.sales || 0,
+            d.profit || 0
         ]);
 
         const csvContent = "data:text/csv;charset=utf-8,"
@@ -209,7 +209,13 @@ export default function Reports() {
                                     <YAxis />
                                     <Tooltip
                                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                        labelFormatter={(label) => format(new Date(label), 'MMM dd, yyyy')}
+                                        labelFormatter={(label) => {
+                                            try {
+                                                return label ? format(new Date(label), 'MMM dd, yyyy') : 'N/A';
+                                            } catch (e) {
+                                                return 'Invalid Date';
+                                            }
+                                        }}
                                     />
                                     <Area type="monotone" dataKey="sales" stroke="#3b82f6" fillOpacity={1} fill="url(#colorSales)" name="Sales" />
                                     <Area type="monotone" dataKey="profit" stroke="#10b981" fillOpacity={1} fill="url(#colorProfit)" name="Profit" />
