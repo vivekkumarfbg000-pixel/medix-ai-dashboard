@@ -52,11 +52,9 @@ const Marketplace = () => {
 
     // --- Marketplace Functions ---
     const addToCart = (item: CatalogItem) => {
-        // @ts-ignore - ID mismatch fix (number vs string)
-        const existing = cart.find(c => c.id == item.id);
+        const existing = cart.find(c => String(c.id) === String(item.id));
         if (existing) {
-            // @ts-ignore
-            setCart(cart.map(c => c.id == item.id ? { ...c, orderQty: c.orderQty + item.min_order_qty } : c));
+            setCart(cart.map(c => String(c.id) === String(item.id) ? { ...c, orderQty: c.orderQty + item.min_order_qty } : c));
             toast.success(`Updated Quantity for ${item.brand}`);
         } else {
             setCart([...cart, { ...item, orderQty: item.min_order_qty }]);
