@@ -167,7 +167,7 @@ const Auth = () => {
                         supabase.auth.signInWithOAuth({
                           provider: 'google',
                           options: {
-                            redirectTo: `${window.location.origin}/dashboard`
+                            redirectTo: "https://medixai.shop/dashboard"
                           }
                         });
                       }}
