@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useUserShops } from "@/hooks/useUserShops";
@@ -20,16 +20,17 @@ import {
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Plus, Search, Package, AlertTriangle, Filter, Sparkles, Check, X, RefreshCw, Upload, Trash2, NotebookPen, TrendingUp, ShoppingCart } from "lucide-react";
-import { AddMedicineDialog } from "@/components/dashboard/inventory/AddMedicineDialog";
-import { StockAdjustmentDialog } from "@/components/dashboard/inventory/StockAdjustmentDialog";
-import { InventoryDrafts } from "@/components/dashboard/inventory/InventoryDrafts";
+// Lazy-loaded components for code splitting
+const AddMedicineDialog = lazy(() => import("@/components/dashboard/inventory/AddMedicineDialog").then(module => ({ default: module.AddMedicineDialog })));
+const StockAdjustmentDialog = lazy(() => import("@/components/dashboard/inventory/StockAdjustmentDialog").then(module => ({ default: module.StockAdjustmentDialog })));
+const InventoryDrafts = lazy(() => import("@/components/dashboard/inventory/InventoryDrafts").then(module => ({ default: module.InventoryDrafts })));
 import { aiService } from "@/services/aiService";
 import { logger } from "@/utils/logger";
 import { format, differenceInDays } from "date-fns";
 import { useSearchParams } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FileText as FileTextIcon, History, Scan } from "lucide-react";
-import AuditLogs from "@/pages/dashboard/AuditLogs";
+const AuditLogs = lazy(() => import("@/pages/dashboard/AuditLogs"));
 import { StockAudit } from "@/components/dashboard/inventory/StockAudit";
 import { pdfService } from "@/services/pdfService";
 import { whatsappService } from "@/services/whatsappService";
@@ -618,7 +619,9 @@ const Inventory = () => {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="audit" className="space-y-6">
-          <AuditLogs embedded={true} />
+          <Suspense fallback={<div className="flex items-center justify-center py-8"><RefreshCw className="w-6 h-6 animate-spin" /></div>}>
+            <AuditLogs embedded={true} />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="stock" className="space-y-6">
@@ -682,11 +685,13 @@ const Inventory = () => {
                 <Button size="lg" className="shadow-lg" onClick={() => setIsAddDialogOpen(true)}>
                   <Plus className="w-4 h-4 mr-2" /> Add Manual
                 </Button>
-                <AddMedicineDialog
-                  open={isAddDialogOpen}
-                  onOpenChange={setIsAddDialogOpen}
-                  onSuccess={fetchInventory}
-                />
+                <Suspense fallback={<div />}>
+                  <AddMedicineDialog
+                    open={isAddDialogOpen}
+                    onOpenChange={setIsAddDialogOpen}
+                    onSuccess={fetchInventory}
+                  />
+                </Suspense>
               </>
             )}
           </div>
@@ -788,10 +793,12 @@ const Inventory = () => {
         </TabsContent>
 
         <TabsContent value="drafts" className="space-y-6">
-          <InventoryDrafts
-            shopId={currentShop?.id || ""}
-            onRefreshRequest={fetchInventory}
-          />
+          <Suspense fallback={<div className="flex items-center justify-center py-8"><RefreshCw className="w-6 h-6 animate-spin" /></div>}>
+            <InventoryDrafts
+              shopId={currentShop?.id || ""}
+              onRefreshRequest={fetchInventory}
+            />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="deadstock" className="space-y-6">
