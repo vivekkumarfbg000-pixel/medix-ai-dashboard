@@ -69,8 +69,23 @@ export const RefillAlertsWidget = () => {
                             <div key={order.id} className="flex flex-col p-2 bg-muted/30 rounded-lg text-sm border hover:bg-muted/50 transition-colors">
                                 <div className="flex justify-between items-start">
                                     <span className="font-semibold">{order.customer_name || 'Unknown'}</span>
-                                    <Badge variant={isSameDay(parseISO(order.refill_due_date), new Date()) ? "destructive" : "outline"} className="text-[10px] h-5">
-                                        {format(parseISO(order.refill_due_date), 'MMM d')}
+                                    <Badge
+                                        variant={(() => {
+                                            try {
+                                                return isSameDay(parseISO(order.refill_due_date), new Date()) ? "destructive" : "outline";
+                                            } catch {
+                                                return "outline";
+                                            }
+                                        })()}
+                                        className="text-[10px] h-5"
+                                    >
+                                        {(() => {
+                                            try {
+                                                return order.refill_due_date ? format(parseISO(order.refill_due_date), 'MMM d') : 'N/A';
+                                            } catch {
+                                                return 'Invalid Date';
+                                            }
+                                        })()}
                                     </Badge>
                                 </div>
                                 <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">

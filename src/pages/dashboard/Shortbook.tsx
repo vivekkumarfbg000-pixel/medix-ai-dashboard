@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Plus, Trash2, Send, ShoppingCart, Loader2 } from "lucide-react";
 import { useUserShops } from "@/hooks/useUserShops";
-import { format } from "date-fns";
+import { safeFormat } from "@/utils/dateHelpers";
 
 const Shortbook = () => {
     const { currentShop } = useUserShops();
@@ -200,7 +200,7 @@ const Shortbook = () => {
                                         </Badge>
                                     </TableCell>
                                     <TableCell>{item.distributors?.name || 'Any'}</TableCell>
-                                    <TableCell className="text-xs text-muted-foreground">{format(new Date(item.created_at), 'dd MMM')}</TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">{safeFormat(item.created_at, 'dd MMM')}</TableCell>
                                     <TableCell className="text-right flex justify-end gap-2">
                                         <Button size="sm" variant="outline" className="text-green-600" onClick={() => markOrdered(item.id)}>Ordered</Button>
                                         <Button size="icon" variant="ghost" className="text-red-400 hover:text-red-600" onClick={async () => {
