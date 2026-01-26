@@ -63,27 +63,62 @@ export default function Analytics() {
   async function fetchAnalyticsData() {
     setLoading(true);
     try {
-      // Fetch sales data
+      // Fetch ORDERS data (Source of Truth)
       const { data: salesData, error: salesError } = await supabase
-        .from("sales")
-        .select("*")
-        .order("sale_date", { ascending: false });
+        .from("orders")
+        .select(`
+          id,
+          total_amount,
+          created_at,
+          customer_name,
+          order_items (
+            qty,
+            price,
+            cost_price,
+            name,
+            inventory_id: inventory_id ( category, medicine_name )
+          )
+        `)
+        .order("created_at", { ascending: false });
 
       if (salesError) throw salesError;
 
-      // Fetch inventory data
-      const { data: inventoryData, error: inventoryError } = await supabase
-        .from("inventory")
-        .select("id, medicine_name, category, unit_price, cost_price");
+      // Transform Shape to match Analytics Logic
+      const flattenedSales: Sale[] = [];
+      const inventoryItems: InventoryItem[] = [];
 
-      if (inventoryError) throw inventoryError;
+      salesData?.forEach(order => {
+        // @ts-ignore
+        order.order_items.forEach((item: any) => {
+          flattenedSales.push({
+            id: order.id,
+            total_amount: item.price * item.qty, // Per item total
+            quantity_sold: item.qty,
+            sale_date: order.created_at,
+            customer_name: order.customer_name,
+            inventory_id: item.inventory_id?.id || 'deleted',
+          });
 
-      setSales(salesData || []);
-      setInventory(inventoryData || []);
+          // Build virtual inventory list for calculations
+          if (item.inventory_id) {
+            inventoryItems.push({
+              id: item.inventory_id.id,
+              medicine_name: item.name,
+              category: item.inventory_id.category,
+              unit_price: item.price,
+              cost_price: item.cost_price || 0
+            });
+          }
+        });
+      });
+
+      setSales(flattenedSales);
+      setInventory(inventoryItems);
 
       // Calculate metrics
-      calculateMetrics(salesData || [], inventoryData || []);
+      calculateMetrics(flattenedSales, inventoryItems);
     } catch (error: any) {
+      console.error(error);
       toast.error("Failed to fetch analytics: " + error.message);
     } finally {
       setLoading(false);
@@ -97,7 +132,7 @@ export default function Analytics() {
     const lastMonthStart = startOfMonth(subMonths(now, 1));
     const lastMonthEnd = endOfMonth(subMonths(now, 1));
 
-    // Create inventory lookup
+    // Create inventory lookup by ID
     const inventoryMap = new Map(inventoryData.map(item => [item.id, item]));
 
     // Current month sales

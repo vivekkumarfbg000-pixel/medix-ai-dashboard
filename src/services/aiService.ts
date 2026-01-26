@@ -337,6 +337,34 @@ export const aiService = {
     async checkInteractions(drugs: string[]): Promise<string[]> {
         if (drugs.length < 2) return [];
 
+        // 0. DEMO MODE CHECK
+        const isDemoMode = localStorage.getItem("DEMO_MODE") === "true";
+        if (isDemoMode) {
+            logger.log("[DEMO MODE] Checking Interactions Locally");
+            await new Promise(r => setTimeout(r, 800)); // Fake network delay
+
+            const mockInteractions: string[] = [];
+            const drugString = drugs.join(" ").toLowerCase();
+
+            // Simulation Logic
+            if (drugString.includes("aspirin") && drugString.includes("warfarin")) {
+                mockInteractions.push("⚠️ Major: Aspirin + Warfarin: Increased risk of bleeding.");
+            }
+            if (drugString.includes("paracetamol") && drugString.includes("dolo")) {
+                mockInteractions.push("⚠️ Duplicate Therapy: Both contain Paracetamol. Risk of overdose.");
+            }
+            if (drugString.includes("alcohol") || (drugString.includes("metronidazole"))) {
+                mockInteractions.push("⚠️ Moderate: Avoid alcohol while taking Metronidazole.");
+            }
+
+            // If random demo behavior is desired generally
+            if (mockInteractions.length === 0 && Math.random() > 0.7) {
+                mockInteractions.push("⚠️ Moderate: Potential interaction detected. Monitor patient.");
+            }
+
+            return mockInteractions;
+        }
+
         try {
             // UPDATED: Use Dedicated Interaction Webhook
             const response = await fetch(ENDPOINTS.INTERACTIONS, {
@@ -377,9 +405,25 @@ export const aiService = {
 
             return [];
         } catch (e) {
-            logger.warn("Interaction Check Failed, switching to LLM Fallback:", e);
+            logger.warn("Interaction Check Failed, switching to Offline/LLM Fallback:", e);
 
-            // Fallback: Ask Gemini
+            // 1. FAST LOCAL FALLBACK (Offline Knowledge Base)
+            const offlineWarnings: string[] = [];
+            const d = drugs.map(x => x.toLowerCase());
+
+            // Common Indian Interactions
+            if (d.some(x => x.includes("aspirin")) && d.some(x => x.includes("warfarin")))
+                offlineWarnings.push("⚠️ Major: Aspirin + Warfarin -> Bleeding Risk");
+            if (d.some(x => x.includes("azithromycin")) && d.some(x => x.includes("ondansetron")))
+                offlineWarnings.push("⚠️ Moderate: QT Prolongation Risk");
+            if (d.some(x => x.includes("thyroxine")) && d.some(x => x.includes("calcium")))
+                offlineWarnings.push("⚠️ Moderate: Calcium reduces Thyroxine absorption");
+            if (d.some(x => x.includes("alcohol")) && d.some(x => x.includes("metronidazole")))
+                offlineWarnings.push("⚠️ Severe: Disulfiram-like reaction (Vomiting)");
+
+            if (offlineWarnings.length > 0) return offlineWarnings;
+
+            // 2. LLM Fallback (Simulated if even LLM fails)
             const prompt = `
             Act as a Clinical Pharmacist. Check for interactions between these drugs: ${drugs.join(', ')}.
             Return a valid JSON array of strings ONLY. Each string should be a warning starting with "⚠️ Major" or "⚠️ Moderate".

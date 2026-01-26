@@ -6,6 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Pen } from "lucide-react";
 import {
   MessageSquare,
   User,
@@ -75,6 +78,31 @@ const Orders = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+
+  // Edit Phone State
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [newPhone, setNewPhone] = useState("");
+
+  const updateCustomerPhone = async () => {
+    if (!editingOrder || !newPhone) return;
+
+    // Auto-prefix 91 if length is 10
+    let finalPhone = newPhone.replace(/\D/g, '');
+    if (finalPhone.length === 10) finalPhone = `91${finalPhone}`;
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ customer_phone: finalPhone })
+      .eq('id', editingOrder.id);
+
+    if (error) {
+      toast.error("Failed to update phone number");
+    } else {
+      toast.success("Phone updated!");
+      fetchOrders(); // Refresh list with new number
+      setEditingOrder(null);
+    }
+  };
 
   useEffect(() => {
     const backupId = localStorage.getItem("currentShopId");
@@ -313,7 +341,21 @@ const Orders = () => {
                           </div>
                           <div>
                             <h3 className="font-semibold text-foreground">{order.customer_name}</h3>
-                            <p className="text-sm text-muted-foreground">{order.source}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm text-muted-foreground">{order.customer_phone || "No Phone"}</p>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-primary"
+                                onClick={() => {
+                                  setEditingOrder(order);
+                                  setNewPhone(order.customer_phone || "");
+                                }}
+                              >
+                                <Pen className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground/70">{order.source}</p>
                           </div>
                           <Badge variant={order.status === 'pending' ? 'secondary' : order.status === 'approved' ? 'default' : 'destructive'}>{order.status}</Badge>
                         </div>
@@ -373,6 +415,27 @@ const Orders = () => {
           if (currentShop?.id) fetchOrders(currentShop.id);
         }}
       />
+
+      {/* Edit Contact Dialog */}
+      <Dialog open={!!editingOrder} onOpenChange={(open) => !open && setEditingOrder(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Customer Contact</DialogTitle>
+            <DialogDescription>Enter the correct WhatsApp number for {editingOrder?.customer_name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Phone Number</Label>
+              <Input
+                placeholder="e.g. 9876543210"
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+              />
+            </div>
+            <Button className="w-full" onClick={updateCustomerPhone}>Update & Save</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
