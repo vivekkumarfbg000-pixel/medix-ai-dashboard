@@ -68,7 +68,16 @@ const Prescriptions = () => {
             .order('created_at', { ascending: false });
 
         if (!error && data) {
-            setPrescriptions(data as unknown as Prescription[]);
+            const parsed = data.map((p: any) => {
+                let meds = p.medicines;
+                if (typeof meds === 'string') {
+                    try {
+                        meds = JSON.parse(meds);
+                    } catch (e) { meds = []; }
+                }
+                return { ...p, medicines: meds };
+            });
+            setPrescriptions(parsed as unknown as Prescription[]);
         }
         setLoading(false);
     };

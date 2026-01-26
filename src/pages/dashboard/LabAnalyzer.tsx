@@ -27,16 +27,8 @@ const LabAnalyzer = () => {
         if (!report) return;
         setExplaining(true);
         try {
-            const text = await labService.explainMedicalReport(report.summary); // Using labService wrapper or direct aiService? labService is imported.
-            // Wait, labService is imported, but I added method to aiService. I should import aiService.
-            // Let me check imports. 'aiService' is NOT imported. I need to import it.
-            // Actually, I should probably call aiService directly here.
-
-            // Wait, the previous tool call modified aiService. I should use aiService directly.
-            // But first I need to check if I can import aiService. 
-            // Yes, existing code imports labService. I will add aiService import.
-            // But first let me check lines 1-12.
-
+            const text = await aiService.explainMedicalReport(report.summary);
+            setHinglishSummary(text);
         } catch (e) {
             toast.error("Explanation failed");
         }
@@ -106,28 +98,44 @@ const LabAnalyzer = () => {
     const [isSaving, setIsSaving] = useState(false);
     const handleSaveToPatient = async () => {
         if (!report) return;
-        // In a real flow, we'd select a patient from a dropdown. 
-        // For now, if we have a patientPhone, we try to find them or just save with the phone as metadata.
-        // Ideally, LabAnalyzer should use `CustomerSearch` component.
+        if (!patientPhone) {
+            toast.error("Please enter a Patient Phone Number first.");
+            return;
+        }
 
         setIsSaving(true);
         try {
             // 1. Try to find patient by phone
             let patientId = null;
             let patientName = "Unknown";
+            const currentShopId = (await supabase.auth.getUser()).data.user?.user_metadata?.shop_id || 'UNKNOWN';
 
-            if (patientPhone) {
-                const { data: customers } = await supabase.from('customers').select('id, name').eq('phone', patientPhone).limit(1);
-                if (customers && customers.length > 0) {
-                    patientId = customers[0].id;
-                    patientName = customers[0].name;
-                }
+            const { data: customers } = await supabase.from('customers').select('id, name').eq('phone', patientPhone).limit(1);
+
+            if (customers && customers.length > 0) {
+                patientId = customers[0].id;
+                patientName = customers[0].name;
+            } else {
+                // AUTO-CREATE PATIENT
+                // If patient doesn't exist, create a profiled one
+                toast.loading("New Patient detected. Creating record...");
+                const { data: newCust, error: createError } = await supabase.from('customers').insert({
+                    shop_id: currentShopId,
+                    name: report.patientName || "New Patient (Lab)", // Extracted from report if available
+                    phone: patientPhone,
+                    total_spent: 0,
+                    credit_balance: 0
+                }).select().single();
+
+                if (createError) throw createError;
+                patientId = newCust.id;
+                patientName = newCust.name;
+                toast.dismiss();
             }
 
             // 2. Insert Report
             const { error } = await supabase.from('lab_reports').insert({
-                // @ts-ignore
-                shop_id: (await supabase.auth.getUser()).data.user?.user_metadata?.shop_id || 'UNKNOWN', // Ideally use currentShop hook but accessing auth directly for speed in this context if currentShop is null
+                shop_id: currentShopId,
                 patient_id: patientId,
                 patient_name: patientName,
                 summary_json: report,
@@ -135,7 +143,7 @@ const LabAnalyzer = () => {
             });
 
             if (error) throw error;
-            toast.success("Report saved to Patient Profile!");
+            toast.success(`Report saved for ${patientName}!`);
         } catch (e) {
             console.error(e);
             toast.error("Failed to save report.");

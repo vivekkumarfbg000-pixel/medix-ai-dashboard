@@ -64,19 +64,28 @@ export const SalesAnalytics = ({ shopId }: SalesAnalyticsProps) => {
                 }
 
                 // Items
-                const items = order.order_items as any[];
-                if (Array.isArray(items)) {
-                    items.forEach(item => {
-                        const name = item.name || item.medicine_name || 'Unknown';
-                        const qty = parseInt(item.qty || item.quantity || 0);
-                        const price = parseFloat(item.price || item.unit_price || 0);
-
-                        const existing = itemMap.get(name) || { name, qty: 0, revenue: 0 };
-                        existing.qty += qty;
-                        existing.revenue += (qty * price);
-                        itemMap.set(name, existing);
-                    });
+                // Items
+                let items: any[] = [];
+                if (Array.isArray(order.order_items)) {
+                    items = order.order_items;
+                } else if (typeof order.order_items === 'string') {
+                    try {
+                        items = JSON.parse(order.order_items);
+                    } catch (e) {
+                        items = [];
+                    }
                 }
+
+                items.forEach((item: any) => {
+                    const name = item.name || item.medicine_name || 'Unknown';
+                    const qty = parseInt(item.qty || item.quantity || 0);
+                    const price = parseFloat(item.price || item.unit_price || 0);
+
+                    const existing = itemMap.get(name) || { name, qty: 0, revenue: 0 };
+                    existing.qty += qty;
+                    existing.revenue += (qty * price);
+                    itemMap.set(name, existing);
+                });
             });
 
             // Convert and Sort

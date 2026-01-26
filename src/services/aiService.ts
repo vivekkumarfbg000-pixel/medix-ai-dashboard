@@ -377,10 +377,31 @@ export const aiService = {
 
             return [];
         } catch (e) {
-            logger.warn("Interaction Check Failed:", e);
-            // Return a special error string so UI knows it failed (optional, or just log)
-            // returning [] implies "Safe". Ideally finding a way to signal "Unknown".
-            return []; // Fail safe for now
+            logger.warn("Interaction Check Failed, switching to LLM Fallback:", e);
+
+            // Fallback: Ask Gemini
+            const prompt = `
+            Act as a Clinical Pharmacist. Check for interactions between these drugs: ${drugs.join(', ')}.
+            Return a valid JSON array of strings ONLY. Each string should be a warning starting with "⚠️ Major" or "⚠️ Moderate".
+            If no interactions, return empty array [].
+            Examples: ["⚠️ Major: Drug A + Drug B increase risk of bleeding."]
+            No markdown. Strict JSON.
+            `;
+
+            try {
+                const aiRes = await this.chatWithAgent(prompt);
+                let clean = aiRes.reply.replace(/```json/g, '').replace(/```/g, '').trim();
+                // Ensure it's an array
+                const first = clean.indexOf('[');
+                const last = clean.lastIndexOf(']');
+                if (first !== -1 && last !== -1) clean = clean.substring(first, last + 1);
+
+                const parsed = JSON.parse(clean);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (fallbackErr) {
+                logger.error("Interaction Fallback Failed", fallbackErr);
+                return [];
+            }
         }
     },
 

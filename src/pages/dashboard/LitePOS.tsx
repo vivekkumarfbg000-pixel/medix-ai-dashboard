@@ -156,10 +156,42 @@ const LitePOS = () => {
         // Determine Final Customer Details
         const finalName = selectedCustomer?.name || guestDetails.name || "Walk-in Customer";
         const finalPhone = selectedCustomer?.phone || guestDetails.phone || null;
+        let finalCustomerId = selectedCustomer?.id || null;
 
         try {
             // 1. Try Online Checkout First
             if (navigator.onLine) {
+                // AUTO-CREATE CUSTOMER FOR CREDIT (Udhaar)
+                if (paymentMode === 'credit' && !finalCustomerId) {
+                    if (!finalName || finalName === "Walk-in Customer") {
+                        toast.error("Customer Name is required for Credit (Udhaar)!");
+                        return;
+                    }
+
+                    toast.loading("Creating Account for Credit...");
+                    // Check if exists by phone first to avoid dupe? 
+                    // For now, simple insert to ensure flow works.
+                    const { data: newCust, error: createError } = await supabase
+                        .from('customers')
+                        .insert({
+                            shop_id: currentShop?.id,
+                            name: finalName,
+                            phone: finalPhone || "",
+                            credit_balance: 0
+                        })
+                        .select()
+                        .single();
+
+                    if (createError) {
+                        console.error("Failed to create customer", createError);
+                        toast.error("Could not create customer account for credit.");
+                        return;
+                    }
+                    finalCustomerId = newCust.id;
+                    toast.dismiss();
+                    toast.success(`Created account for ${finalName}`);
+                }
+
                 try {
                     const { data: order, error: orderError } = await supabase
                         .from("orders")
@@ -167,7 +199,7 @@ const LitePOS = () => {
                             shop_id: currentShop?.id,
                             customer_name: finalName,
                             customer_phone: finalPhone,
-                            customer_id: selectedCustomer?.id || null,
+                            customer_id: finalCustomerId,
                             total_amount: total,
                             payment_mode: paymentMode,
                             status: paymentMode === 'credit' ? "pending" : "approved",
@@ -210,14 +242,28 @@ const LitePOS = () => {
                     }
 
                     // 4. Update Customer Credit Balance if payment is credit
-                    if (paymentMode === 'credit' && selectedCustomer?.id) {
-                        const newBalance = (selectedCustomer.credit_balance || 0) + total;
+                    if (paymentMode === 'credit' && finalCustomerId) {
+                        // Re-fetch current balance to be safe or just increment (RPC is better but simple update for now)
+                        // Fetch first
+                        const { data: freshCust } = await supabase.from('customers').select('credit_balance').eq('id', finalCustomerId).single();
+                        const currentBal = freshCust?.credit_balance || 0;
+                        const newBalance = currentBal + total;
+
                         const { error: creditError } = await supabase
                             .from('customers')
                             .update({ credit_balance: newBalance })
-                            .eq('id', selectedCustomer.id);
+                            .eq('id', finalCustomerId);
 
                         if (creditError) console.error("Credit Balance Update Failed:", creditError);
+
+                        // Log Ledger Entry
+                        await supabase.from('ledger_entries').insert({
+                            shop_id: currentShop?.id,
+                            customer_id: finalCustomerId,
+                            amount: total,
+                            transaction_type: 'CREDIT', // Matches Customers.tsx logic (CREDIT increases balance)
+                            description: `Order #${order.invoice_number || order.id.slice(0, 6)}`
+                        });
                     }
 
                     // Success Online
@@ -616,7 +662,8 @@ const LitePOS = () => {
         const subtotal = cart.reduce((acc, curr) => acc + (curr.item.unit_price * curr.qty), 0);
         const totalProfit = cart.reduce((acc, curr) => acc + ((curr.item.unit_price - (curr.item.purchase_price || 0)) * curr.qty), 0);
         const discountAmount = (subtotal * discountPercentage) / 100;
-        const total = Math.round(subtotal - discountAmount);
+        // FIX: Use 2 decimal precision instead of Math.round (which forces integers)
+        const total = Number((subtotal - discountAmount).toFixed(2));
         const margin = subtotal > 0 ? (totalProfit / subtotal) * 100 : 0;
         return { subtotal, discount: discountAmount, total, totalProfit, margin };
     };
@@ -809,6 +856,7 @@ const LitePOS = () => {
                         <div className="flex-1">
                             <CustomerSearch
                                 onSelect={setSelectedCustomer}
+                                selectedCustomer={selectedCustomer}
                                 placeholder="Link Customer..."
                                 className="h-8 bg-transparent border-none text-slate-200 focus:ring-0 text-xs placeholder:text-slate-600 w-full"
                             />

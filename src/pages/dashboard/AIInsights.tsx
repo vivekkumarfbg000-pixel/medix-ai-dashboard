@@ -155,7 +155,16 @@ const AIInsights = () => {
       const itemCounts: Record<string, number> = {};
 
       orders.forEach(order => {
-        const items: any[] = Array.isArray(order.order_items) ? order.order_items : [];
+        let items: any[] = [];
+        if (Array.isArray(order.order_items)) {
+          items = order.order_items;
+        } else if (typeof order.order_items === 'string') {
+          try {
+            items = JSON.parse(order.order_items);
+          } catch (e) {
+            items = [];
+          }
+        }
         if (items.length < 2) return;
 
         // Extract unique product names in this order

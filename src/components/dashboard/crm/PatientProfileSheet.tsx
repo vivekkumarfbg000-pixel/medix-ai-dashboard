@@ -151,15 +151,30 @@ export const PatientProfileSheet = ({ customer, open, onOpenChange, onUpdate }: 
                                                     <span className="text-xs text-muted-foreground">{format(new Date(order.created_at), 'dd MMM yyyy')}</span>
                                                 </div>
                                                 <div className="text-xs text-slate-600 space-y-1">
-                                                    {Array.isArray(order.order_items) && order.order_items.slice(0, 3).map((item: any, i: number) => (
-                                                        <div key={i} className="flex justify-between">
-                                                            <span>{item.name || item.medicine_name}</span>
-                                                            <span className="text-slate-400">x{item.qty}</span>
-                                                        </div>
-                                                    ))}
-                                                    {Array.isArray(order.order_items) && order.order_items.length > 3 && (
-                                                        <div className="text-slate-400 italic">+ {order.order_items.length - 3} more</div>
-                                                    )}
+                                                    {(() => {
+                                                        let items: any[] = [];
+                                                        if (Array.isArray(order.order_items)) {
+                                                            items = order.order_items;
+                                                        } else if (typeof order.order_items === 'string') {
+                                                            try {
+                                                                items = JSON.parse(order.order_items);
+                                                            } catch (e) { items = []; }
+                                                        }
+
+                                                        return (
+                                                            <>
+                                                                {items.slice(0, 3).map((item: any, i: number) => (
+                                                                    <div key={i} className="flex justify-between">
+                                                                        <span>{item.name || item.medicine_name}</span>
+                                                                        <span className="text-slate-400">x{item.qty}</span>
+                                                                    </div>
+                                                                ))}
+                                                                {items.length > 3 && (
+                                                                    <div className="text-slate-400 italic">+ {items.length - 3} more</div>
+                                                                )}
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
                                         ))}

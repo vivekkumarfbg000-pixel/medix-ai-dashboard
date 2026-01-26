@@ -49,8 +49,18 @@ const ScheduleH1 = () => {
             // Flatten items and filter roughly (in production, need robust 'is_h1' flag on inventory)
             const h1Items: any[] = [];
             data.forEach(order => {
-                const items = order.order_items as any[];
-                items.forEach(item => {
+                let items: any[] = [];
+                if (Array.isArray(order.order_items)) {
+                    items = order.order_items;
+                } else if (typeof order.order_items === 'string') {
+                    try {
+                        items = JSON.parse(order.order_items);
+                    } catch (e) {
+                        items = [];
+                    }
+                }
+
+                items.forEach((item: any) => {
                     // DEMO: Assuming items with "H1" or specific keywords are Schedule H1
                     // In real implementation, check item.h1_flag from DB
                     // For now, let's treat ALL items as potential entries for the register view 
@@ -58,7 +68,7 @@ const ScheduleH1 = () => {
                     // but highlight assumed H1 drugs.
 
                     h1Items.push({
-                        id: order.id + item.inventory_id,
+                        id: order.id + (item.inventory_id || item.id || Math.random()),
                         date: order.created_at,
                         invoice: order.invoice_number,
                         patient: order.customer_name,

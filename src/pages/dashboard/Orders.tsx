@@ -101,7 +101,19 @@ const Orders = () => {
       console.error("Orders Load Error:", error);
       toast.error("Failed to load orders");
     } else {
-      setOrders((data as unknown as Order[]) || []);
+      // Safe Parsing for JSONB columns which might be returned as strings
+      const parsedData = (data || []).map((order: any) => {
+        let items = order.order_items;
+        if (typeof items === 'string') {
+          try {
+            items = JSON.parse(items);
+          } catch (e) {
+            items = [];
+          }
+        }
+        return { ...order, order_items: items };
+      });
+      setOrders(parsedData as Order[]);
     }
     setLoading(false);
   };

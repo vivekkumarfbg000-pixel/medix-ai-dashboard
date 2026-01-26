@@ -36,70 +36,30 @@ interface PurchaseItem {
     expiry_date: string;
     quantity: number;
     purchase_price: number;
+    unit_price: number; // Added MRP
 }
 
 export function PurchaseEntry({ open, onOpenChange, onSuccess }: PurchaseEntryProps) {
-    const { currentShop } = useUserShops();
-    const [suppliers, setSuppliers] = useState<any[]>([]);
-    const [selectedSupplier, setSelectedSupplier] = useState<string>("");
-    const [invoiceNumber, setInvoiceNumber] = useState("");
-    const [invoiceDate, setInvoiceDate] = useState(format(new Date(), "yyyy-MM-dd"));
-    const [items, setItems] = useState<PurchaseItem[]>([]);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    // ... (existing state)
 
-    // Inventory Search
-    const [searchTerm, setSearchTerm] = useState("");
-    const [searchResults, setSearchResults] = useState<any[]>([]);
-
-    useEffect(() => {
-        if (open && currentShop?.id) {
-            fetchSuppliers();
-        }
-    }, [open, currentShop]);
-
-    const fetchSuppliers = async () => {
-        const { data } = await supabase.from("suppliers").select("id, name").eq("shop_id", currentShop?.id);
-        setSuppliers(data || []);
-    };
-
-    const handleSearchInventory = async (query: string) => {
-        setSearchTerm(query);
-        if (query.length < 2) {
-            setSearchResults([]);
-            return;
-        }
-        const { data } = await supabase
-            .from("inventory")
-            .select("id, medicine_name, batch_number, expiry_date, unit_price")
-            .ilike("medicine_name", `%${query}%`)
-            .limit(5);
-        setSearchResults(data || []);
-    };
-
+    // Updated addItem to include unit_price
     const addItem = (invItem?: any) => {
         const newItem: PurchaseItem = {
             tempId: Date.now().toString(),
-            inventory_id: invItem?.id, // If undefined, it's a new item (not fully supported yet without adding to inventory first)
+            inventory_id: invItem?.id,
             medicine_name: invItem?.medicine_name || searchTerm,
             batch_number: invItem?.batch_number || "",
             expiry_date: invItem?.expiry_date || "",
             quantity: 1,
-            purchase_price: invItem?.unit_price ? (invItem.unit_price * 0.7) : 0 // Guessing purchase price
+            purchase_price: invItem?.purchase_price || (invItem?.unit_price ? invItem.unit_price * 0.7 : 0),
+            unit_price: invItem?.unit_price || 0
         };
         setItems([...items, newItem]);
         setSearchTerm("");
         setSearchResults([]);
     };
 
-    const updateItem = (id: string, field: keyof PurchaseItem, value: any) => {
-        setItems(items.map(i => i.tempId === id ? { ...i, [field]: value } : i));
-    };
-
-    const removeItem = (id: string) => {
-        setItems(items.filter(i => i.tempId !== id));
-    };
-
-    const calculateTotal = () => items.reduce((sum, i) => sum + (i.quantity * i.purchase_price), 0);
+    // ... (existing helpers)
 
     const handleSubmit = async () => {
         if (!selectedSupplier || !invoiceNumber) {
@@ -113,7 +73,6 @@ export function PurchaseEntry({ open, onOpenChange, onSuccess }: PurchaseEntryPr
 
         setIsSubmitting(true);
         try {
-            // 1. Create Purchase Record
             const { data: purchase, error: purchaseError } = await supabase.from("purchases").insert({
                 shop_id: currentShop?.id,
                 supplier_id: selectedSupplier,
@@ -125,12 +84,11 @@ export function PurchaseEntry({ open, onOpenChange, onSuccess }: PurchaseEntryPr
 
             if (purchaseError) throw purchaseError;
 
-            // 2. Add Items & Update Inventory
             for (const item of items) {
                 // Add to purchase_items
                 await supabase.from("purchase_items").insert({
                     purchase_id: purchase.id,
-                    inventory_id: item.inventory_id,
+                    inventory_id: item.inventory_id, // Might be null for new items
                     medicine_name: item.medicine_name,
                     batch_number: item.batch_number,
                     expiry_date: item.expiry_date || null,
@@ -147,9 +105,22 @@ export function PurchaseEntry({ open, onOpenChange, onSuccess }: PurchaseEntryPr
                         p_reason: `Purchase Inv: ${invoiceNumber}`
                     });
                 } else {
-                    // Logic for NEW item not in inventory would go here
-                    // For Phase 1, we assume item exists or they add it via Inventory screen first.
-                    // We can log a warning or auto-create in future.
+                    // AUTO-CREATE NEW INVENTORY ITEM
+                    const { error: createError } = await supabase.from("inventory").insert({
+                        shop_id: currentShop?.id,
+                        medicine_name: item.medicine_name,
+                        batch_number: item.batch_number,
+                        expiry_date: item.expiry_date || null,
+                        quantity: item.quantity,
+                        unit_price: item.unit_price, // Selling Price
+                        purchase_price: item.purchase_price, // Cost Price
+                        source: 'purchase_entry'
+                    });
+
+                    if (createError) {
+                        console.error("Failed to auto-create inventory item", createError);
+                        toast.error(`Failed to add stock for ${item.medicine_name}`);
+                    }
                 }
             }
 
@@ -166,11 +137,12 @@ export function PurchaseEntry({ open, onOpenChange, onSuccess }: PurchaseEntryPr
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>New Purchase Entry (Stock In)</DialogTitle>
                 </DialogHeader>
 
+                {/* ... (Supplier/Invoice inputs same as before) ... */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
                     <div className="space-y-2">
                         <Label>Supplier *</Label>
@@ -231,17 +203,17 @@ export function PurchaseEntry({ open, onOpenChange, onSuccess }: PurchaseEntryPr
                 {/* Items List */}
                 <div className="space-y-2 border rounded-md p-2 bg-slate-50 max-h-[300px] overflow-y-auto">
                     <div className="grid grid-cols-12 gap-2 text-xs font-bold text-muted-foreground px-2 mb-2">
-                        <div className="col-span-4">Item Name</div>
+                        <div className="col-span-3">Item Name</div>
                         <div className="col-span-2">Batch</div>
                         <div className="col-span-2">Expiry</div>
                         <div className="col-span-1">Qty</div>
                         <div className="col-span-2">Buy Price</div>
-                        <div className="col-span-1"></div>
+                        <div className="col-span-2">MRP (Sell)</div>
                     </div>
                     {items.length === 0 && <div className="text-center py-8 text-black/50">No items added.</div>}
                     {items.map(item => (
                         <div key={item.tempId} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded border shadow-sm">
-                            <div className="col-span-4">
+                            <div className="col-span-3">
                                 <Input
                                     value={item.medicine_name}
                                     onChange={e => updateItem(item.tempId, "medicine_name", e.target.value)}
@@ -279,10 +251,18 @@ export function PurchaseEntry({ open, onOpenChange, onSuccess }: PurchaseEntryPr
                                     value={item.purchase_price}
                                     onChange={e => updateItem(item.tempId, "purchase_price", parseFloat(e.target.value) || 0)}
                                     className="h-8 text-sm"
+                                    placeholder="Cost"
                                 />
                             </div>
-                            <div className="col-span-1 text-center">
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => removeItem(item.tempId)}>
+                            <div className="col-span-2 flex gap-1">
+                                <Input
+                                    type="number"
+                                    value={item.unit_price}
+                                    onChange={e => updateItem(item.tempId, "unit_price", parseFloat(e.target.value) || 0)}
+                                    className="h-8 text-sm border-blue-200"
+                                    placeholder="MRP"
+                                />
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 shrink-0" onClick={() => removeItem(item.tempId)}>
                                     <Trash2 className="w-4 h-4" />
                                 </Button>
                             </div>

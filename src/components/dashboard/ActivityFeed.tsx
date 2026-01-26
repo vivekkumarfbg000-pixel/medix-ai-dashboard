@@ -73,7 +73,7 @@ export const ActivityFeed = () => {
                         // Simple stats calc (approx)
                         if (log.action === 'INSERT') {
                             orderCount++;
-                            rev += (amount || 0);
+                            rev += Number(amount || 0);
                         }
                     } else if (log.table_name === "inventory") {
                         const item = log.new_value?.medicine_name || log.old_value?.medicine_name || "pharmacy item";

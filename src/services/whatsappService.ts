@@ -38,7 +38,8 @@ export const whatsappService = {
      * Generate Invoice Message
      */
     generateInvoiceLink(phone: string | null, order: WhatsAppOrder): string {
-        const itemsList = order.items.map((item, idx) =>
+        const items = Array.isArray(order.items) ? order.items : [];
+        const itemsList = items.map((item, idx) =>
             `${idx + 1}. ${item.name} x${item.qty || 1} = ₹${item.price * (item.qty || 1)}`
         ).join('\n');
 

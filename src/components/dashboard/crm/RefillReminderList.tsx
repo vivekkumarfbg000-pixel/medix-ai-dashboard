@@ -52,10 +52,21 @@ export const RefillReminderList = ({ shopId }: { shopId: string }) => {
 
         if (data) {
             const mapped: Reminder[] = data.map((o: any) => {
+                let items: any[] = [];
+                if (Array.isArray(o.order_items)) {
+                    items = o.order_items;
+                } else if (typeof o.order_items === 'string') {
+                    try {
+                        items = JSON.parse(o.order_items);
+                    } catch (e) {
+                        items = [];
+                    }
+                }
+
                 // Determine main med (first item for now or logic to pick chronic)
                 // Assuming first item
-                const mainItem = Array.isArray(o.order_items) && o.order_items.length > 0
-                    ? (o.order_items[0].name || o.order_items[0].medicine_name)
+                const mainItem = items.length > 0
+                    ? (items[0].name || items[0].medicine_name)
                     : "Medicine";
 
                 return {

@@ -46,7 +46,17 @@ const Compliance = () => {
             const h1Entries: H1Entry[] = [];
 
             for (const order of orders || []) {
-                const items = order.order_items as any[];
+                let items: any[] = [];
+                if (Array.isArray(order.order_items)) {
+                    items = order.order_items;
+                } else if (typeof order.order_items === 'string') {
+                    try {
+                        items = JSON.parse(order.order_items);
+                    } catch (e) {
+                        items = [];
+                    }
+                }
+
                 if (!items || !Array.isArray(items)) continue;
 
                 for (const item of items) {
