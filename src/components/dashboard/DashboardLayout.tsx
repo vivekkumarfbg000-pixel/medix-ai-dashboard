@@ -171,9 +171,22 @@ export function DashboardLayout() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          // Let the Router/Page handle redirect, just stop loading
+        // Timeout Promise
+        const timeout = new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), 5000));
+
+        // Race actual session check vs timeout
+        const result = await Promise.race([
+          supabase.auth.getSession(),
+          timeout
+        ]) as any;
+
+        if (result?.timeout) {
+          console.warn("Session check timed out. Proceeding...");
+        } else {
+          const { session } = result?.data || {};
+          if (!session) {
+            // Let the Router/Page handle redirect, just stop loading
+          }
         }
       } catch (err) {
         console.error("Session check failed", err);
