@@ -134,9 +134,10 @@ export const PatientProfileSheet = ({ customer, open, onOpenChange, onUpdate }: 
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col mt-4">
                     <TabsList className="w-full">
-                        <TabsTrigger value="history" className="flex-1">Puchase History</TabsTrigger>
-                        <TabsTrigger value="reports" className="flex-1">Lab Reports</TabsTrigger>
-                        <TabsTrigger value="notes" className="flex-1">Clinical Notes</TabsTrigger>
+                        <TabsTrigger value="history" className="flex-1">Sales</TabsTrigger>
+                        <TabsTrigger value="khata" className="flex-1">Khata</TabsTrigger>
+                        <TabsTrigger value="reports" className="flex-1">Lab</TabsTrigger>
+                        <TabsTrigger value="notes" className="flex-1">Notes</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="history" className="flex-1 overflow-hidden relative">
@@ -187,6 +188,10 @@ export const PatientProfileSheet = ({ customer, open, onOpenChange, onUpdate }: 
                         <LabReportsList customerId={customer.id} />
                     </TabsContent>
 
+                    <TabsContent value="khata" className="flex-1 overflow-hidden relative">
+                        <CustomerLedger customerId={customer.id} />
+                    </TabsContent>
+
                     <TabsContent value="notes" className="flex-1 flex flex-col">
                         <div className="flex-1 p-1">
                             <Textarea
@@ -202,7 +207,50 @@ export const PatientProfileSheet = ({ customer, open, onOpenChange, onUpdate }: 
                     </TabsContent>
                 </Tabs>
             </SheetContent>
-        </Sheet>
+        </Sheet >
+    );
+};
+
+const CustomerLedger = ({ customerId }: { customerId: string }) => {
+    const [entries, setEntries] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchLedger = async () => {
+            setLoading(true);
+            const { data } = await supabase
+                .from('ledger_entries')
+                .select('*')
+                .eq('customer_id', customerId)
+                .order('created_at', { ascending: false });
+            if (data) setEntries(data);
+            setLoading(false);
+        };
+        fetchLedger();
+    }, [customerId]);
+
+    return (
+        <ScrollArea className="h-full pr-4">
+            {loading ? <p className="text-center py-4 text-muted-foreground">Loading Ledger...</p> :
+                entries.length === 0 ? <p className="text-center py-8 text-muted-foreground">No credit history.</p> : (
+                    <div className="space-y-3 pt-2">
+                        {entries.map(entry => (
+                            <div key={entry.id} className="flex justify-between items-center p-3 border rounded-lg bg-slate-50">
+                                <div>
+                                    <p className="font-medium text-sm text-slate-800">{entry.description}</p>
+                                    <p className="text-xs text-slate-500">{format(new Date(entry.created_at), 'dd MMM yyyy, p')}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className={`font-bold ${entry.transaction_type === 'CREDIT' ? 'text-red-600' : 'text-green-600'}`}>
+                                        {entry.transaction_type === 'CREDIT' ? '+' : '-'} ₹{entry.amount}
+                                    </p>
+                                    <Badge variant="outline" className="text-[10px] h-5">{entry.transaction_type}</Badge>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+        </ScrollArea>
     );
 };
 

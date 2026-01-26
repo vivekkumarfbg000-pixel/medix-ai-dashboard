@@ -41,6 +41,7 @@ const LitePOS = () => {
     const searchInputRef = useRef<HTMLInputElement>(null);
     const interactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const [alternativeData, setAlternativeData] = useState<{ name: string; substitutes: string[] } | null>(null);
+    const [doctorName, setDoctorName] = useState(""); // For H1 Compliance
 
 
     const location = useLocation(); // Hook to get navigation state
@@ -199,6 +200,7 @@ const LitePOS = () => {
                             shop_id: currentShop?.id,
                             customer_name: finalName,
                             customer_phone: finalPhone,
+                            doctor_name: doctorName, // Defined in state below
                             customer_id: finalCustomerId,
                             total_amount: total,
                             payment_mode: paymentMode,
@@ -210,7 +212,8 @@ const LitePOS = () => {
                                 name: c.item.medicine_name,
                                 qty: c.qty,
                                 price: c.item.unit_price,
-                                purchase_price: c.item.purchase_price || 0
+                                purchase_price: c.item.purchase_price || 0,
+                                schedule_h1: c.item.schedule_h1
                             }))
                         })
                         .select()
@@ -403,6 +406,8 @@ const LitePOS = () => {
                     purchase_price: item.cost_price || item.purchase_price || 0,
                     generic_name: item.generic_name,
                     composition: item.composition,
+                    schedule_h1: item.schedule_h1,
+                    manufacturer: item.manufacturer,
                     is_synced: 1
                 }));
 
@@ -421,6 +426,48 @@ const LitePOS = () => {
     useEffect(() => {
         if (currentShop?.id) {
             syncInventory();
+
+            // REALTIME SUSCRIPTION
+            const channel = supabase
+                .channel('pos-inventory-sync')
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'inventory', filter: `shop_id=eq.${currentShop?.id}` },
+                    async (payload) => {
+                        console.log("Realtime Inventory Change:", payload);
+
+                        // Handle DELETE
+                        if (payload.eventType === 'DELETE') {
+                            await db.inventory.delete(payload.old.id);
+                            return;
+                        }
+
+                        // Handle INSERT/UPDATE
+                        const item = payload.new as any;
+                        const offlineItem: OfflineInventory = {
+                            id: item.id,
+                            shop_id: item.shop_id,
+                            medicine_name: item.medicine_name,
+                            quantity: item.quantity,
+                            unit_price: item.unit_price,
+                            batch_number: item.batch_number,
+                            expiry_date: item.expiry_date,
+                            rack_number: item.rack_number,
+                            purchase_price: item.cost_price || item.purchase_price || 0,
+                            generic_name: item.generic_name,
+                            composition: item.composition,
+                            schedule_h1: item.schedule_h1,
+                            manufacturer: item.manufacturer,
+                            is_synced: 1
+                        };
+
+                        await db.inventory.put(offlineItem);
+                        toast.info(`Price/Stock Updated: ${item.medicine_name}`);
+                    }
+                )
+                .subscribe();
+
+            return () => { supabase.removeChannel(channel); };
         }
     }, [currentShop?.id]);
 
@@ -487,22 +534,61 @@ const LitePOS = () => {
         processImport();
     }, [location.state, currentShop?.id]);
 
+    // --- DEBOUNCE SEARCH ---
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [search]);
+
     // --- DATA ---
     const products = useLiveQuery(
         () => {
             if (!currentShop?.id) return [];
             let collection = db.inventory.where("shop_id").equals(currentShop.id);
 
-            if (search) {
-                return collection.filter(i => i.medicine_name.toLowerCase().startsWith(search.toLowerCase())).limit(20).toArray();
+            if (debouncedSearch) {
+                return collection.filter(i => i.medicine_name.toLowerCase().startsWith(debouncedSearch.toLowerCase())).limit(20).toArray();
             }
             return collection.limit(20).toArray();
         },
-        [search, currentShop?.id]
+        [debouncedSearch, currentShop?.id]
     );
 
     // --- CART LOGIC ---
     const addToCart = async (item: OfflineInventory) => {
+        // SAFETY CHECK: Expiry
+        if (item.expiry_date) {
+            const today = new Date();
+            const expiry = new Date(item.expiry_date);
+            const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+            if (diffDays < 0) {
+                toast.error(`EXPIRED ITEM! Cannot Sell.`, {
+                    description: `${item.medicine_name} expired on ${item.expiry_date}`,
+                    duration: 5000,
+                    icon: <ShieldAlert className="text-red-600" />
+                });
+                return; // BLOCK SALE
+            }
+
+            if (diffDays < 30) {
+                toast.warning(`Near Expiry Warning`, {
+                    description: `Expires in ${diffDays} days (${item.expiry_date})`
+                });
+            }
+        }
+
+        // SAFETY CHECK: Low Stock
+        if (item.quantity < 10) {
+            toast.info("Low Stock Alert", {
+                description: `Only ${item.quantity} units remaining.`
+            });
+        }
+
         setCart(prev => {
             const existing = prev.find(p => p.item.id === item.id);
             if (existing) {
@@ -853,12 +939,21 @@ const LitePOS = () => {
                     {/* Customer Context */}
                     <div className="min-h-[3.5rem] bg-slate-900 border-b border-slate-800 flex items-center px-3 gap-2 shrink-0">
                         <User className="w-4 h-4 text-slate-500" />
-                        <div className="flex-1">
-                            <CustomerSearch
-                                onSelect={setSelectedCustomer}
-                                selectedCustomer={selectedCustomer}
-                                placeholder="Link Customer..."
-                                className="h-8 bg-transparent border-none text-slate-200 focus:ring-0 text-xs placeholder:text-slate-600 w-full"
+                        <div className="flex-1 flex gap-2">
+                            <div className="relative flex-1">
+                                <User className="absolute left-2 top-2.5 w-3 h-3 text-slate-500" />
+                                <CustomerSearch
+                                    onSelect={setSelectedCustomer}
+                                    selectedCustomer={selectedCustomer}
+                                    placeholder="Link Customer..."
+                                    className="h-8 bg-transparent border-none text-slate-200 focus:ring-0 text-xs placeholder:text-slate-600 w-full pl-8"
+                                />
+                            </div>
+                            <Input
+                                placeholder="Ref. Doctor (Optional)"
+                                className="h-8 w-40 bg-slate-900 border-slate-800 text-xs text-white"
+                                value={doctorName}
+                                onChange={e => setDoctorName(e.target.value)}
                             />
                         </div>
                         {selectedCustomer && (

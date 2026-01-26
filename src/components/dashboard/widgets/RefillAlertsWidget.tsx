@@ -8,6 +8,7 @@ import { Bell, RefreshCw, Calendar, Phone } from "lucide-react";
 import { format, isSameDay, parseISO } from "date-fns";
 
 import { useUserShops } from "@/hooks/useUserShops";
+import { whatsappService } from "@/services/whatsappService";
 
 export const RefillAlertsWidget = () => {
     const { currentShop } = useUserShops();
@@ -98,6 +99,24 @@ export const RefillAlertsWidget = () => {
                                         ? (order.order_items[0].name || 'Medicine') + (order.order_items.length > 1 ? ` +${order.order_items.length - 1} more` : '')
                                         : 'Medicines'}
                                 </div>
+                                <Button
+                                    size="sm"
+                                    className="w-full mt-2 h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                                    onClick={() => {
+                                        const medName = Array.isArray(order.order_items) && order.order_items.length > 0
+                                            ? order.order_items[0].name
+                                            : "Medicines";
+
+                                        const link = whatsappService.generateRefillReminder(order.customer_phone, {
+                                            patient_name: order.customer_name,
+                                            medicine_name: medName,
+                                            shop_name: currentShop?.name
+                                        });
+                                        window.open(link, '_blank');
+                                    }}
+                                >
+                                    <Phone className="w-3 h-3 mr-1" /> Send Reminder
+                                </Button>
                             </div>
                         ))}
                     </div>

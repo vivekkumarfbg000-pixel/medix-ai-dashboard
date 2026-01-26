@@ -45,6 +45,8 @@ class LabService {
             // Map response to Frontend Model
             // Handling variations in N8N response keys (result/summary, etc)
             return {
+                patientName: data.patient_name || rawAnalysis.patient_name,
+                reportDate: data.report_date || rawAnalysis.report_date,
                 summary: data.result || data.summary || "Analysis Complete",
                 diseasePossibility: data.disease_possibility || [],
                 results: rawAnalysis.results || data.results || [],

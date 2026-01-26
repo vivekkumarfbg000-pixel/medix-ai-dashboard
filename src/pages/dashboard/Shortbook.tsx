@@ -74,10 +74,27 @@ const Shortbook = () => {
         }
     };
 
-    const markOrdered = async (id: string) => {
-        await supabase.from('shortbook').update({ status: 'ordered' }).eq('id', id);
-        toast.success("Marked as ordered");
-        fetchShortbook();
+    const markOrdered = async (item: any) => {
+        // Create B2B Order Record
+        const { error } = await supabase.from('b2b_orders').insert({
+            shop_id: currentShop?.id,
+            distributor_name: item.distributors?.name || "Market",
+            status: 'pending',
+            items: [{
+                name: item.product_name,
+                qty: item.quantity,
+                priority: item.priority
+            }]
+        });
+
+        if (error) {
+            console.error(error);
+            toast.error("Failed to create Purchase Order");
+        } else {
+            await supabase.from('shortbook').update({ status: 'ordered' }).eq('id', item.id);
+            toast.success("Purchase Order Created! 📦");
+            fetchShortbook();
+        }
     };
 
     const sendToDistributor = (distributorId: string, distributorName: string, phone: string | null) => {
@@ -202,7 +219,7 @@ const Shortbook = () => {
                                     <TableCell>{item.distributors?.name || 'Any'}</TableCell>
                                     <TableCell className="text-xs text-muted-foreground">{safeFormat(item.created_at, 'dd MMM')}</TableCell>
                                     <TableCell className="text-right flex justify-end gap-2">
-                                        <Button size="sm" variant="outline" className="text-green-600" onClick={() => markOrdered(item.id)}>Ordered</Button>
+                                        <Button size="sm" variant="outline" className="text-green-600" onClick={() => markOrdered(item)}>Ordered</Button>
                                         <Button size="icon" variant="ghost" className="text-red-400 hover:text-red-600" onClick={async () => {
                                             await supabase.from('shortbook').delete().eq('id', item.id);
                                             fetchShortbook();

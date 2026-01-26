@@ -63,6 +63,8 @@ export interface OfflineInventory {
     composition?: string; // For accurate matching
     purchase_price?: number; // For margin calculation
     shop_id?: string; // Critical for isolation
+    schedule_h1?: boolean;
+    manufacturer?: string;
     is_synced: number; // 1 = Synced, 0 = Pending Upload
 }
 
