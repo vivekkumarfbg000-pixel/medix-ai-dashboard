@@ -20,7 +20,9 @@ export const SafetyWidget = () => {
 
     // Initial Scan
     useEffect(() => {
-        if (currentShop?.id) checkLASA();
+        // PERF FIX: Do not run O(N^2) LASA check automatically on mount. 
+        // It freezes the UI for large inventories.
+        // if (currentShop?.id) checkLASA();
     }, [currentShop]);
 
     const checkLASA = async () => {

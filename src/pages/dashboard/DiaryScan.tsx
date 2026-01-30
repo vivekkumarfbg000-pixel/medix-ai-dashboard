@@ -16,7 +16,8 @@ import {
   Eye,
   BrainCircuit,
   ScanLine,
-  Plus
+  MessageSquare,
+  TrendingUp
 } from "lucide-react";
 import {
   Table,
@@ -38,6 +39,8 @@ interface ExtractedItem {
   duration: string;
   notes: string;
   lasa_alert?: boolean; // Look-alike Sound-alike alert
+  quantity?: number; // For sales diary
+  price?: number; // For sales diary
 }
 
 export const DiaryScan = () => {
@@ -54,6 +57,7 @@ export const DiaryScan = () => {
   // Patient/Doctor info state
   const [patientName, setPatientName] = useState("");
   const [doctorName, setDoctorName] = useState("");
+  const [patientContact, setPatientContact] = useState("");
 
   useEffect(() => {
     return () => {
@@ -141,6 +145,9 @@ export const DiaryScan = () => {
       // Extract metadata if available
       if (result?.patient_name) setPatientName(result.patient_name);
       if (result?.doctor_name) setDoctorName(result.doctor_name);
+      if (result?.contact || result?.phone || result?.patient_contact) {
+        setPatientContact(result.contact || result.phone || result.patient_contact);
+      }
 
       if (items && items.length > 0) {
         // Ensure IDs exist and map fields if necessary
@@ -152,7 +159,9 @@ export const DiaryScan = () => {
           strength: item.strength || "",
           dosage_frequency: item.dosage_frequency || item.dosage || item.dose || "",
           duration: item.duration || "",
-          notes: item.notes || ""
+          notes: item.notes || "",
+          quantity: item.quantity || item.qty || (item.price ? 1 : undefined),
+          price: item.price || item.amount || item.unit_price || undefined
         }));
         setExtractedItems(mappedItems);
         toast.success("AI Analysis Complete!");
@@ -195,11 +204,138 @@ export const DiaryScan = () => {
     setIsProcessing(false);
   };
 
-  const updateItem = (id: number, field: keyof ExtractedItem, value: string) => {
+  const updateItem = (id: number, field: keyof ExtractedItem, value: string | number) => {
     setExtractedItems(items => items.map(item =>
       item.id === id ? { ...item, [field]: value } : item
     ));
   };
+
+  const handleRecordSales = async () => {
+    if (!currentShop?.id) {
+      toast.error("Shop not found!");
+      return;
+    }
+
+    // Validate sales data
+    const salesItems = extractedItems.filter(item => item.quantity && item.price);
+
+    if (salesItems.length === 0) {
+      toast.error("No sales data detected! Please add quantity and price for items.");
+      return;
+    }
+
+    if (salesItems.length < extractedItems.length) {
+      toast.warning(`${extractedItems.length - salesItems.length} items skipped due to missing quantity/price`);
+    }
+
+    toast.loading("Processing sales...", { id: "sales-process" });
+
+    try {
+      // Calculate total
+      const totalAmount = salesItems.reduce((sum, item) =>
+        sum + ((item.quantity || 0) * (item.price || 0)), 0
+      );
+
+      // Match medicines with inventory
+      const orderItemsData = [];
+      const inventoryUpdates = [];
+      const missingItems = [];
+
+      for (const item of salesItems) {
+        // Find medicine in inventory
+        const { data: inventoryItem } = await supabase
+          .from('inventory')
+          .select('id, medicine_name, quantity, purchase_price')
+          .eq('shop_id', currentShop.id)
+          .ilike('medicine_name', `%${item.medication_name}%`)
+          .single();
+
+        if (!inventoryItem) {
+          missingItems.push(item.medication_name);
+          continue;
+        }
+
+        // Check stock availability
+        if (inventoryItem.quantity < (item.quantity || 0)) {
+          toast.error(`Insufficient stock for ${item.medication_name}. Available: ${inventoryItem.quantity}`);
+          return;
+        }
+
+        orderItemsData.push({
+          inventory_id: inventoryItem.id,
+          name: item.medication_name,
+          qty: item.quantity || 1,
+          price: item.price || 0,
+          cost_price: inventoryItem.purchase_price || 0
+        });
+
+        inventoryUpdates.push({
+          id: inventoryItem.id,
+          qty: item.quantity || 1
+        });
+      }
+
+      if (missingItems.length > 0) {
+        toast.error(`Medicines not found in inventory: ${missingItems.join(", ")}`, { id: "sales-process" });
+        return;
+      }
+
+      // Create order record
+      const { data: order, error: orderError } = await supabase
+        .from("orders")
+        .insert({
+          shop_id: currentShop.id,
+          customer_name: "Diary Sales",
+          total_amount: totalAmount,
+          payment_mode: "cash",
+          status: "approved",
+          source: "Pulse_Scan_Diary",
+          order_items: orderItemsData.map(item => ({
+            id: item.inventory_id,
+            name: item.name,
+            qty: item.qty,
+            price: item.price,
+            purchase_price: item.cost_price
+          }))
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items
+      const orderItems = orderItemsData.map(item => ({
+        order_id: order.id,
+        ...item
+      }));
+
+      const { error: itemsError } = await supabase
+        .from("order_items")
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      // Update inventory (decrement stock)
+      for (const update of inventoryUpdates) {
+        await supabase.rpc('decrement_stock', {
+          row_id: update.id,
+          amount: update.qty
+        });
+      }
+
+      toast.success(
+        `Sales recorded! Order #${order.id.slice(0, 8)} • Total: ₹${totalAmount.toFixed(2)}`,
+        { id: "sales-process", duration: 5000 }
+      );
+
+      setIsConfirmed(true);
+
+    } catch (error: any) {
+      console.error("Sales Recording Error:", error);
+      toast.error(`Failed to record sales: ${error.message}`, { id: "sales-process" });
+    }
+  };
+
 
   return (
     <div className="space-y-8 animate-fade-in pb-10">
@@ -353,57 +489,57 @@ export const DiaryScan = () => {
                 <Table>
                   <TableHeader className="bg-muted/50">
                     <TableRow>
-                      <TableHead className="w-[50px] font-bold">#</TableHead>
-                      <TableHead className="min-w-[200px] font-bold">Medication</TableHead>
-                      <TableHead className="font-bold">Strength</TableHead>
-                      <TableHead className="font-bold">Dosage</TableHead>
-                      <TableHead className="font-bold">Duration</TableHead>
-                      <TableHead className="min-w-[200px] font-bold">Notes</TableHead>
+                      <TableHead className="w-[40px] font-semibold text-xs">#</TableHead>
+                      <TableHead className="min-w-[140px] font-semibold text-xs">Medication</TableHead>
+                      <TableHead className="min-w-[80px] font-semibold text-xs">Strength</TableHead>
+                      <TableHead className="min-w-[80px] font-semibold text-xs">Dosage</TableHead>
+                      <TableHead className="min-w-[80px] font-semibold text-xs">Duration</TableHead>
+                      <TableHead className="min-w-[120px] font-semibold text-xs">Notes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {extractedItems.map((item) => (
                       <TableRow key={item.id} className={`group ${item.lasa_alert ? "bg-amber-50" : "hover:bg-muted/30"}`}>
-                        <TableCell className="font-medium text-muted-foreground">{item.sequence}</TableCell>
-                        <TableCell>
+                        <TableCell className="font-medium text-muted-foreground text-xs py-2">{item.sequence}</TableCell>
+                        <TableCell className="py-1">
                           <Input
                             value={item.medication_name}
                             onChange={(e) => updateItem(item.id, 'medication_name', e.target.value)}
-                            className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors font-medium h-9"
+                            className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors font-medium h-8 text-xs px-2"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-1">
                           <Input
                             value={item.strength}
                             onChange={(e) => updateItem(item.id, 'strength', e.target.value)}
-                            className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-9"
+                            className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs px-2 min-w-[70px]"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-1">
                           <Input
                             value={item.dosage_frequency}
                             onChange={(e) => updateItem(item.id, 'dosage_frequency', e.target.value)}
-                            className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-9"
+                            className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs px-2 min-w-[70px]"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-1">
                           <Input
                             value={item.duration}
                             onChange={(e) => updateItem(item.id, 'duration', e.target.value)}
-                            className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-9"
+                            className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs px-2 min-w-[70px]"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-1">
                           {item.lasa_alert ? (
-                            <div className="flex items-center gap-2 text-amber-600 bg-amber-100/50 px-2 py-1 rounded-md">
-                              <AlertTriangle className="w-4 h-4" />
-                              <span className="text-xs font-bold">LASA Check</span>
+                            <div className="flex items-center gap-1.5 text-amber-600 bg-amber-100/50 px-2 py-1 rounded-md">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span className="text-[10px] font-bold">LASA</span>
                             </div>
                           ) : (
                             <Input
                               value={item.notes}
                               onChange={(e) => updateItem(item.id, 'notes', e.target.value)}
-                              className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-9 text-muted-foreground"
+                              className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs text-muted-foreground px-2"
                             />
                           )}
                         </TableCell>
@@ -415,7 +551,7 @@ export const DiaryScan = () => {
 
               {/* Action Footer */}
               <div className="bg-muted/10 p-6 flex flex-col md:flex-row items-center justify-between gap-4 border-t">
-                <div className="flex gap-4 w-full md:w-auto">
+                <div className="flex gap-4 w-full md:w-auto flex-wrap">
                   <div className="space-y-1 w-full md:w-48">
                     <label className="text-xs font-medium text-muted-foreground uppercase">Patient Name</label>
                     <Input
@@ -434,6 +570,16 @@ export const DiaryScan = () => {
                       onChange={(e) => setDoctorName(e.target.value)}
                     />
                   </div>
+                  <div className="space-y-1 w-full md:w-48">
+                    <label className="text-xs font-medium text-muted-foreground uppercase">Contact Number</label>
+                    <Input
+                      placeholder="Enter phone number"
+                      className="h-9 bg-background"
+                      value={patientContact}
+                      onChange={(e) => setPatientContact(e.target.value)}
+                      type="tel"
+                    />
+                  </div>
                 </div>
 
                 {!isConfirmed && (
@@ -443,47 +589,60 @@ export const DiaryScan = () => {
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={async () => {
-                        if (!currentShop?.id) return;
-
-                        toast.loading("Adding medicines to database...", { id: "db-import" });
-
-                        let successCount = 0;
-                        for (const item of extractedItems) {
-                          try {
-                            // Check if medicine already exists
-                            const { data: existing } = await supabase
-                              .from('inventory')
-                              .select('id')
-                              .eq('shop_id', currentShop.id)
-                              .eq('medicine_name', item.medication_name)
-                              .single();
-
-                            if (!existing) {
-                              // Add new medicine to inventory
-                              await supabase.from('inventory').insert({
-                                shop_id: currentShop.id,
-                                medicine_name: item.medication_name,
-                                generic_name: item.medication_name,
-                                quantity: 0,
-                                reorder_level: 10,
-                                unit_price: 0,
-                                salt_composition: item.strength || "",
-                                category: "General"
-                              });
-                              successCount++;
-                            }
-                          } catch (e) {
-                            console.error(`Failed to add ${item.medication_name}:`, e);
-                          }
+                      onClick={() => {
+                        // Validate contact number
+                        if (!patientContact || patientContact.trim() === "") {
+                          toast.error("Please enter patient contact number to send via WhatsApp");
+                          return;
                         }
 
-                        toast.success(`Added ${successCount} medicines to database!`, { id: "db-import" });
+                        // Format contact number (remove spaces, dashes, add country code if needed)
+                        let formattedContact = patientContact.replace(/[\s-]/g, "");
+
+                        // Add +91 if not present and number is 10 digits
+                        if (formattedContact.length === 10 && !formattedContact.startsWith("+")) {
+                          formattedContact = "+91" + formattedContact;
+                        } else if (!formattedContact.startsWith("+")) {
+                          formattedContact = "+" + formattedContact;
+                        }
+
+                        // Format prescription message
+                        const prescriptionText = `*📋 Prescription Details*\n\n` +
+                          `*Patient:* ${patientName || "N/A"}\n` +
+                          `*Prescribed by:* ${doctorName || "N/A"}\n` +
+                          `*Date:* ${new Date().toLocaleDateString()}\n\n` +
+                          `*Medicines:*\n` +
+                          extractedItems.map((item, idx) =>
+                            `${idx + 1}. *${item.medication_name}*\n` +
+                            `   Strength: ${item.strength || "N/A"}\n` +
+                            `   Dosage: ${item.dosage_frequency || "N/A"}\n` +
+                            `   Duration: ${item.duration || "N/A"}\n` +
+                            (item.notes ? `   Note: ${item.notes}\n` : "")
+                          ).join("\n") +
+                          `\n---\n_Sent via PharmaAssist.AI_`;
+
+                        // Encode message for URL
+                        const encodedMessage = encodeURIComponent(prescriptionText);
+
+                        // Create WhatsApp URL
+                        const whatsappUrl = `https://wa.me/${formattedContact.replace("+", "")}?text=${encodedMessage}`;
+
+                        // Open WhatsApp
+                        window.open(whatsappUrl, "_blank");
+                        toast.success("Opening WhatsApp...");
                       }}
                       className="border-green-500/50 bg-green-50 hover:bg-green-100 text-green-700"
                     >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add to Database
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      Send to WhatsApp
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleRecordSales}
+                      className="border-purple-500/50 bg-purple-50 hover:bg-purple-100 text-purple-700"
+                    >
+                      <TrendingUp className="w-4 h-4 mr-2" />
+                      Record Sales
                     </Button>
                     <Button
                       onClick={async () => {

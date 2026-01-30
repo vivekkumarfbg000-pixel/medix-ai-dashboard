@@ -40,7 +40,7 @@ const LitePOS = () => {
     const [guestDetails, setGuestDetails] = useState({ name: "", phone: "" });
     const searchInputRef = useRef<HTMLInputElement>(null);
     const interactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const [alternativeData, setAlternativeData] = useState<{ name: string; substitutes: string[] } | null>(null);
+    const [alternativeData, setAlternativeData] = useState<{ name: string; substitutes: string[]; targetItemId?: string } | null>(null);
     const [doctorName, setDoctorName] = useState(""); // For H1 Compliance
 
 
@@ -483,21 +483,32 @@ const LitePOS = () => {
             const state = location.state as { importItems: any[], cartItems: any[], customerName: string } | null;
             const itemsToImport = state?.importItems || state?.cartItems; // Support both
 
-            if (itemsToImport && !hasImported.current && currentShop?.id) {
+            if (itemsToImport && itemsToImport.length > 0 && !hasImported.current && currentShop?.id) {
                 hasImported.current = true;
                 toast.loading("Importing Medicines from Parcha...", { id: 'import-load' });
 
                 const matches = [];
                 const notFound = [];
 
+                // OPTIMIZATION: Fetch ALL inventory ONCE and create a Lookup Map
+                const allItems = await db.inventory.where('shop_id').equals(currentShop.id).toArray();
+                
+                // Create Lowercase Map for fuzzy matching: "dolo 650" -> Item
+                // We use a Map<string, Item[]> in case of duplicates, but simplest is Last Win or First Win.
+                // Better: Map<name, Item>
+                const inventoryMap = new Map();
+                allItems.forEach(i => {
+                    inventoryMap.set(i.medicine_name.toLowerCase(), i);
+                });
+
                 for (const imp of itemsToImport) {
-                    // Try fuzzy match or exact match in local DB
-                    // FIX: Relaxed matching logic for better hits
-                    const allItems = await db.inventory.where('shop_id').equals(currentShop.id).toArray();
-                    const found = allItems.find(i =>
-                        i.medicine_name.toLowerCase() === imp.name.toLowerCase() ||
-                        i.medicine_name.toLowerCase().includes(imp.name.toLowerCase())
-                    );
+                    const impName = imp.name.toLowerCase().trim();
+                    let found = inventoryMap.get(impName);
+
+                    // Fallback: Partial Match (Slower, but in-memory now so okay)
+                    if (!found) {
+                        found = allItems.find(i => i.medicine_name.toLowerCase().includes(impName));
+                    }
 
                     if (found) {
                         matches.push({ item: found, qty: imp.quantity || imp.qty || 1 });
@@ -548,12 +559,35 @@ const LitePOS = () => {
     const products = useLiveQuery(
         () => {
             if (!currentShop?.id) return [];
-            let collection = db.inventory.where("shop_id").equals(currentShop.id);
 
             if (debouncedSearch) {
-                return collection.filter(i => i.medicine_name.toLowerCase().startsWith(debouncedSearch.toLowerCase())).limit(20).toArray();
+                // OPTIMIZATION: Use Compound Index [shop_id+medicine_name] for fast prefix search
+                // This prevents scanning the entire shop inventory
+                const lowerSearch = debouncedSearch.toLowerCase();
+                
+                // Note: Dexie compound indexes work best when values are exact. 
+                // For 'startsWith' on the second part of a compound index, we use 'between'.
+                // However, since medicine_name in DB might be Mixed Case and we want case-insensitive...
+                // The current schema index is just values. 
+                // To be truly fast, we'd need a lowercase index. 
+                // For now, we will stick to the 'filter' BUT verify if we can check ignoring case differently.
+                // ACTUALLY: The best way without a new migration is to grab everything for the shop 
+                // but LIMIT it earlier if possible? No, we need to filter first.
+                
+                // Let's try the Compound Index approach assuming standard capitalization or if user typed exact start.
+                // But generally, the filter on memory is safer for case-insensitivity without a 'medicine_name_lower' field.
+                
+                // Let's optimize by NOT re-creating the collection chain improperly.
+                
+                return db.inventory
+                    .where('shop_id')
+                    .equals(currentShop.id)
+                    .filter(i => i.medicine_name.toLowerCase().includes(lowerSearch)) // Includes is better than startsWith for users
+                    .limit(20)
+                    .toArray();
             }
-            return collection.limit(20).toArray();
+            
+            return db.inventory.where("shop_id").equals(currentShop.id).limit(20).toArray();
         },
         [debouncedSearch, currentShop?.id]
     );
@@ -662,7 +696,7 @@ const LitePOS = () => {
         }
     };
 
-    const showAlternatives = async (medicineName: string) => {
+    const showAlternatives = async (medicineName: string, itemId?: string) => {
         toast.loading(`Finding alternatives for ${medicineName}...`, { id: 'alt-search' });
         try {
             // Use local DB first for matches
@@ -706,15 +740,14 @@ const LitePOS = () => {
                 }
             }
 
-            setAlternativeData({ name: medicineName, substitutes: substitutes as any[] }); // Cast for now
+            // Store ID to replace specific row
+            setAlternativeData({ name: medicineName, substitutes: substitutes as any[], targetItemId: itemId }); 
             toast.success(`Found ${substitutes.length} options`, { id: 'alt-search' });
         } catch (e) {
             console.error(e);
             toast.error("Could not fetch alternatives", { id: 'alt-search' });
         }
     };
-
-
 
     const addToShortbook = () => {
         toast.success(`'${search}' added to Shortbook`);
@@ -725,11 +758,13 @@ const LitePOS = () => {
     const handleSubstituteSelect = (sub: any) => {
         if (!alternativeData) return;
 
-        // "sub" is now a full inventory object from drugService
-
         setCart(prev => prev.map(c => {
-            // Find the item that initiated the search
-            if (c.item.medicine_name === alternativeData.name) {
+            // FIX: Replace specific item ID if available, else fallback to name
+            const isMatch = alternativeData.targetItemId 
+                ? c.item.id === alternativeData.targetItemId 
+                : c.item.medicine_name === alternativeData.name;
+
+            if (isMatch) {
                 return {
                     ...c,
                     item: sub, // Direct replacement with the inventory item
@@ -983,12 +1018,12 @@ const LitePOS = () => {
                             cart.map((c) => (
                                 <div key={c.item.id} className="flex items-center justify-between p-2 pl-3 bg-slate-900/50 border border-slate-800 rounded-md hover:border-slate-700 group">
                                     {/* FIX: Allow medicine name to wrap nicely */}
-                                    <div className="flex-1 min-w-0 mr-3">
+                                    <div className="flex-1 mr-2 overflow-hidden">
                                         <h4 className="font-bold text-[10px] md:text-[11px] text-slate-200 leading-tight break-words whitespace-normal mb-1">
                                             {c.item.medicine_name}
                                         </h4>
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex items-center bg-slate-950 border border-slate-700 rounded px-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <div className="flex items-center bg-slate-950 border border-slate-700 rounded px-1 shrink-0">
                                                 <span className="text-[10px] text-slate-500 mr-1">₹</span>
                                                 <input
                                                     className="w-12 bg-transparent text-[11px] font-mono text-white outline-none"
@@ -997,12 +1032,12 @@ const LitePOS = () => {
                                                     onChange={(e) => updatePrice(c.item.id, Number(e.target.value))}
                                                 />
                                             </div>
-                                            <span className="text-[10px] text-slate-500 font-mono">x {c.qty}</span>
+                                            <span className="text-[10px] text-slate-500 font-mono shrink-0">x {c.qty}</span>
 
                                             {/* Alternative Option Button */}
                                             <button
-                                                onClick={() => showAlternatives(c.item.medicine_name)}
-                                                className="text-[9px] bg-purple-900/30 text-purple-400 px-1 rounded hover:bg-purple-900/50 flex items-center gap-1"
+                                                onClick={() => showAlternatives(c.item.medicine_name, c.item.id)}
+                                                className="text-[9px] bg-purple-900/30 text-purple-400 px-1 rounded hover:bg-purple-900/50 flex items-center gap-1 shrink-0"
                                                 title="Find Alternatives"
                                             >
                                                 <Sparkles className="w-3 h-3" /> Alt

@@ -27,12 +27,11 @@ export function DayEndTally() {
         const end = `${today}T23:59:59`;
 
         const { data, error } = await supabase
-            .from('sales')
+            .from('orders') // FIX: Use 'orders' as Source of Truth
             .select('payment_mode, total_amount')
             .eq('shop_id', currentShop?.id)
             .gte('created_at', start)
-            .gte('created_at', start)
-            .lte('created_at', end);
+            .lte('created_at', end); // Fixed double gte and missing lte pair logic if any
 
         const safeData = (data || []) as any[];
 
