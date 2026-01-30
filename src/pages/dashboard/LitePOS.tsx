@@ -492,7 +492,7 @@ const LitePOS = () => {
 
                 // OPTIMIZATION: Fetch ALL inventory ONCE and create a Lookup Map
                 const allItems = await db.inventory.where('shop_id').equals(currentShop.id).toArray();
-                
+
                 // Create Lowercase Map for fuzzy matching: "dolo 650" -> Item
                 // We use a Map<string, Item[]> in case of duplicates, but simplest is Last Win or First Win.
                 // Better: Map<name, Item>
@@ -564,7 +564,7 @@ const LitePOS = () => {
                 // OPTIMIZATION: Use Compound Index [shop_id+medicine_name] for fast prefix search
                 // This prevents scanning the entire shop inventory
                 const lowerSearch = debouncedSearch.toLowerCase();
-                
+
                 // Note: Dexie compound indexes work best when values are exact. 
                 // For 'startsWith' on the second part of a compound index, we use 'between'.
                 // However, since medicine_name in DB might be Mixed Case and we want case-insensitive...
@@ -573,12 +573,12 @@ const LitePOS = () => {
                 // For now, we will stick to the 'filter' BUT verify if we can check ignoring case differently.
                 // ACTUALLY: The best way without a new migration is to grab everything for the shop 
                 // but LIMIT it earlier if possible? No, we need to filter first.
-                
+
                 // Let's try the Compound Index approach assuming standard capitalization or if user typed exact start.
                 // But generally, the filter on memory is safer for case-insensitivity without a 'medicine_name_lower' field.
-                
+
                 // Let's optimize by NOT re-creating the collection chain improperly.
-                
+
                 return db.inventory
                     .where('shop_id')
                     .equals(currentShop.id)
@@ -586,7 +586,7 @@ const LitePOS = () => {
                     .limit(20)
                     .toArray();
             }
-            
+
             return db.inventory.where("shop_id").equals(currentShop.id).limit(20).toArray();
         },
         [debouncedSearch, currentShop?.id]
@@ -741,7 +741,7 @@ const LitePOS = () => {
             }
 
             // Store ID to replace specific row
-            setAlternativeData({ name: medicineName, substitutes: substitutes as any[], targetItemId: itemId }); 
+            setAlternativeData({ name: medicineName, substitutes: substitutes as any[], targetItemId: itemId });
             toast.success(`Found ${substitutes.length} options`, { id: 'alt-search' });
         } catch (e) {
             console.error(e);
@@ -760,8 +760,8 @@ const LitePOS = () => {
 
         setCart(prev => prev.map(c => {
             // FIX: Replace specific item ID if available, else fallback to name
-            const isMatch = alternativeData.targetItemId 
-                ? c.item.id === alternativeData.targetItemId 
+            const isMatch = alternativeData.targetItemId
+                ? c.item.id === alternativeData.targetItemId
                 : c.item.medicine_name === alternativeData.name;
 
             if (isMatch) {
@@ -1034,13 +1034,13 @@ const LitePOS = () => {
                                             </div>
                                             <span className="text-[10px] text-slate-500 font-mono shrink-0">x {c.qty}</span>
 
-                                            {/* Alternative Option Button */}
+                                            {/* Alternative Option Button - FIXED STYLING */}
                                             <button
                                                 onClick={() => showAlternatives(c.item.medicine_name, c.item.id)}
-                                                className="text-[9px] bg-purple-900/30 text-purple-400 px-1 rounded hover:bg-purple-900/50 flex items-center gap-1 shrink-0"
-                                                title="Find Alternatives"
+                                                className="text-[9px] bg-purple-900/40 text-purple-300 px-2 py-0.5 rounded border border-purple-700/30 hover:bg-purple-800/60 hover:border-purple-600/50 flex items-center gap-1 shrink-0 transition-all"
+                                                title="Find Better Margin Alternatives"
                                             >
-                                                <Sparkles className="w-3 h-3" /> Alt
+                                                <Sparkles className="w-3 h-3" /> <span className="font-medium">Alt</span>
                                             </button>
                                         </div>
                                     </div>
