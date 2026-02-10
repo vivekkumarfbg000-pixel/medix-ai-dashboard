@@ -99,8 +99,20 @@ const Orders = () => {
       toast.error("Failed to update phone number");
     } else {
       toast.success("Phone updated!");
-      fetchOrders(); // Refresh list with new number
+
+      // Update local state immediately
+      setOrders(prev => prev.map(o =>
+        o.id === editingOrder.id ? { ...o, customer_phone: finalPhone } : o
+      ));
+
+      // Auto-trigger WhatsApp after successful update
+      const updatedOrder = { ...editingOrder, customer_phone: finalPhone };
       setEditingOrder(null);
+
+      // Small delay to allow dialog to close
+      setTimeout(() => {
+        handleWhatsAppShare(updatedOrder);
+      }, 300);
     }
   };
 
@@ -110,6 +122,30 @@ const Orders = () => {
 
     if (activeId) {
       fetchOrders(activeId);
+
+      // Real-time subscription to automatically refresh when orders change
+      const channel = supabase
+        .channel('orders-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'orders',
+            filter: `shop_id=eq.${activeId}`
+          },
+          (payload) => {
+            console.log('Order change detected:', payload);
+            // Refresh orders when INSERT, UPDATE, or DELETE occurs
+            fetchOrders(activeId);
+            toast.info('Orders updated', { duration: 2000 });
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [currentShop?.id]);
 
@@ -163,15 +199,15 @@ const Orders = () => {
   const handleWhatsAppShare = (order: Order) => {
     let phone = order.customer_phone;
 
+    // If no phone, use the edit dialog instead of prompt
     if (!phone) {
-      const manualPhone = window.prompt("Customer phone number is missing. Enter number to send invoice:", "");
-      if (manualPhone) {
-        phone = manualPhone;
-      } else {
-        return; // User cancelled
-      }
+      toast.error("Phone number missing. Please add customer contact first.");
+      setEditingOrder(order);
+      setNewPhone("");
+      return;
     }
 
+    // Generate link
     const link = whatsappService.generateInvoiceLink(phone, {
       invoice_number: order.invoice_number || 'INV-000',
       customer_name: order.customer_name,
@@ -180,7 +216,24 @@ const Orders = () => {
       status: order.status,
       items: order.order_items
     });
-    window.open(link, '_blank');
+
+    // Try to open, with fallback
+    const opened = window.open(link, '_blank');
+
+    if (!opened || opened.closed || typeof opened.closed === 'undefined') {
+      // Popup was blocked
+      toast.error("Popup blocked! Click the button below to open WhatsApp", {
+        duration: 10000,
+        action: {
+          label: "Open WhatsApp",
+          onClick: () => {
+            window.location.href = link; // Use location.href as fallback
+          }
+        }
+      });
+    } else {
+      toast.success("WhatsApp invoice opened in new tab!");
+    }
   };
 
   // --- POS FUNCTIONS ---

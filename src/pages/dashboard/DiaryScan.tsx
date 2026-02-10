@@ -168,6 +168,43 @@ export const DiaryScan = () => {
           price: item.price || item.amount || item.unit_price || undefined
         }));
         setExtractedItems(mappedItems);
+
+        // Save prescription to database immediately after successful extraction
+        if (currentShop?.id) {
+          try {
+            const prescriptionData = {
+              shop_id: currentShop.id,
+              customer_name: result.patient_name || patientName || "Unknown Patient",
+              doctor_name: result.doctor_name || doctorName || "Unknown Doctor",
+              customer_phone: result.patient_contact || patientContact || null,
+              visit_date: new Date().toISOString().split('T')[0],
+              medicines: mappedItems.map((item: any) => ({
+                name: item.medication_name,
+                strength: item.strength,
+                dosage: item.dosage_frequency,
+                indication: item.indication || item.notes,
+                quantity: item.quantity,
+                unit_price: item.price
+              })),
+              raw_text: JSON.stringify(result)
+            };
+
+            const { data: prescription, error: prescriptionError } = await supabase
+              .from('prescriptions')
+              .insert(prescriptionData)
+              .select()
+              .single();
+
+            if (prescriptionError) {
+              console.error("Failed to save prescription:", prescriptionError);
+              toast.warning("Prescription extracted but not saved to database");
+            } else {
+              console.log("Prescription saved with ID:", prescription.id);
+            }
+          } catch (dbError) {
+            console.error("Database error:", dbError);
+          }
+        }
         toast.success("AI Analysis Complete!");
 
         // DEMO: Simulate Profit Optimizer logic
