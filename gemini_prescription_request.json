@@ -1,0 +1,21 @@
+{
+    "contents": [
+        {
+            "parts": [
+                {
+                    "text": "Extract ALL medicines from prescription. For EACH medicine provide: name, dosage, frequency, duration, AND indication. NEVER return null - infer missing values.\n\nIndian Medicine Indications:\n- Dolo/Paracetamol = Fever/Pain\n- Pan/Pantoprazole = Acidity/GERD\n- Azithral = Infection\n- Glycomet = Diabetes\n- Telma = High BP\n\nDefault Durations:\n- Antibiotics: 5-7 days\n- Pain killers: 3-5 days\n- Antacids: 2 weeks\n- Diabetes/BP: 1 month\n\nFrequency formats: 1-0-1 = Morning+Night, BD = Twice daily, TDS = Three times, OD = Once daily\n\nOUTPUT (ONLY JSON):\n{\n  \"patient_name\": \"string or null\",\n  \"doctor_name\": \"string or null\",\n  \"prescription_date\": \"string or null\",\n  \"medications\": [\n    {\n      \"name\": \"Medicine name\",\n      \"dosage\": \"40mg\",\n      \"frequency\": \"Once daily\",\n      \"duration\": \"7 days\",\n      \"indication\": \"Fever/Acidity/Infection etc\"\n    }\n  ]\n}\n\nCRITICAL: NEVER return null/empty for indication or duration. Always infer from medicine name or use defaults."
+                },
+                {
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": "{{ $json.body.image_base64 || $json.body.data }}"
+                    }
+                }
+            ]
+        }
+    ],
+    "generationConfig": {
+        "temperature": 0.1,
+        "responseMimeType": "application/json"
+    }
+}

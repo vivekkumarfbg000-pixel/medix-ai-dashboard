@@ -29,7 +29,8 @@ export const ENDPOINTS = {
     MARKET: `${N8N_BASE}/medix-market-v5`,
     COMPLIANCE: `${N8N_BASE}/medix-compliance-v5`,
     FORECAST: `${N8N_BASE}/medix-forecast-v5`,
-    OPS: `${N8N_BASE}/operations`
+    OPS: `${N8N_BASE}/operations`,
+    ANALYZE_PRESCRIPTION: `${N8N_BASE}/analyze-prescription`
 };
 
 interface ChatResponse {
@@ -78,7 +79,7 @@ export const aiService = {
     async chatWithAgent(message: string, image?: string): Promise<ChatResponse> {
         // DEMO MODE CHECK
         // Enable by running: localStorage.setItem("DEMO_MODE", "true") in console
-        const isDemoMode = localStorage.getItem("DEMO_MODE") === "true";
+        const isDemoMode = typeof window !== 'undefined' && localStorage.getItem("DEMO_MODE") === "true";
         if (isDemoMode) {
             logger.log("[DEMO MODE] Returning Mock Chat Response");
             await new Promise(r => setTimeout(r, 1500)); // Fake delay
@@ -90,7 +91,7 @@ export const aiService = {
 
         // Step 1: Get Context (User & Shop)
         const { data: { user } } = await supabase.auth.getUser();
-        const shopId = localStorage.getItem("currentShopId");
+        const shopId = typeof window !== 'undefined' ? localStorage.getItem("currentShopId") : null;
 
         // --- NEW: Inject Inventory Context (Low Stock) ---
         let contextMessage = message;
@@ -170,7 +171,7 @@ export const aiService = {
      */
     async analyzeDocument(file: File, type: 'prescription' | 'lab_report' | 'invoice' | 'inventory_list'): Promise<any> {
         // DEMO MODE CHECK
-        const isDemoMode = localStorage.getItem("DEMO_MODE") === "true";
+        const isDemoMode = typeof window !== 'undefined' && localStorage.getItem("DEMO_MODE") === "true";
         if (isDemoMode) {
             logger.log("[DEMO MODE] Returning Mock Analysis");
             await new Promise(r => setTimeout(r, 2000)); // Fake processing delay
@@ -246,16 +247,16 @@ export const aiService = {
 
         if (type === 'prescription') {
             action = 'analyze-prescription';
-            endpoint = `${N8N_BASE}/analyze-prescription`;
+            endpoint = ENDPOINTS.ANALYZE_PRESCRIPTION;
         } else if (type === 'lab_report') {
             // User confirmed Universal Brain uses analyze-prescription webhook for both
             action = 'scan-report';
-            endpoint = `${N8N_BASE}/analyze-prescription`;
+            endpoint = ENDPOINTS.ANALYZE_PRESCRIPTION;
         } else if (type === 'inventory_list') {
             // New Inventory Scanner connection
             action = 'scan-inventory';
             // UPDATED: Using Integrated Chat Workflow V2
-            endpoint = `${N8N_BASE}/medix-chat-v2`;
+            endpoint = ENDPOINTS.CHAT;
         } else if (type === 'invoice') {
             // Keep invoice as scan-medicine for now (requires workflow update to support)
             action = 'scan-medicine';
@@ -270,11 +271,15 @@ export const aiService = {
                 image_base64: base64Data,
                 data: base64Data, // Redundant key for safety (Universal Brain compatibility)
                 userId: (await supabase.auth.getUser()).data.user?.id,
-                shopId: localStorage.getItem("currentShopId")
+                shopId: typeof window !== 'undefined' ? localStorage.getItem("currentShopId") : null
             }),
         });
 
-        if (!response.ok) throw new Error("Analysis Engine Failed");
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("[N8N Error] Status:", response.status, "Response:", errorText);
+            throw new Error(`Analysis Engine Failed: ${response.status} - ${errorText.substring(0, 100)}`);
+        }
 
         const text = await response.text();
         if (!text) {
@@ -297,7 +302,7 @@ export const aiService = {
      */
     async triggerOp(action: string, payload: any): Promise<any> {
         const { data: { user } } = await supabase.auth.getUser();
-        const shopId = localStorage.getItem("currentShopId");
+        const shopId = typeof window !== 'undefined' ? localStorage.getItem("currentShopId") : null;
 
         const finalBody = {
             ...payload,
@@ -338,7 +343,7 @@ export const aiService = {
         if (drugs.length < 2) return [];
 
         // 0. DEMO MODE CHECK
-        const isDemoMode = localStorage.getItem("DEMO_MODE") === "true";
+        const isDemoMode = typeof window !== 'undefined' && localStorage.getItem("DEMO_MODE") === "true";
         if (isDemoMode) {
             logger.log("[DEMO MODE] Checking Interactions Locally");
             await new Promise(r => setTimeout(r, 800)); // Fake network delay
@@ -510,7 +515,7 @@ export const aiService = {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     salesHistory,
-                    shopId: localStorage.getItem("currentShopId")
+                    shopId: typeof window !== 'undefined' ? localStorage.getItem("currentShopId") : null
                 }),
             });
 
@@ -582,7 +587,7 @@ export const aiService = {
      */
     async processVoiceBill(audioBlob: Blob): Promise<any> {
         // DEMO MODE CHECK
-        const isDemoMode = localStorage.getItem("DEMO_MODE") === "true";
+        const isDemoMode = typeof window !== 'undefined' && localStorage.getItem("DEMO_MODE") === "true";
         if (isDemoMode) {
             logger.log("[DEMO MODE] Returning Mock Voice Bill");
             await new Promise(r => setTimeout(r, 1000));
@@ -596,7 +601,7 @@ export const aiService = {
         }
 
         const { data: { user } } = await supabase.auth.getUser();
-        const shopId = localStorage.getItem("currentShopId");
+        const shopId = typeof window !== 'undefined' ? localStorage.getItem("currentShopId") : null;
 
         // Convert Blob to Base64
         const reader = new FileReader();

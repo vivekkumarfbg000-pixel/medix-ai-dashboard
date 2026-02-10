@@ -43,17 +43,27 @@ class LabService {
             }
 
             // Map response to Frontend Model
-            // Handling variations in N8N response keys (result/summary, etc)
+            // Gemini Lab Report API returns: test_results, health_insights, recommendations
+            const testResults = data.test_results || rawAnalysis.test_results || data.results || rawAnalysis.results || [];
+            const healthInsights = data.health_insights || rawAnalysis.health_insights || {};
+            const recommendations = data.recommendations || rawAnalysis.recommendations || {};
+
             return {
                 patientName: data.patient_name || rawAnalysis.patient_name,
                 reportDate: data.report_date || rawAnalysis.report_date,
-                summary: data.result || data.summary || "Analysis Complete",
-                diseasePossibility: data.disease_possibility || [],
-                results: rawAnalysis.results || data.results || [],
+                summary: data.summary || data.result || "Analysis Complete",
+                diseasePossibility: healthInsights.disease_risks || data.disease_possibility || [],
+                results: testResults.map((test: any) => ({
+                    parameter: test.test_name || test.parameter || "Unknown",
+                    value: test.value || "",
+                    unit: test.unit || "",
+                    normalRange: test.normal_range || test.normalRange || "",
+                    status: test.status || "Normal"
+                })),
                 recommendations: {
-                    diet: data.diet || data.diet_recommendations || [],
-                    nextSteps: data.next_steps || [],
-                    prevention: []
+                    diet: recommendations.dietary || recommendations.diet || data.diet || [],
+                    nextSteps: recommendations.medical || recommendations.nextSteps || data.next_steps || [],
+                    prevention: recommendations.lifestyle || []
                 }
             };
 

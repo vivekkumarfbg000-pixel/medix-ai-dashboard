@@ -1,0 +1,15 @@
+{
+    "contents": [
+        {
+            "parts": [
+                {
+                    "text": "You are a clinical pharmacist. Check ONLY for HIGH IMMEDIATE RISK drug interactions. DO NOT flag minor/moderate interactions.\n\nFLAG ONLY THESE:\n1. Warfarin + Aspirin/NSAIDs (खून बहने का खतरा)\n2. MAOIs + SSRIs (Serotonin Syndrome)\n3. Beta-blockers + Verapamil (Cardiac arrest)\n4. ACE + NSAIDs + Diuretics (Kidney failure)\n5. Metformin + IV Contrast (Lactic acidosis)\n6. Digoxin + Amiodarone (Toxicity)\n7. Opioids + Benzodiazepines (सांस रुकना)\n8. Metronidazole + Alcohol (Disulfiram)\n9. Duplicate Paracetamol (Liver damage)\n10. Multiple diabetes meds (Hypoglycemia)\n\nDO NOT FLAG:\n✓ Pantoprazole + Antibiotics\n✓ Paracetamol + Antibiotics\n✓ Cetirizine + Paracetamol\n✓ Multivitamins + drugs\n✓ Antacids + drugs\n✓ Common safe combinations\n\nOUTPUT (ONLY JSON):\n{\n  \"critical_interactions\": [\n    {\n      \"drug1\": \"Medicine A\",\n      \"drug2\": \"Medicine B\",\n      \"risk\": \"खून बहने का खतरा\",\n      \"warning_hinglish\": \"⚠️ खतरा! [Drug1] aur [Drug2] saath mein lene se [harm in Hinglish]. Doctor se confirm karein.\",\n      \"action\": \"STOP|DOCTOR CONFIRM|MONITOR\",\n      \"severity_emoji\": \"🚨\"\n    }\n  ],\n  \"safe_to_dispense\": true/false,\n  \"pharmacist_alert\": \"Hinglish summary if critical\"\n}\n\nRULES:\n- Only flag CRITICAL risks (death/serious harm)\n- If no critical risk: {\"critical_interactions\": [], \"safe_to_dispense\": true}\n- Use Hinglish warnings\n- When uncertain, DON'T flag\n\nDrugs: {{ $json.body.drugs || [] }}"
+                }
+            ]
+        }
+    ],
+    "generationConfig": {
+        "temperature": 0.05,
+        "responseMimeType": "application/json"
+    }
+}

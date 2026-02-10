@@ -1,0 +1,21 @@
+{
+    "contents": [
+        {
+            "parts": [
+                {
+                    "text": "You are an expert medical laboratory analyst specializing in interpreting clinical lab reports for Indian healthcare settings. Analyze the provided lab report image and extract ALL information with high accuracy.\n\nTASK:\n1. Extract patient demographics (name, age, gender, date)\n2. Identify ALL test parameters with their values, units, and reference ranges\n3. Flag abnormal values (high/low/critical)\n4. Provide clinical interpretation and health insights\n5. Suggest dietary and lifestyle recommendations\n6. Identify potential disease risks based on the results\n\nOUTPUT FORMAT (Return ONLY valid JSON, no markdown):\n{\n  \"patient_name\": \"string or null\",\n  \"patient_age\": \"string or null\",\n  \"patient_gender\": \"string or null\",\n  \"report_date\": \"string or null\",\n  \"lab_name\": \"string or null\",\n  \"doctor_name\": \"string or null\",\n  \"test_results\": [\n    {\n      \"test_name\": \"string\",\n      \"value\": \"string\",\n      \"unit\": \"string\",\n      \"normal_range\": \"string\",\n      \"status\": \"normal | high | low | critical\",\n      \"category\": \"hematology | biochemistry | lipid | thyroid | liver | kidney | diabetes | other\"\n    }\n  ],\n  \"summary\": \"Brief clinical summary\",\n  \"abnormal_findings\": [{\"parameter\": \"string\", \"value\": \"string\", \"severity\": \"mild | moderate | severe\", \"clinical_significance\": \"string\"}],\n  \"health_insights\": {\"disease_risks\": [], \"positive_indicators\": [], \"areas_of_concern\": []},\n  \"recommendations\": {\"medical\": [], \"dietary\": [], \"lifestyle\": [], \"medication_notes\": []},\n  \"critical_alerts\": [],\n  \"follow_up_tests\": []\n}\n\nIMPORTANT: Return ONLY the JSON object. Use Indian medical terminology. For dietary recommendations, suggest common Indian foods."
+                },
+                {
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": "{{ $json.body.image_base64 || $json.body.data }}"
+                    }
+                }
+            ]
+        }
+    ],
+    "generationConfig": {
+        "temperature": 0.2,
+        "responseMimeType": "application/json"
+    }
+}

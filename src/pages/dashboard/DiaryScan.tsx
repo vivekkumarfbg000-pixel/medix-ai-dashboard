@@ -124,7 +124,10 @@ export const DiaryScan = () => {
 
       let items = [];
       // Handle various N8N response formats
-      if (result && result.items) {
+      // Priority: medications (Gemini format) > items > medicines > prescription
+      if (result && result.medications) {
+        items = result.medications;
+      } else if (result && result.items) {
         items = result.items;
       } else if (Array.isArray(result) && result[0]?.medicines) {
         items = typeof result[0].medicines === 'string' ? JSON.parse(result[0].medicines) : result[0].medicines;
@@ -156,10 +159,11 @@ export const DiaryScan = () => {
           id: item.id || index + 1,
           sequence: item.sequence || index + 1,
           medication_name: item.medication_name || item.drug_name || item.name || "Unknown",
-          strength: item.strength || "",
-          dosage_frequency: item.dosage_frequency || item.dosage || item.dose || "",
+          strength: item.strength || item.dosage || "",
+          dosage_frequency: item.dosage_frequency || item.frequency || item.dose || "",
           duration: item.duration || "",
-          notes: item.notes || "",
+          indication: item.indication || "",
+          notes: item.notes || item.indication || "",
           quantity: item.quantity || item.qty || (item.price ? 1 : undefined),
           price: item.price || item.amount || item.unit_price || undefined
         }));
@@ -327,6 +331,24 @@ export const DiaryScan = () => {
         `Sales recorded! Order #${order.id.slice(0, 8)} • Total: ₹${totalAmount.toFixed(2)}`,
         { id: "sales-process", duration: 5000 }
       );
+
+      // Send sales data to n8n for processing
+      try {
+        const { aiService } = await import("@/services/aiService");
+        await aiService.triggerOp('save-sales', {
+          order: {
+            id: order.id,
+            total_amount: totalAmount,
+            customer_name: patientName || "Diary Sales",
+            items: orderItemsData
+          },
+          source: 'pulse_scan_diary'
+        });
+        console.log("Sales data synced to n8n");
+      } catch (error) {
+        console.error("Failed to sync sales to n8n:", error);
+        // Don't show error to user since sale was already recorded successfully
+      }
 
       setIsConfirmed(true);
 
@@ -650,7 +672,7 @@ export const DiaryScan = () => {
 
                         // Save to Prescriptions History first
                         toast.info("Saving Parcha...");
-                        await supabase.from('prescriptions').insert({
+                        const prescriptionData = {
                           shop_id: currentShop?.id,
                           customer_name: patientName || "Walk-in Customer",
                           doctor_name: doctorName || "Unknown Doctor",
@@ -661,7 +683,23 @@ export const DiaryScan = () => {
                             strength: i.strength,
                             duration: i.duration
                           }))
-                        } as any);
+                        };
+
+                        await supabase.from('prescriptions').insert(prescriptionData as any);
+
+                        // Send prescription data to n8n for processing
+                        try {
+                          const { aiService } = await import("@/services/aiService");
+                          await aiService.triggerOp('save-prescription', {
+                            prescription: prescriptionData,
+                            patient_contact: patientContact,
+                            source: 'pulse_scan'
+                          });
+                          toast.success("Prescription synced to n8n!");
+                        } catch (error) {
+                          console.error("Failed to sync prescription to n8n:", error);
+                          toast.warning("Prescription saved locally but sync to n8n failed");
+                        }
 
                         const importItems = extractedItems.map(i => ({
                           name: i.medication_name,
