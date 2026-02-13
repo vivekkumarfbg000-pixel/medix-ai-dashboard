@@ -10,7 +10,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, OfflineInventory } from "@/db/db";
 import { toast } from "sonner";
 import {
-    ShoppingCart, Mic, Trash2, ArrowLeft, ShieldAlert,
+    ShoppingCart, Mic, Trash2, ArrowLeft,
     Zap, X, TrendingUp, Search, User, IndianRupee, Sparkles,
     Plus, BookmarkPlus, ChevronRight, PauseCircle, PlayCircle, History, Printer
 } from "lucide-react";
@@ -698,44 +698,8 @@ const LitePOS = () => {
     );
 
     // --- CART LOGIC ---
-    const addToCart = async (item: OfflineInventory) => {
-        // SAFETY CHECK: Expiry
-        if (item.expiry_date) {
-            const today = new Date();
-            const expiry = new Date(item.expiry_date);
-            const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    // [REMOVED] Duplicate addToCart - relying on the "Smart" version below
 
-            if (diffDays < 0) {
-                toast.error(`EXPIRED ITEM! Cannot Sell.`, {
-                    description: `${item.medicine_name} expired on ${item.expiry_date}`,
-                    duration: 5000,
-                    icon: <ShieldAlert className="text-red-600" />
-                });
-                return; // BLOCK SALE
-            }
-
-            if (diffDays < 30) {
-                toast.warning(`Near Expiry Warning`, {
-                    description: `Expires in ${diffDays} days (${item.expiry_date})`
-                });
-            }
-        }
-
-        // SAFETY CHECK: Low Stock
-        if (item.quantity < 10) {
-            toast.info("Low Stock Alert", {
-                description: `Only ${item.quantity} units remaining.`
-            });
-        }
-
-        setCart(prev => {
-            const existing = prev.find(p => p.item.id === item.id);
-            if (existing) {
-                return prev.map(p => p.item.id === item.id ? { ...p, qty: p.qty + 1 } : p);
-            }
-            return [...prev, { item, qty: 1 }];
-        });
-    };
 
     // --- INTERACTION CHECK (Centralized) ---
     useEffect(() => {
