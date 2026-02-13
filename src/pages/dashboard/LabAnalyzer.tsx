@@ -11,6 +11,7 @@ import { aiService } from "@/services/aiService";
 import { whatsappService } from "@/services/whatsappService";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { CameraCapture } from "@/components/ui/camera-capture";
 
 const LabAnalyzer = () => {
     const [isDragging, setIsDragging] = useState(false);
@@ -18,6 +19,7 @@ const LabAnalyzer = () => {
     const [analyzing, setAnalyzing] = useState(false);
     const [progress, setProgress] = useState(0);
     const [report, setReport] = useState<LabAnalysisReport | null>(null);
+    const [showCamera, setShowCamera] = useState(false);
 
     const [patientPhone, setPatientPhone] = useState("");
     const [hinglishSummary, setHinglishSummary] = useState("");
@@ -79,6 +81,10 @@ const LabAnalyzer = () => {
             clearInterval(interval);
             setAnalyzing(false);
         }
+    };
+
+    const handleCameraCapture = (file: File) => {
+        handleFile(file);
     };
 
     const handleShare = () => {
@@ -208,16 +214,9 @@ const LabAnalyzer = () => {
                                         />
                                     </div>
                                     <div className="relative flex-1 group">
-                                        <Button size="lg" className="w-full gap-2 h-12 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-all">
+                                        <Button size="lg" className="w-full gap-2 h-12 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-all" onClick={() => setShowCamera(true)}>
                                             <Camera className="w-4 h-4" /> Scan with Camera
                                         </Button>
-                                        <input
-                                            type="file"
-                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-                                            accept="image/*"
-                                            capture="environment"
-                                        />
                                     </div>
                                 </div>
                             </>
@@ -367,6 +366,12 @@ const LabAnalyzer = () => {
                     </div>
                 </div>
             )}
+
+            <CameraCapture
+                isOpen={showCamera}
+                onClose={() => setShowCamera(false)}
+                onCapture={handleCameraCapture}
+            />
         </div>
     );
 };

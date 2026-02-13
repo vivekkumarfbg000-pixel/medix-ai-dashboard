@@ -468,8 +468,8 @@ class DrugService {
 
     try {
       // 2. Direct call to N8N via AI Service
-      const aiResults = await aiService.checkInteractions(drugs);
-      const mappedResults: InteractionResult[] = aiResults.map(r => ({
+      const { warnings } = await aiService.checkInteractions(drugs);
+      const mappedResults: InteractionResult[] = warnings.map(r => ({
         drug1: drugs[0],
         drug2: drugs[1] || "Drug B",
         severity: "Major", // AI service typically returns major warnings

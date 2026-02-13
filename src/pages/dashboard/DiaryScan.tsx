@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { ComparisonCard } from "@/components/dashboard/ai/ComparisonCard";
+import { CameraCapture } from "@/components/ui/camera-capture";
 
 interface ExtractedItem {
   id: number;
@@ -53,6 +54,7 @@ export const DiaryScan = () => {
   const [progress, setProgress] = useState(0);
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
   const [suggestion, setSuggestion] = useState<any>(null); // For ComparisonCard demo
+  const [showCamera, setShowCamera] = useState(false);
 
   // Patient/Doctor info state
   const [patientName, setPatientName] = useState("");
@@ -77,6 +79,14 @@ export const DiaryScan = () => {
       setExtractedItems([]);
       setIsConfirmed(false);
     }
+  };
+
+  const handleCameraCapture = (file: File) => {
+    setSelectedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    setExtractedItems([]);
+    setIsConfirmed(false);
+    toast.success("Image captured successfully!");
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -418,10 +428,15 @@ export const DiaryScan = () => {
         {/* Upload Section */}
         <Card className="border-none shadow-lg bg-background/50 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Camera className="w-5 h-5 text-teal-600" />
-              Capture Prescription
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Camera className="w-5 h-5 text-teal-600" />
+                Capture Prescription
+              </CardTitle>
+              <Button size="sm" variant="outline" onClick={() => setShowCamera(true)} className="gap-2">
+                <Camera className="w-4 h-4" /> Open Camera
+              </Button>
+            </div>
             <CardDescription>
               Upload a clear photo of the handwritten prescription
             </CardDescription>
@@ -748,6 +763,8 @@ export const DiaryScan = () => {
                           state: {
                             importItems,
                             customerName: patientName,
+                            customerPhone: patientContact,
+                            doctorName: doctorName,
                             source: 'pulse_scan'
                           }
                         });
@@ -765,6 +782,12 @@ export const DiaryScan = () => {
           </Card>
         )}
       </div>
+
+      <CameraCapture
+        isOpen={showCamera}
+        onClose={() => setShowCamera(false)}
+        onCapture={handleCameraCapture}
+      />
     </div>
   );
 };

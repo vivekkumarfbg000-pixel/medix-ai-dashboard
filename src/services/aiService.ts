@@ -19,8 +19,40 @@ function checkRateLimit(endpoint: string): boolean {
 }
 
 // Configuration from Environment
+// Configuration from Environment
 // Hardcoded Production URL to bypass incorrect environment variables
 const N8N_BASE = "https://n8n.medixai.shop/webhook";
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || "";
+
+async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versatile", jsonMode: boolean = false): Promise<string> {
+    try {
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${GROQ_API_KEY}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                messages: messages,
+                model: model,
+                temperature: 0.7,
+                response_format: jsonMode ? { type: "json_object" } : undefined
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            console.error("Groq API Error:", err);
+            throw new Error(`Groq API Failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0]?.message?.content || "";
+    } catch (e) {
+        console.error("Groq Call Failed", e);
+        throw e;
+    }
+}
 
 // Specific Workflow Routes
 export const ENDPOINTS = {
@@ -36,6 +68,7 @@ export const ENDPOINTS = {
 interface ChatResponse {
     reply: string;
     sources?: string[];
+    isMock?: boolean;
 }
 
 export interface ComplianceResult {
@@ -72,6 +105,9 @@ const cleanN8NResponse = (text: string): any => {
     return parsed;
 };
 
+// System Prompts for Standard Persona
+const SYSTEM_PROMPT_PHARMACIST = "You are MedixAI, an expert clinical pharmacist in India. Answer queries in Hinglish (Hindi + English mix). Be professional, helpful, and concise. Example: 'Dawa khane ke baad pani piyein.'";
+
 export const aiService = {
     /**
      * Universal AI Query Handler (Chat)
@@ -85,7 +121,8 @@ export const aiService = {
             await new Promise(r => setTimeout(r, 1500)); // Fake delay
             return {
                 reply: "Based on the symptoms described and current inventory, I recommend **Azithral 500mg** (Antibiotic) twice daily for 3 days. \n\nAlso, since the patient has high fever, you can suggest **Dolo 650** safely. \n\n⚠️ **Note**: Check for penicillin allergy before dispensing.",
-                sources: ["Clinical Guidelines 2024", "Standard Treatment Protocol"]
+                sources: ["Clinical Guidelines 2024", "Standard Treatment Protocol"],
+                isMock: true
             };
         }
 
@@ -152,12 +189,30 @@ export const aiService = {
         } catch (error: any) {
             console.error("Chat Error:", error);
 
-            // AUTOMATIC FALLBACK TO DEMO RESPONSE ON ERROR
-            // Ideally we only do this explicitly, but for Hackathon stability, this is safer.
-            return {
-                reply: "⚠️ Connectivity Issue. [OFFLINE ANSWER]: Based on standard protocols, for fever and cold symptoms, Paracetamol 650mg is the first line of treatment. If symptoms persist >3 days, consult a doctor.",
-                sources: ["Offline Protocol"]
-            };
+            // 1. TRY GROQ FALLBACK (Real Intelligence)
+            try {
+                logger.log("[Fallback] Switching to Groq AI (Hinglish)...");
+                const groqPrompt = [
+                    { role: "system", content: SYSTEM_PROMPT_PHARMACIST },
+                    { role: "user", content: contextMessage }
+                ];
+
+                const groqReply = await callGroqAI(groqPrompt, "llama-3.3-70b-versatile");
+                return {
+                    reply: groqReply,
+                    sources: ["Groq AI (Llama 3.3)"],
+                    isMock: false // It's real AI
+                };
+            } catch (groqErr) {
+                console.error("Groq Fallback Failed:", groqErr);
+
+                // 2. FINAL FALLBACK TO DEMO RESPONSE
+                return {
+                    reply: "⚠️ Connectivity Issue. [OFFLINE ANSWER]: Based on standard protocols, for fever and cold symptoms, Paracetamol 650mg is the first line of treatment. If symptoms persist >3 days, consult a doctor.",
+                    sources: ["Offline Protocol"],
+                    isMock: true
+                };
+            }
         }
     },
 
@@ -187,7 +242,8 @@ export const aiService = {
                     results: [
                         { parameter: "WBC", value: "12,500", unit: "/cumm", status: "High", normalRange: "4000-11000" },
                         { parameter: "Hemoglobin", value: "11.2", unit: "g/dL", status: "Low", normalRange: "13.0-17.0" }
-                    ]
+                    ],
+                    isMock: true
                 };
             }
             // Fallback for voice/others handled in catch or specific methods
@@ -292,8 +348,39 @@ export const aiService = {
             logger.log("[N8N Response] Analyze Document:", resData);
             return resData;
         } catch (e) {
-            logger.error("Failed to parse N8N response:", text);
-            throw new Error("Invalid response from Analysis Engine");
+            logger.error("N8N Analyze Failed, trying Groq Vision...", e);
+
+            // GROQ VISION FALLBACK
+            try {
+                const groqVisionContent = [
+                    {
+                        type: "text", text: `Analyze this medical document (${type}). 
+                    Output strictly valid JSON.
+                    Structure: 
+                    { 
+                        "summary": "Short summary in HINGLISH (Hindi+English)", 
+                        "diseasePossibility": ["Disease 1", "Disease 2"], 
+                        "recommendations": { 
+                            "diet": ["Diet tip in Hinglish"], 
+                            "nextSteps": ["Next step in Hinglish"] 
+                        }, 
+                        "results": [{ "parameter": "name", "value": "val", "unit": "u", "status": "High/Low/Normal" }] 
+                    }` },
+                    { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Data}` } }
+                ];
+
+                const groqRes = await callGroqAI(
+                    [{ role: "user", content: groqVisionContent }],
+                    "llama-3.2-11b-vision-preview",
+                    true
+                );
+
+                const parsed = JSON.parse(groqRes);
+                return { ...parsed, isMock: false };
+            } catch (groqViolate) {
+                logger.error("Groq Vision Failed:", groqViolate);
+                throw new Error("Analysis failed on both Primary and Backup AI engines.");
+            }
         }
     },
 
@@ -339,8 +426,8 @@ export const aiService = {
     /**
      * Interaction Checker (n8n / External API)
      */
-    async checkInteractions(drugs: string[]): Promise<string[]> {
-        if (drugs.length < 2) return [];
+    async checkInteractions(drugs: string[]): Promise<{ warnings: string[], isMock: boolean }> {
+        if (drugs.length < 2) return { warnings: [], isMock: false };
 
         // 0. DEMO MODE CHECK
         const isDemoMode = typeof window !== 'undefined' && localStorage.getItem("DEMO_MODE") === "true";
@@ -367,7 +454,7 @@ export const aiService = {
                 mockInteractions.push("⚠️ Moderate: Potential interaction detected. Monitor patient.");
             }
 
-            return mockInteractions;
+            return { warnings: mockInteractions, isMock: true };
         }
 
         try {
@@ -401,18 +488,45 @@ export const aiService = {
                     }
                 });
 
-                return Array.from(uniqueInteractions.values())
-                    .map((i: any) => `⚠️ ${i.severity}: ${i.drug1} + ${i.drug2}: ${i.description}`);
+                return {
+                    warnings: Array.from(uniqueInteractions.values())
+                        .map((i: any) => `⚠️ ${i.severity}: ${i.drug1} + ${i.drug2}: ${i.description}`),
+                    isMock: false
+                };
             }
 
             // Fallback for simple array return
-            if (Array.isArray(result)) return result;
+            if (Array.isArray(result)) return { warnings: result, isMock: false };
 
-            return [];
+            return { warnings: [], isMock: false };
         } catch (e) {
-            logger.warn("Interaction Check Failed, switching to Offline/LLM Fallback:", e);
+            // 1. TRY GROQ FALLBACK (Real Intelligence)
+            try {
+                const prompt = `
+                Act as a Clinical Pharmacist in India. Check for interactions between these drugs: ${drugs.join(', ')}.
+                Return a valid JSON array of strings ONLY. 
+                Each string should be a warning starting with "⚠️ Major" or "⚠️ Moderate".
+                The warning message MUST be in HINGLISH (Hindi + English mix) for local understanding.
+                Example: "⚠️ Major: Drug A aur Drug B lene se bleeding ka khatra badh sakta hai."
+                If no interactions, return empty array [].
+                No markdown. Strict JSON.
+                `;
 
-            // 1. FAST LOCAL FALLBACK (Offline Knowledge Base)
+                const groqJson = await callGroqAI([
+                    { role: "system", content: "You are a clinical interaction checker. Output valid JSON only." },
+                    { role: "user", content: prompt }
+                ], "llama-3.3-70b-versatile", true); // Enable JSON mode
+
+                const parsed = JSON.parse(groqJson);
+                const warnings = Array.isArray(parsed) ? parsed : (parsed.warnings || []);
+                return { warnings, isMock: false };
+
+            } catch (groqErr) {
+                logger.warn("Groq Interaction Check Failed, using offline basics", groqErr);
+                // Proceed to offline fallback...
+            }
+
+            // 2. FAST LOCAL FALLBACK (Offline Knowledge Base)
             const offlineWarnings: string[] = [];
             const d = drugs.map(x => x.toLowerCase());
 
@@ -426,31 +540,9 @@ export const aiService = {
             if (d.some(x => x.includes("alcohol")) && d.some(x => x.includes("metronidazole")))
                 offlineWarnings.push("⚠️ Severe: Disulfiram-like reaction (Vomiting)");
 
-            if (offlineWarnings.length > 0) return offlineWarnings;
+            if (offlineWarnings.length > 0) return { warnings: offlineWarnings, isMock: true };
 
-            // 2. LLM Fallback (Simulated if even LLM fails)
-            const prompt = `
-            Act as a Clinical Pharmacist. Check for interactions between these drugs: ${drugs.join(', ')}.
-            Return a valid JSON array of strings ONLY. Each string should be a warning starting with "⚠️ Major" or "⚠️ Moderate".
-            If no interactions, return empty array [].
-            Examples: ["⚠️ Major: Drug A + Drug B increase risk of bleeding."]
-            No markdown. Strict JSON.
-            `;
-
-            try {
-                const aiRes = await this.chatWithAgent(prompt);
-                let clean = aiRes.reply.replace(/```json/g, '').replace(/```/g, '').trim();
-                // Ensure it's an array
-                const first = clean.indexOf('[');
-                const last = clean.lastIndexOf(']');
-                if (first !== -1 && last !== -1) clean = clean.substring(first, last + 1);
-
-                const parsed = JSON.parse(clean);
-                return Array.isArray(parsed) ? parsed : [];
-            } catch (fallbackErr) {
-                logger.error("Interaction Fallback Failed", fallbackErr);
-                return [];
-            }
+            return { warnings: [], isMock: false };
         }
     },
 
@@ -459,22 +551,59 @@ export const aiService = {
      */
     async getMarketData(drugName: string): Promise<any> {
         logger.log("[N8N Request] Market:", { drugName });
-        const response = await fetch(ENDPOINTS.MARKET, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ drugName }),
-        });
-        if (!response.ok) throw new Error("Market Intel Failed");
 
-        const text = await response.text();
-        if (!text) {
-            logger.error("N8N Market Intel returned Empty Body");
-            throw new Error("Market Check: Backend returned empty response. Check n8n workflow.");
+        try {
+            const response = await fetch(ENDPOINTS.MARKET, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ drugName }),
+            });
+
+            if (!response.ok) throw new Error("Market Intel Failed");
+
+            const text = await response.text();
+            if (!text || text.length < 5) { // Basic validation
+                logger.warn("N8N Market Intel returned Empty/Invalid Body");
+                throw new Error("Empty response");
+            }
+
+            const data = cleanN8NResponse(text);
+            logger.log("[N8N Response] Market:", data);
+            return data;
+
+        } catch (error) {
+            console.error("N8N Market Intel Failed, switching to Groq Fallback:", error);
+
+            // GROQ FALLBACK (Real Intelligence)
+            try {
+                const prompt = `
+                Act as a pharmaceutical market intelligence expert in India.
+                Provide 3-4 popular market substitutes for the medicine "${drugName}".
+                Return STRICT JSON only. Format:
+                {
+                    "substitutes": [
+                        { "name": "Brand Name", "generic_name": "Generic Name", "price": 100 (number, MRP in INR), "margin_percentage": 20 (number), "savings": 10 (number) }
+                    ]
+                }
+                Ensure prices are realistic for the Indian market.
+                Do not include Markdown (no \`\`\`json). Just the raw JSON string.
+                `;
+
+                const groqJson = await callGroqAI([
+                    { role: "system", content: "You are a pharmaceutical market expert. Output valid JSON only." },
+                    { role: "user", content: prompt }
+                ], "llama-3.3-70b-versatile", true); // Enable JSON mode
+
+                const parsed = JSON.parse(groqJson);
+                logger.log("[Groq Response] Market:", parsed);
+                return { ...parsed, isMock: false, source: "Groq AI (Fallback)" };
+
+            } catch (groqErr) {
+                logger.error("Groq Market Fallback Failed:", groqErr);
+                // Final verification: return empty object so app doesn't crash, will fallback to local logic
+                return { substitutes: [] };
+            }
         }
-
-        const data = cleanN8NResponse(text);
-        logger.log("[N8N Response] Market:", data);
-        return data;
     },
 
     /**
@@ -482,22 +611,57 @@ export const aiService = {
      */
     async checkCompliance(drugName: string): Promise<ComplianceResult> {
         logger.log("[N8N Request] Compliance:", { drugName });
-        const response = await fetch(ENDPOINTS.COMPLIANCE, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ drugName }),
-        });
-        if (!response.ok) throw new Error("Compliance Check Failed");
+        try {
+            const response = await fetch(ENDPOINTS.COMPLIANCE, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ drugName }),
+            });
+            if (!response.ok) throw new Error("Compliance Check Failed");
 
-        const text = await response.text();
-        if (!text) {
-            logger.error("N8N Compliance Check returned Empty Body");
-            throw new Error("Compliance Check: Backend returned empty response. Check n8n workflow.");
+            const text = await response.text();
+            if (!text) {
+                logger.error("N8N Compliance Check returned Empty Body");
+                throw new Error("Empty response");
+            }
+
+            const data = cleanN8NResponse(text);
+            logger.log("[N8N Response] Compliance:", data);
+            return data;
+
+        } catch (error) {
+            console.error("N8N Compliance Failed, switching to Groq Fallback:", error);
+
+            // GROQ FALLBACK
+            try {
+                const prompt = `
+                Check strictly for Indian CDSCO/FDA regulations for the drug: "${drugName}".
+                1. Is it a BANNED drug in India? (is_banned)
+                2. Is it a Schedule H/H1 drug requiring prescription? (is_h1)
+                3. Provide a short reason in HINGLISH.
+                
+                Return JSON only:
+                {
+                    "is_banned": boolean,
+                    "is_h1": boolean,
+                    "reason": "Reason in Hinglish",
+                    "warning_level": "High" | "Medium" | "Low" | "None"
+                }
+                `;
+
+                const groqJson = await callGroqAI([
+                    { role: "system", content: "You are a Regulatory Affairs Specialist for Indian Pharma. Output valid JSON only." },
+                    { role: "user", content: prompt }
+                ], "llama-3.3-70b-versatile", true);
+
+                const parsed = JSON.parse(groqJson);
+                return { ...parsed, isMock: false, source: "Groq AI (Regulatory)" };
+            } catch (groqErr) {
+                logger.error("Groq Compliance Fallback Failed:", groqErr);
+                // Fail-safe: Assume safe but warn to check manual
+                return { is_banned: false, is_h1: false, reason: "Regulatory check failed. Please verify manually.", warning_level: "Low" };
+            }
         }
-
-        const data = cleanN8NResponse(text);
-        logger.log("[N8N Response] Compliance:", data);
-        return data;
     },
 
     /**
@@ -529,8 +693,37 @@ export const aiService = {
             return data;
 
         } catch (error) {
-            console.error("[AI Service] N8N Forecast Failed, using local heuristic:", error);
-            // Fallback: Local Heuristic Analysis (Real calculation, not mock strings)
+            console.error("[AI Service] N8N Forecast Failed, trying Groq Fallback:", error);
+
+            // 1. GROQ FALLBACK (Smart Analysis)
+            try {
+                // Simplify data for token limit
+                const simplifiedSales = salesHistory.slice(0, 50).map(s => ({ d: s.created_at, i: s.order_items }));
+                const prompt = `
+                Analyze these recent pharmacy sales.
+                Predict next week's restocking needs for top 3 selling items.
+                Return JSON only:
+                {
+                    "forecast": [
+                        { "product": "Drug Name", "suggested_restock": 10, "confidence": 0.85, "reason": "Reason in Hinglish" }
+                    ]
+                }
+                Data: ${JSON.stringify(simplifiedSales)}
+                `;
+
+                const groqJson = await callGroqAI([
+                    { role: "system", content: "You are an Inventory Analyst. Output valid JSON only." },
+                    { role: "user", content: prompt }
+                ], "llama-3.3-70b-versatile", true);
+
+                const parsed = JSON.parse(groqJson);
+                return { ...parsed, isMock: false, source: "Groq AI (Forecast)" };
+            } catch (groqErr) {
+                console.warn("Groq Forecast Failed, using local heuristic:", groqErr);
+                // Proceed to Local Heuristic below...
+            }
+
+            // 2. Fallback: Local Heuristic Analysis (Real calculation, not mock strings)
             // 1. Group sales by product
             const salesMap = new Map<string, number>();
             salesHistory.forEach((order: any) => {
@@ -674,15 +867,58 @@ export const aiService = {
 
         } catch (error) {
             console.warn("[AI Service] Voice Backup Triggered", error);
-            // FALLBACK: If N8N is down, return a "Success Mock" for the Demo flow
-            // This mimics what N8N *would* have returned for a typical demo audio
-            return {
-                transcription: "Mock: 2 Patta Dolo aur 1 Azithral (System Offline Mode)",
-                items: [
-                    { name: "Dolo 650", quantity: 30, confidence: 0.95 },
-                    { name: "Azithral 500", quantity: 5, confidence: 0.90 }
-                ]
-            };
+
+            // 1. TRY GROQ WHISPER FALLBACK
+            try {
+                logger.log("[Fallback] processing with Groq Whisper...");
+                const formData = new FormData();
+                formData.append("file", audioBlob, "voice_input.webm"); // webm/mp3/wav
+                formData.append("model", "whisper-large-v3");
+                formData.append("temperature", "0");
+                formData.append("response_format", "json");
+
+                const transResponse = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${GROQ_API_KEY}` }, // No Content-Type for FormData
+                    body: formData
+                });
+
+                if (!transResponse.ok) throw new Error(`Groq Whisper Failed: ${transResponse.status}`);
+
+                const transData = await transResponse.json();
+                const transcription = transData.text;
+                logger.log("[Groq Whisper] Text:", transcription);
+
+                // 2. Parse Items using Llama 3 (Hinglish Aware)
+                const prompt = `
+                Extract medicine orders from this voice transcript: "${transcription}".
+                Output JSON: { "items": [{ "name": "Medicine", "quantity": 10 }] }.
+                If quantity is missing, default to 1.
+                `;
+
+                const parseJson = await callGroqAI([
+                    { role: "system", content: "You are an Order Parser. Output JSON only." },
+                    { role: "user", content: prompt }
+                ], "llama-3.3-70b-versatile", true);
+
+                const parsed = JSON.parse(parseJson);
+                return {
+                    transcription: transcription,
+                    items: parsed.items || []
+                };
+
+            } catch (whisperErr) {
+                console.error("Groq Whisper Fallback Failed:", whisperErr);
+
+                // 3. FINAL FALLBACK: Mock for Demo
+                return {
+                    transcription: "Mock: 2 Patta Dolo aur 1 Azithral (System Offline Mode)",
+                    items: [
+                        { name: "Dolo 650", quantity: 30, confidence: 0.95 },
+                        { name: "Azithral 500", quantity: 5, confidence: 0.90 }
+                    ]
+                };
+            }
         }
 
 
