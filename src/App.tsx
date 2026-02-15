@@ -42,6 +42,7 @@ const Purchases = lazy(() => import("./pages/dashboard/Purchases"));
 const ScheduleH1 = lazy(() => import("./pages/dashboard/ScheduleH1"));
 const EnvDebug = lazy(() => import("./pages/EnvDebug"));
 const AiDebug = lazy(() => import("./pages/AiDebug"));
+const TestAIFallback = lazy(() => import("./pages/TestAIFallback"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -111,6 +112,7 @@ const AppRoutes = () => {
           <Route path="ai-debug" element={<ErrorBoundary><AiDebug /></ErrorBoundary>} />
         </Route>
 
+        <Route path="/test-ai-fallback" element={<TestAIFallback />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

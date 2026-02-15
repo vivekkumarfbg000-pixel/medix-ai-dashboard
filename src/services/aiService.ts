@@ -24,7 +24,7 @@ function checkRateLimit(endpoint: string): boolean {
 const N8N_BASE = "https://n8n.medixai.shop/webhook";
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || "";
 
-async function callGroqAI(messages: any[], model: string = "llama-3.1-70b-versatile", jsonMode: boolean = false): Promise<string> {
+async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versatile", jsonMode: boolean = false): Promise<string> {
     try {
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -544,7 +544,7 @@ WARNING: Check if the requested medicine conflicts with this history.
                     { role: "user", content: contextMessage }
                 ];
 
-                const groqReply = await callGroqAI(groqPrompt, "llama-3.1-70b-versatile");
+                const groqReply = await callGroqAI(groqPrompt, "llama-3.3-70b-versatile");
                 return {
                     reply: groqReply,
                     sources: ["Groq AI (Llama 3.3)"],
@@ -804,7 +804,7 @@ WARNING: Check if the requested medicine conflicts with this history.
             const briefing = await callGroqAI([
                 { role: "system", content: "You are a smart pharmacy assistant. Keep it brief and speakable." },
                 { role: "user", content: prompt }
-            ], "llama-3.1-70b-versatile");
+            ], "llama-3.3-70b-versatile");
 
             return briefing;
 
