@@ -31,6 +31,8 @@ import { whatsappService } from "@/services/whatsappService";
 import { aiService } from "@/services/aiService"; // Import AI
 import { toast } from "sonner"; // Ensure toast is imported
 
+import { speak } from "@/utils/textToSpeech";
+
 const Alerts = () => {
   const { currentShop } = useUserShops();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -154,13 +156,8 @@ const Alerts = () => {
               const briefing = await aiService.getDailyBriefing(currentShop.id);
 
               // Simple TTS Trigger (copying logic from AIInsights or using window directly)
-              if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(briefing);
-                utterance.lang = 'en-IN'; // Indian English
-                window.speechSynthesis.speak(utterance);
-                toast.success("Playing Briefing");
-              }
+              speak(briefing);
+              toast.success("Playing Briefing");
             }}
           >
             <Users className="w-4 h-4" /> Play Briefing (Voice)

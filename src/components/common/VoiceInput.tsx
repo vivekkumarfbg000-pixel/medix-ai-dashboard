@@ -15,7 +15,7 @@ interface VoiceInputProps {
 
 const VoiceInput: React.FC<VoiceInputProps> = ({
     onTranscript,
-    lang = 'hi-IN',
+    lang = 'en-IN',
     placeholder = "Speak to search...",
     className = ""
 }) => {

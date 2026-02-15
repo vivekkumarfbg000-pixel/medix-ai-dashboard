@@ -36,6 +36,8 @@ import { ArrowRight } from "lucide-react";
 
 import { useNavigate } from "react-router-dom"; // Added for navigation
 
+import { speak } from "@/utils/textToSpeech";
+
 const AIInsights = () => {
   const navigate = useNavigate(); // Hook for navigation
   const [activeTab, setActiveTab] = useState("chat"); // Default to Chat as requested
@@ -62,27 +64,6 @@ const AIInsights = () => {
   const [ttsEnabled, setTtsEnabled] = useState(true); // TTS State
   const [isSpeaking, setIsSpeaking] = useState(false); // Speaking State
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-
-  // --- TTS Functionality ---
-  const speakResponse = (text: string) => {
-    if (!ttsEnabled || !window.speechSynthesis) return;
-
-    // Stop any ongoing speech
-    window.speechSynthesis.cancel();
-    setIsSpeaking(false);
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US'; // Or appropriate language
-
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = (event) => {
-      console.error('Speech synthesis error:', event);
-      setIsSpeaking(false);
-    };
-
-    window.speechSynthesis.speak(utterance);
-  };
 
   const stopSpeaking = () => {
     if (window.speechSynthesis) {
@@ -154,7 +135,7 @@ const AIInsights = () => {
         sources: ["Stock Analysis", "Expiry Check"]
       }]);
 
-      speakResponse(briefing);
+      if (ttsEnabled) speak(briefing);
     } catch (e) {
       toast.error("Failed to get briefing");
     }
@@ -217,7 +198,7 @@ const AIInsights = () => {
       }]);
 
       // Speak the response
-      speakResponse(response.reply);
+      if (ttsEnabled) speak(response.reply);
 
     } catch (error) {
       setChatMessages(prev => [...prev, {

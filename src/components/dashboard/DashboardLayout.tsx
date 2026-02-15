@@ -210,6 +210,12 @@ export function DashboardLayout() {
         <div className="text-center">
           <h2 className="text-lg font-semibold text-foreground">Loading MedixAI.Shop...</h2>
           <p className="text-sm text-muted-foreground animate-pulse">Initializing Secure Dashboard</p>
+          <button
+            onClick={() => setLoading(false)}
+            className="mt-4 text-xs text-blue-500 hover:underline"
+          >
+            taking too long? click here
+          </button>
         </div>
       </div>
     );
