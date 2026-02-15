@@ -24,7 +24,7 @@ function checkRateLimit(endpoint: string): boolean {
 const N8N_BASE = "https://n8n.medixai.shop/webhook";
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || "";
 
-async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versatile", jsonMode: boolean = false): Promise<string> {
+async function callGroqAI(messages: any[], model: string = "llama-3.1-70b-versatile", jsonMode: boolean = false): Promise<string> {
     try {
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -103,6 +103,38 @@ const cleanN8NResponse = (text: string): any => {
     }
 
     return parsed;
+};
+
+/**
+ * Robust JSON Parser for AI Responses (strips markdown, handles randomness)
+ */
+const safeJSONParse = (text: string, fallback: any = null): any => {
+    try {
+        // 1. Try direct parse
+        return JSON.parse(text);
+    } catch {
+        // 2. Clean Markdown and whitespace
+        const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        try {
+            return JSON.parse(clean);
+        } catch {
+            // 3. Try finding first '{' or '[' and last '}' or ']'
+            try {
+                const firstOpen = clean.search(/[\{\[]/);
+                if (firstOpen !== -1) {
+                    const firstChar = clean[firstOpen];
+                    const lastChar = firstChar === '{' ? '}' : ']';
+                    const lastClose = clean.lastIndexOf(lastChar);
+                    if (lastClose !== -1) {
+                        return JSON.parse(clean.substring(firstOpen, lastClose + 1));
+                    }
+                }
+            } catch (e) {
+                logger.warn("JSON Parse Failed completely:", text);
+            }
+        }
+    }
+    return fallback;
 };
 
 // System Prompts for Standard Persona
@@ -197,7 +229,7 @@ export const aiService = {
                     { role: "user", content: contextMessage }
                 ];
 
-                const groqReply = await callGroqAI(groqPrompt, "llama-3.3-70b-versatile");
+                const groqReply = await callGroqAI(groqPrompt, "llama-3.1-70b-versatile");
                 return {
                     reply: groqReply,
                     sources: ["Groq AI (Llama 3.3)"],
@@ -375,7 +407,8 @@ export const aiService = {
                     true
                 );
 
-                const parsed = JSON.parse(groqRes);
+                const parsed = safeJSONParse(groqRes, {});
+                if (!parsed.summary) throw new Error("Invalid Analysis Format");
                 return { ...parsed, isMock: false };
             } catch (groqViolate) {
                 logger.error("Groq Vision Failed:", groqViolate);
@@ -515,9 +548,9 @@ export const aiService = {
                 const groqJson = await callGroqAI([
                     { role: "system", content: "You are a clinical interaction checker. Output valid JSON only." },
                     { role: "user", content: prompt }
-                ], "llama-3.3-70b-versatile", true); // Enable JSON mode
+                ], "llama-3.1-70b-versatile", true); // Enable JSON mode
 
-                const parsed = JSON.parse(groqJson);
+                const parsed = safeJSONParse(groqJson, []);
                 const warnings = Array.isArray(parsed) ? parsed : (parsed.warnings || []);
                 return { warnings, isMock: false };
 
@@ -592,9 +625,9 @@ export const aiService = {
                 const groqJson = await callGroqAI([
                     { role: "system", content: "You are a pharmaceutical market expert. Output valid JSON only." },
                     { role: "user", content: prompt }
-                ], "llama-3.3-70b-versatile", true); // Enable JSON mode
+                ], "llama-3.1-70b-versatile", true); // Enable JSON mode
 
-                const parsed = JSON.parse(groqJson);
+                const parsed = safeJSONParse(groqJson, { substitutes: [] });
                 logger.log("[Groq Response] Market:", parsed);
                 return { ...parsed, isMock: false, source: "Groq AI (Fallback)" };
 
@@ -652,9 +685,9 @@ export const aiService = {
                 const groqJson = await callGroqAI([
                     { role: "system", content: "You are a Regulatory Affairs Specialist for Indian Pharma. Output valid JSON only." },
                     { role: "user", content: prompt }
-                ], "llama-3.3-70b-versatile", true);
+                ], "llama-3.1-70b-versatile", true);
 
-                const parsed = JSON.parse(groqJson);
+                const parsed = safeJSONParse(groqJson, { is_banned: false, reason: "Analysis inconclusive" });
                 return { ...parsed, isMock: false, source: "Groq AI (Regulatory)" };
             } catch (groqErr) {
                 logger.error("Groq Compliance Fallback Failed:", groqErr);
@@ -714,9 +747,9 @@ export const aiService = {
                 const groqJson = await callGroqAI([
                     { role: "system", content: "You are an Inventory Analyst. Output valid JSON only." },
                     { role: "user", content: prompt }
-                ], "llama-3.3-70b-versatile", true);
+                ], "llama-3.1-70b-versatile", true);
 
-                const parsed = JSON.parse(groqJson);
+                const parsed = safeJSONParse(groqJson, { forecast: [] });
                 return { ...parsed, isMock: false, source: "Groq AI (Forecast)" };
             } catch (groqErr) {
                 console.warn("Groq Forecast Failed, using local heuristic:", groqErr);
@@ -894,14 +927,15 @@ export const aiService = {
                 Extract medicine orders from this voice transcript: "${transcription}".
                 Output JSON: { "items": [{ "name": "Medicine", "quantity": 10 }] }.
                 If quantity is missing, default to 1.
+                IMPORTANT: The transcript may be in HINGLISH. Identify medicines accurately.
                 `;
 
                 const parseJson = await callGroqAI([
                     { role: "system", content: "You are an Order Parser. Output JSON only." },
                     { role: "user", content: prompt }
-                ], "llama-3.3-70b-versatile", true);
+                ], "llama-3.1-70b-versatile", true);
 
-                const parsed = JSON.parse(parseJson);
+                const parsed = safeJSONParse(parseJson, { items: [] });
                 return {
                     transcription: transcription,
                     items: parsed.items || []
@@ -1008,13 +1042,7 @@ export const aiService = {
 
         try {
             const response = await this.chatWithAgent(prompt);
-            let clean = response.reply.replace(/```json/g, '').replace(/```/g, '').trim();
-            // Try to extract array brackets if embedded
-            const first = clean.indexOf('[');
-            const last = clean.lastIndexOf(']');
-            if (first !== -1 && last !== -1) clean = clean.substring(first, last + 1);
-
-            return JSON.parse(clean);
+            return safeJSONParse(response.reply, []);
         } catch (e) {
             console.error("Generic Fetch Failed", e);
             // Fallback for Hackathon Demo
@@ -1056,8 +1084,10 @@ export const aiService = {
 
         try {
             const response = await this.chatWithAgent(prompt);
-            let clean = response.reply.replace(/```json/g, '').replace(/```/g, '').trim();
-            return JSON.parse(clean);
+            return safeJSONParse(response.reply, {
+                insight: "Data analysis unavailable right now.",
+                action: "Check inventory levels manually."
+            });
         } catch (e) {
             // Fallback
             return {

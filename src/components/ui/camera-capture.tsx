@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Camera, X, RefreshCw, CheckCircle, Smartphone } from "lucide-react";
+import { Camera, X, RefreshCw, CheckCircle, Smartphone, AlertTriangle, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 interface CameraCaptureProps {
@@ -18,6 +18,8 @@ export const CameraCapture = ({ onCapture, trigger, isOpen: controlledIsOpen, on
     const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null); // Fallback input
+    const [cameraError, setCameraError] = useState<string | null>(null);
 
     // Handle controlled vs uncontrolled state
     const show = controlledIsOpen !== undefined ? controlledIsOpen : isOpen;
@@ -60,7 +62,8 @@ export const CameraCapture = ({ onCapture, trigger, isOpen: controlledIsOpen, on
             }
         } catch (err) {
             console.error("Camera Error:", err);
-            toast.error("Could not access camera. Please check permissions.");
+            setCameraError("Camera access denied or unavailable. Please use the button below to upload.");
+            toast.error("Could not start live camera. Using fallback.");
         }
     };
 
@@ -116,6 +119,14 @@ export const CameraCapture = ({ onCapture, trigger, isOpen: controlledIsOpen, on
         }
     };
 
+    const handleFallbackCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            onCapture(file);
+            close();
+        }
+    };
+
     const switchCamera = () => {
         setFacingMode(prev => prev === "user" ? "environment" : "user");
     };
@@ -147,6 +158,28 @@ export const CameraCapture = ({ onCapture, trigger, isOpen: controlledIsOpen, on
                                 playsInline
                                 className="max-w-full max-h-full object-cover w-full h-full"
                             />
+                        )}
+                        {/* Fallback View */}
+                        {cameraError && !image && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white p-6 text-center z-20">
+                                <AlertTriangle className="w-12 h-12 text-yellow-500 mb-4" />
+                                <p className="mb-6 max-w-xs">{cameraError}</p>
+                                <Button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="bg-white text-black hover:bg-zinc-200"
+                                >
+                                    <Upload className="w-4 h-4 mr-2" />
+                                    Open Device Camera / Gallery
+                                </Button>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    ref={fileInputRef}
+                                    onChange={handleFallbackCapture}
+                                />
+                            </div>
                         )}
                         <canvas ref={canvasRef} className="hidden" />
                     </div>
