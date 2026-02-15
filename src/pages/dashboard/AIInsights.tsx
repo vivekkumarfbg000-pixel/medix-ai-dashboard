@@ -31,7 +31,10 @@ import { useUserShops } from "@/hooks/useUserShops";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowRight } from "lucide-react";
 
+import { useNavigate } from "react-router-dom"; // Added for navigation
+
 const AIInsights = () => {
+  const navigate = useNavigate(); // Hook for navigation
   const [activeTab, setActiveTab] = useState("chat"); // Default to Chat as requested
 
   // Smart Search State
@@ -116,6 +119,36 @@ const AIInsights = () => {
 
     try {
       const response = await aiService.chatWithAgent(userMsg, userImage || undefined);
+
+      // Handle Action (e.g., Redirect to POS)
+      if (response.action && response.action.type === 'NAVIGATE_POS') {
+        const { medicine, quantity } = response.action.payload;
+        toast.success(`Redirecting to Bill ${medicine}...`);
+
+        setTimeout(() => {
+          navigate("/dashboard/sales/pos", {
+            state: {
+              voiceTranscription: `Sell ${quantity} ${medicine}`,
+              voiceItems: [{ name: medicine, quantity: quantity, intent: 'add' }]
+            }
+          });
+        }, 1500); // Short delay for user to read the message
+      }
+
+      // Handle WhatsApp
+      if (response.action && response.action.type === 'OPEN_WHATSAPP') {
+        const { phone, message } = response.action.payload;
+        const encodedMsg = encodeURIComponent(message);
+        const url = phone ? `https://wa.me/${phone}?text=${encodedMsg}` : `https://wa.me/?text=${encodedMsg}`;
+        window.open(url, '_blank');
+        toast.success("Opening WhatsApp...");
+      }
+
+      // Handle Shortbook (Toast Confirmation)
+      if (response.action && response.action.type === 'ADD_TO_SHORTBOOK') {
+        toast.success(`✅ ${response.action.payload.medicine} added to Shortbook`);
+      }
+
       setChatMessages(prev => [...prev, {
         role: 'bot',
         text: response.reply,
@@ -325,38 +358,60 @@ const AIInsights = () => {
               </ScrollArea>
 
               {/* Input Area */}
-              <div className="p-4 bg-slate-900/80 border-t border-white/5 p-4 md:p-6 backdrop-blur-md">
+              {/* Input Area - Professional Redesign */}
+              <div className="p-4 bg-slate-900 border-t border-slate-800">
+
                 {selectedImage && (
-                  <div className="mb-2 relative inline-block">
-                    <img src={selectedImage} alt="Preview" className="h-16 w-16 rounded-lg object-cover border border-white/20" />
-                    <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600">
-                      <X className="w-3 h-3" />
-                    </button>
+                  <div className="mb-4 relative inline-block animate-in fade-in slide-in-from-bottom-2">
+                    <div className="relative group">
+                      <img src={selectedImage} alt="Preview" className="h-20 w-20 rounded-xl object-cover border-2 border-blue-500/50 shadow-lg" />
+                      <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow-md transition-transform hover:scale-110">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <span className="text-xs text-blue-300 mt-1 block font-medium">Image Attached</span>
                   </div>
                 )}
-                <div className="flex gap-3">
-                  <VoiceInput onTranscript={(text) => setCurrentChatInfo(text)} />
 
+                <div className="relative flex items-center w-full">
+
+                  {/* Left: Attach Button */}
+                  <label className="absolute left-3 z-10 cursor-pointer group">
+                    <Input type="file" onChange={handleFileSelect} className="hidden" accept="image/*" />
+                    <div className="h-10 w-10 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 group-hover:text-blue-400 group-hover:bg-blue-500/10 transition-all">
+                      <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
+                    </div>
+                  </label>
+
+                  {/* Center: Main Input */}
                   <Input
                     placeholder="Ask a clinical question or upload a prescription..."
                     value={currentChatInfo}
                     onChange={(e) => setCurrentChatInfo(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleChat()}
-                    className="flex-1 bg-slate-950/50 border-white/10 focus-visible:ring-blue-500/50 text-white placeholder:text-slate-500 h-11"
+                    className="w-full pl-14 pr-28 py-6 h-14 bg-slate-950/80 border-slate-800 rounded-full focus-visible:ring-2 focus-visible:ring-blue-500/50 text-base placeholder:text-slate-500 shadow-inner font-normal tracking-wide"
                   />
 
-                  <label className="cursor-pointer">
-                    <Input type="file" onChange={handleFileSelect} className="hidden" accept="image/*" />
-                    <div className="h-11 w-11 flex items-center justify-center rounded-md border border-white/10 bg-slate-950/50 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
-                      <Plus className="w-5 h-5" />
-                    </div>
-                  </label>
+                  {/* Right: Actions (Voice + Send) */}
+                  <div className="absolute right-2 flex items-center gap-2">
+                    <VoiceInput
+                      onTranscript={(text) => setCurrentChatInfo(text)}
+                      className="h-10 w-10 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                    />
 
-                  <Button onClick={handleChat} disabled={chatLoading} className="h-11 px-6 bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20">
-                    <MessageSquare className="w-5 h-5" />
-                  </Button>
+                    <Button
+                      onClick={handleChat}
+                      disabled={chatLoading}
+                      size="icon"
+                      className="h-10 w-10 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 transition-all hover:scale-105"
+                    >
+                      {chatLoading ? <Activity className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
+                    </Button>
+                  </div>
+
                 </div>
-                <p className="text-[10px] text-center text-slate-600 mt-2">
+
+                <p className="text-[11px] text-center text-slate-500 mt-3 font-medium tracking-wide">
                   AI Output can be inaccurate. Always verify clinically.
                 </p>
               </div>

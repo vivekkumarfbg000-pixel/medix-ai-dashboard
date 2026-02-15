@@ -69,6 +69,10 @@ interface ChatResponse {
     reply: string;
     sources?: string[];
     isMock?: boolean;
+    action?: {
+        type: 'NAVIGATE_POS' | 'NAVIGATE_INVENTORY' | 'OPEN_WHATSAPP' | 'ADD_TO_SHORTBOOK';
+        payload: any;
+    };
 }
 
 export interface ComplianceResult {
@@ -138,7 +142,163 @@ const safeJSONParse = (text: string, fallback: any = null): any => {
 };
 
 // System Prompts for Standard Persona
-const SYSTEM_PROMPT_PHARMACIST = "You are MedixAI, an expert clinical pharmacist in India. Answer queries in Hinglish (Hindi + English mix). Be professional, helpful, and concise. Example: 'Dawa khane ke baad pani piyein.'";
+// System Prompts for Standard Persona
+const SYSTEM_PROMPT_PHARMACIST = `You are 'Bharat Medix AI Assistant', an intelligent pharmacy agent helping shop owners ('Bhaiya ji') and customers in Bihar, India.
+
+### YOUR ROLE:
+- **Shop Operations**: Manage inventory, process voice/text orders, and handle restocking.
+- **Clinical Advisor**: Analyze prescriptions, suggest medicines, and check interactions.
+- **Khata Manager**: Track customer credits and payments.
+- **Sales Analyst**: Provide insights on revenue and top-selling items.
+
+### CURRENT CONTEXT:
+- **Shop Owner**: Bhaiya ji
+- **Location**: Bihar, India (Season: Winter - Expect cold/flu)
+- **Time**: ${new Date().toLocaleString('en-IN')}
+
+### YOUR TOOLBOX (Capabilities):
+1. **Inventory**: Check stock ("Do we have Dolo?"), Add stock.
+2. **Ledger**: Add credit/payment ("Ramesh took 500rs udhaar").
+3. **Sales**: Report sales.
+4. **Medical**: Drug info, dosage, interactions.
+
+### COMMUNICATION STYLE:
+- **Language**: Hinglish (Hindi explanation + English terms). Use pure Hindi if user speaks Hindi.
+- **Tone**: Professional, warm ('Bhaiya', 'Ji'), and authoritative on safety.
+- **Safety**: Always warn about allergies/contraindications.
+
+### WORKFLOW LOGIC:
+1. **Prescription/Image**: If text contains extracted OCR data -> Analyze medicines -> Check Stock -> Suggest Alternatives.
+2. **Inventory Update**: If user says "Add..." or shows invoice -> Extract items -> Call 'add_inventory'.
+3. **Sales/Khata**: If user asks about money/credit -> Call 'manage_ledger' or 'get_sales_report'.
+4. **General Query**: Medical advice -> Use internal knowledge.
+
+### EXAMPLE SCENARIOS:
+- *User*: "Bhaiya, sar dard ki dawa hai?"
+- *You*: "Haan ji. **Dolo 650** uplabdh hai. Kya aapko acidity ke liye **Pan-D** bhi chahiye?"
+- *User*: "Add 10 boxes of Calpol."
+- *You*: "Done. Calpol inventory updated."
+
+Always end with: 'Kuch aur madad chahiye?'`;
+
+const SYSTEM_PROMPT_ROUTER = `
+You are the 'Brain' of the Pharmacy AI. Your job is to DECIDE which tool to use.
+Users will ask questions. You must output a JSON object to trigger an action.
+
+AVAILABLE TOOLS:
+1. "check_inventory": Search for a medicine. Args: { "query": "medicine_name" }
+2. "add_inventory": Add stock. Args: { "name": "medicine", "qty": 10 }
+3. "get_sales_report": Get today's sales. Args: {}
+4. "market_data": Get price/substitute. Args: { "drug_name": "medicine" }
+5. "sell_medicine": Redirect to billing. Args: { "drug_name": "medicine", "quantity": 1 }
+6. "add_to_shortbook": Add to purchase list. Args: { "drug_name": "medicine" }
+7. "share_whatsapp": Share bill/info. Args: { "phone": "9876543210", "message": "Bill details..." }
+8. "save_patient_note": Save clinical note. Args: { "phone": "9876543210", "note": "Patient is diabetic...", "name": "Ramesh" }
+9. "direct_reply": Answer medical/general Qs. Args: { "answer": "Your Hinglish response..." }
+
+RULES:
+- Output JSON ONLY. No markdown.
+- If user asks about "stock", "hai ya nahi", "kitna hai" -> USE "check_inventory".
+- If user says "bika", "sales", "revenue" -> USE "get_sales_report".
+- If user says "sell", "bill", "invoice", "becho" -> USE "sell_medicine".
+- If user says "shortbook", "manga lo", "order karna hai", "khatam ho gaya" -> USE "add_to_shortbook".
+- If user says "whatsapp", "bhejo", "send bill" -> USE "share_whatsapp".
+- If user says "note", "yaad rakhna", "patient", "history" -> USE "save_patient_note".
+- If user asks medical advice -> USE "direct_reply".
+
+EXAMPLE:
+User: "Ramesh diabetic hai, note kar lo"
+Output: { "tool": "save_patient_note", "args": { "name": "Ramesh", "note": "Diabetic patient" } }
+`;
+
+// --- LOCAL SUPABASE TOOLS (Client-Side Fallback) ---
+
+const tool_checkInventory = async (shopId: string, query: string) => {
+    const { data } = await supabase
+        .from('inventory')
+        .select('medicine_name, quantity')
+        .eq('shop_id', shopId)
+        .ilike('medicine_name', `%${query}%`)
+        .limit(5);
+
+    if (!data || data.length === 0) return `No stock found for '${query}'.`;
+    // @ts-ignore - Ignoring location error if column missing
+    return data.map(i => `${i.medicine_name}: ${i.quantity} units`).join('\n');
+};
+
+const tool_getSalesReport = async (shopId: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    const { data } = await supabase
+        .from('orders')
+        .select('total_amount')
+        .eq('shop_id', shopId)
+        .gte('created_at', today);
+
+    const total = data?.reduce((sum, order) => sum + Number(order.total_amount), 0) || 0;
+    const count = data?.length || 0;
+    return `Today's Sales: ₹${total} (${count} orders)`;
+};
+
+const tool_addInventory = async (shopId: string, name: string, qty: number) => {
+    // Basic implementation: Add to staging for review (Safety first)
+    const { error } = await supabase.from('inventory_staging').insert({
+        shop_id: shopId,
+        medicine_name: name,
+        quantity_added: qty,
+        status: 'pending',
+        source: 'chatbot_fallback'
+    });
+    if (error) return "Failed to add inventory.";
+    return `Added ${qty} units of ${name} to Drafts (Pending Review).`;
+};
+
+const tool_addToShortbook = async (shopId: string, name: string) => {
+    // Add to shortbook table
+    const { error } = await supabase.from('shortbook' as any).insert({
+        shop_id: shopId,
+        medicine_name: name,
+        added_by: 'ai_assistant',
+        status: 'pending'
+    });
+    if (error) return `Failed to add ${name} to Shortbook.`;
+    return `Added ${name} to Shortbook (Purchase List).`;
+};
+
+const tool_savePatientNote = async (shopId: string, name: string, note: string, phone?: string) => {
+    // 1. Find or Create Customer
+    let customerId = null;
+    // @ts-ignore
+    let { data: existing } = await supabase.from('customers').select('id, medical_history').eq('shop_id', shopId).ilike('name', name).limit(1).single();
+
+    if (!existing) {
+        const { data: newCust, error } = await supabase.from('customers').insert({
+            shop_id: shopId, name: name, phone: phone || null
+        }).select().single();
+        if (error || !newCust) return "Could not create patient profile.";
+        customerId = newCust.id;
+        existing = { id: customerId, medical_history: [] };
+    } else {
+        customerId = existing.id;
+    }
+
+    // 2. Update Medical History
+    // @ts-ignore
+    const history = Array.isArray(existing.medical_history) ? existing.medical_history : [];
+    const newEntry = { date: new Date().toISOString().split('T')[0], note: note, doctor: 'AI Assistant' };
+
+    // Append and save
+    const { error: updateErr } = await supabase
+        .from('customers')
+        .update({
+            // @ts-ignore
+            medical_history: [...history, newEntry],
+            last_consultation: new Date().toISOString()
+        })
+        .eq('id', customerId);
+
+    if (updateErr) return "Failed to save note.";
+    return `Saved to ${name}'s Medical History: "${note}"`;
+};
 
 export const aiService = {
     /**
@@ -221,20 +381,131 @@ export const aiService = {
         } catch (error: any) {
             console.error("Chat Error:", error);
 
-            // 1. TRY GROQ FALLBACK (Real Intelligence)
+            // 1. TRY GROQ FALLBACK (Real Intelligence + Tool Use)
             try {
-                logger.log("[Fallback] Switching to Groq AI (Hinglish)...");
+                // --- VISION FALLBACK PATH ---
+                if (image) {
+                    logger.log("[Fallback] Switching to Groq Vision...");
+                    const visionPrompt = [
+                        {
+                            type: "text",
+                            text: contextMessage || "Analyze this image."
+                        },
+                        {
+                            type: "image_url",
+                            image_url: {
+                                url: image.includes('data:') ? image : `data:image/jpeg;base64,${image}`
+                            }
+                        }
+                    ];
+
+                    const visionReply = await callGroqAI(
+                        [{ role: "user", content: visionPrompt }],
+                        "llama-3.2-11b-vision-preview"
+                    );
+
+                    return {
+                        reply: visionReply,
+                        sources: ["Groq Vision (Llama 3.2)"],
+                        isMock: false
+                    };
+                }
+
+                logger.log("[Fallback] Switching to Groq AI (Smart Router)...");
+
+                // --- STEP 1: ROUTING ---
+                const routerPrompt = [
+                    { role: "system", content: SYSTEM_PROMPT_ROUTER },
+                    { role: "user", content: contextMessage }
+                ];
+
+                const routerRes = await callGroqAI(routerPrompt, "llama-3.1-70b-versatile", true);
+                const action = safeJSONParse(routerRes, { tool: "direct_reply", args: { answer: "" } });
+                logger.log("[Groq Router] Decision:", action);
+
+                // --- STEP 2: EXECUTION ---
+                let toolResult = "";
+                let isDirectReply = false;
+
+                if (action.tool === "check_inventory" && shopId) {
+                    toolResult = await tool_checkInventory(shopId, action.args.query);
+                } else if (action.tool === "get_sales_report" && shopId) {
+                    toolResult = await tool_getSalesReport(shopId);
+                } else if (action.tool === "add_inventory" && shopId) {
+                    toolResult = await tool_addInventory(shopId, action.args.name, Number(action.args.qty));
+                } else if (action.tool === "market_data") {
+                    const mkt = await aiService.getMarketData(action.args.drug_name);
+                    toolResult = JSON.stringify(mkt);
+                } else if (action.tool === "sell_medicine") {
+                    // Directly return action without LLM synthesis
+                    return {
+                        reply: `Redirecting to Billing Hub for **${action.args.drug_name}**...`,
+                        sources: ["Smart Action"],
+                        isMock: false,
+                        action: {
+                            type: 'NAVIGATE_POS',
+                            payload: {
+                                medicine: action.args.drug_name,
+                                quantity: action.args.quantity || 1
+                            }
+                        }
+                    };
+                } else if (action.tool === "add_to_shortbook" && shopId) {
+                    const result = await tool_addToShortbook(shopId, action.args.drug_name);
+                    return {
+                        reply: result,
+                        sources: ["Smart Action"],
+                        isMock: false,
+                        action: {
+                            type: 'ADD_TO_SHORTBOOK',
+                            payload: { medicine: action.args.drug_name }
+                        }
+                    };
+                } else if (action.tool === "share_whatsapp") {
+                    return {
+                        reply: `Opening WhatsApp to share details...`,
+                        sources: ["Smart Action"],
+                        isMock: false,
+                        action: {
+                            type: 'OPEN_WHATSAPP',
+                            payload: {
+                                phone: action.args.phone || "",
+                                message: action.args.message || `Here is the bill for ${action.args.medicine || 'medicines'}.`
+                            }
+                        }
+                    };
+                } else if (action.tool === "save_patient_note" && shopId) {
+                    const result = await tool_savePatientNote(shopId, action.args.name, action.args.note, action.args.phone);
+                    return { reply: result, sources: ["Patient Records"], isMock: false };
+                } else {
+                    // Default to direct reply if tool not found or 'direct_reply' chosen
+                    isDirectReply = true;
+                    // If the router already generated an answer, use it. Otherwise, generate one.
+                    if (action.args?.answer) return { reply: action.args.answer, sources: ["Groq AI"], isMock: false };
+                }
+
+                // --- STEP 3: FINAL SYNTHESIS (Use Tool Result) ---
+                if (!isDirectReply) {
+                    const finalPrompt = [
+                        { role: "system", content: SYSTEM_PROMPT_PHARMACIST },
+                        { role: "user", content: `User Query: "${contextMessage}"\n\nTOOL RESULT: ${toolResult}\n\nTask: Answer the user in Hinglish based on this result.` }
+                    ];
+                    const finalReply = await callGroqAI(finalPrompt, "llama-3.1-70b-versatile");
+                    return { reply: finalReply, sources: ["Groq AI (Live Data)"], isMock: false };
+                }
+
+                // If Direct Reply was needed but Router didn't give a full answer
                 const groqPrompt = [
                     { role: "system", content: SYSTEM_PROMPT_PHARMACIST },
                     { role: "user", content: contextMessage }
                 ];
-
                 const groqReply = await callGroqAI(groqPrompt, "llama-3.1-70b-versatile");
                 return {
                     reply: groqReply,
                     sources: ["Groq AI (Llama 3.3)"],
                     isMock: false // It's real AI
                 };
+
             } catch (groqErr) {
                 console.error("Groq Fallback Failed:", groqErr);
 
