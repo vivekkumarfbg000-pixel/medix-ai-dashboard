@@ -26,7 +26,10 @@ interface Reminder {
 }
 
 import { useUserShops } from "@/hooks/useUserShops";
-import { whatsappService } from "@/services/whatsappService"; // Import
+import { useUserShops } from "@/hooks/useUserShops";
+import { whatsappService } from "@/services/whatsappService";
+import { aiService } from "@/services/aiService"; // Import AI
+import { toast } from "sonner"; // Ensure toast is imported
 
 const Alerts = () => {
   const { currentShop } = useUserShops();
@@ -140,7 +143,29 @@ const Alerts = () => {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Alerts & Notifications</h2>
-        <p className="text-muted-foreground">Monitor expired stock, low inventory, and patient reminders.</p>
+        <div className="flex justify-between items-center">
+          <p className="text-muted-foreground">Monitor expired stock, low inventory, and patient reminders.</p>
+          <Button
+            variant="outline"
+            className="gap-2 border-primary/20 text-primary hover:bg-primary/5"
+            onClick={async () => {
+              if (!currentShop?.id) return;
+              toast.info("Fetching Daily Briefing...");
+              const briefing = await aiService.getDailyBriefing(currentShop.id);
+
+              // Simple TTS Trigger (copying logic from AIInsights or using window directly)
+              if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(briefing);
+                utterance.lang = 'en-IN'; // Indian English
+                window.speechSynthesis.speak(utterance);
+                toast.success("Playing Briefing");
+              }
+            }}
+          >
+            <Users className="w-4 h-4" /> Play Briefing (Voice)
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="all" className="w-full">

@@ -28,7 +28,9 @@ interface StockoutRisk {
   burnRate: number;
   safetyStock: number;
   reorderQty: number;
+  reorderQty: number;
   criticality: "high" | "medium" | "low";
+  reason?: string;
 }
 
 interface ExpiryRisk {
@@ -60,7 +62,8 @@ const Forecasting = () => {
         burnRate: item.avg_daily_sales > 0 ? item.current_stock / item.avg_daily_sales : 999,
         safetyStock: 50,
         reorderQty: item.predicted_quantity,
-        criticality: (item.avg_daily_sales > 0 && (item.current_stock / item.avg_daily_sales) < 3) ? "high" as const : "medium" as const
+        criticality: (item.avg_daily_sales > 0 && (item.current_stock / item.avg_daily_sales) < 3) ? "high" as const : "medium" as const,
+        reason: item.reason
       }));
       setStockoutRisks(risks);
     }
@@ -257,6 +260,7 @@ const Forecasting = () => {
                         {item.criticality === 'high' && <Badge variant="destructive" className="animate-pulse">Critical</Badge>}
                       </div>
                       <p className="text-sm text-muted-foreground">Stock: {item.currentStock} | Burning {item.avgDailySales}/day</p>
+                      {item.reason && <p className="text-xs text-blue-600 mt-1 italic">{item.reason}</p>}
                     </div>
 
                     <div className="flex-1 px-4 py-2 md:py-0">

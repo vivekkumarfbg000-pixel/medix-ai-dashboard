@@ -22,7 +22,10 @@ import {
   Brain,
   MessageSquare,
   CheckCircle,
-  AlertOctagon
+  AlertOctagon,
+  Volume2, // Icons for TTS
+  VolumeX, // Icons for TTS
+  StopCircle // Icons for TTS
 } from "lucide-react";
 import { drugService, ClinicalDrugInfo, InteractionResult } from "@/services/drugService";
 import { aiService } from "@/services/aiService";
@@ -56,7 +59,44 @@ const AIInsights = () => {
   ]);
   const [currentChatInfo, setCurrentChatInfo] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(true); // TTS State
+  const [isSpeaking, setIsSpeaking] = useState(false); // Speaking State
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  // --- TTS Functionality ---
+  const speakResponse = (text: string) => {
+    if (!ttsEnabled || !window.speechSynthesis) return;
+
+    // Stop any ongoing speech
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US'; // Or appropriate language
+
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = (event) => {
+      console.error('Speech synthesis error:', event);
+      setIsSpeaking(false);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, []);
 
   // --- Handlers ---
   const handleSearch = async () => {
@@ -101,6 +141,25 @@ const AIInsights = () => {
     }
   };
 
+  const handlePlayBriefing = async () => {
+    if (!currentShop?.id) return toast.error("Shop not found");
+    toast.info("Generating Daily Briefing...");
+    try {
+      const briefing = await aiService.getDailyBriefing(currentShop.id);
+
+      // Show as a bot message
+      setChatMessages(prev => [...prev, {
+        role: 'bot',
+        text: `📢 **Daily Briefing**:\n${briefing}`,
+        sources: ["Stock Analysis", "Expiry Check"]
+      }]);
+
+      speakResponse(briefing);
+    } catch (e) {
+      toast.error("Failed to get briefing");
+    }
+  };
+
   const handleChat = async () => {
     if (!currentChatInfo && !selectedImage) return;
 
@@ -118,7 +177,9 @@ const AIInsights = () => {
     setChatLoading(true);
 
     try {
-      const response = await aiService.chatWithAgent(userMsg, userImage || undefined);
+      // Pass copy of chatMessages as history (excluding current user message which is already added locally)
+      const history = [...chatMessages];
+      const response = await aiService.chatWithAgent(userMsg, userImage || undefined, history);
 
       // Handle Action (e.g., Redirect to POS)
       if (response.action && response.action.type === 'NAVIGATE_POS') {
@@ -154,7 +215,11 @@ const AIInsights = () => {
         text: response.reply,
         sources: response.sources
       }]);
-    } catch (err) {
+
+      // Speak the response
+      speakResponse(response.reply);
+
+    } catch (error) {
       setChatMessages(prev => [...prev, {
         role: 'bot',
         text: "I'm having trouble connecting to the medical database. Please try again later."
@@ -257,6 +322,15 @@ const AIInsights = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Button
+            onClick={handlePlayBriefing}
+            variant="outline"
+            className="border-green-500/30 bg-green-500/10 text-green-400 hover:bg-green-500/20"
+          >
+            <Volume2 className="w-4 h-4 mr-2" />
+            Daily Briefing
+          </Button>
+
           <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-full backdrop-blur-md">
             <Bot className="w-3.5 h-3.5 mr-2" />
             Cortex v2.0 Live
@@ -302,15 +376,37 @@ const AIInsights = () => {
             {/* Chat Area */}
             <Card className="lg:col-span-4 h-full flex flex-col border-white/10 bg-slate-900/40 backdrop-blur-md shadow-2xl rounded-2xl overflow-hidden">
               {/* Chat Header */}
-              <div className="p-4 border-b border-white/5 bg-slate-900/60 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shadow-lg">
-                  <Bot className="w-6 h-6 text-white" />
+              <div className="p-4 border-b border-white/5 bg-slate-900/60 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shadow-lg">
+                    <Bot className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">Clinical AI Assistant</h3>
+                    <p className="text-xs text-blue-300 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Online & Ready
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-white">Clinical AI Assistant</h3>
-                  <p className="text-xs text-blue-300 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Online & Ready
-                  </p>
+
+                {/* TTS Controls */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setTtsEnabled(!ttsEnabled)}
+                    className={`p-2 rounded-full transition-colors ${ttsEnabled ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-800 text-slate-500'}`}
+                    title={ttsEnabled ? "Mute Voice" : "Enable Voice"}
+                  >
+                    {ttsEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                  </button>
+                  {isSpeaking && (
+                    <button
+                      onClick={stopSpeaking}
+                      className="p-2 rounded-full bg-red-500/20 text-red-500 animate-pulse hover:bg-red-500/30"
+                      title="Stop Speaking"
+                    >
+                      <StopCircle size={18} />
+                    </button>
+                  )}
                 </div>
               </div>
 

@@ -797,6 +797,7 @@ const Inventory = () => {
             <InventoryDrafts
               shopId={currentShop?.id || ""}
               onRefreshRequest={fetchInventory}
+              predictions={predictions}
             />
           </Suspense>
         </TabsContent>

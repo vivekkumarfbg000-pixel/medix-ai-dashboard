@@ -27,9 +27,10 @@ interface StagingItem {
 interface InventoryDraftsProps {
     shopId: string;
     onRefreshRequest: () => void; // Callback to tell parent strict inventory might have changed
+    predictions?: any[]; // Passed from parent for real velocity check
 }
 
-export const InventoryDrafts = ({ shopId, onRefreshRequest }: InventoryDraftsProps) => {
+export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: InventoryDraftsProps) => {
     const [loading, setLoading] = useState(true);
     const [stagingItems, setStagingItems] = useState<StagingItem[]>([]);
 
@@ -52,22 +53,37 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest }: InventoryDraftsPro
                 }
                 logger.error("Error fetching drafts:", error);
             } else {
-                // Mock Enrichment (ABC-VEN Analysis)
+                // REAL Enrichment (ABC Analysis + Sales Velocity)
                 const enrichedData = (data || []).map((item: any) => {
-                    const isExpensive = item.unit_price > 500;
-                    const velocity = Math.random() > 0.5 ? 'Fast' : (Math.random() > 0.5 ? 'Slow' : 'Dead');
+                    // 1. ABC Classification (Pareto Principle based on Value)
+                    const value = item.unit_price * item.quantity;
+                    const classification = value > 5000 ? 'A' : (value > 1000 ? 'B' : 'C');
+
+                    // 2. Velocity from Real Predictions (if available)
+                    const prediction = predictions.find(p => p.medicine_name.toLowerCase() === item.medicine_name.toLowerCase());
+                    let velocity = 'Unknown';
                     let action = 'None';
 
-                    if (velocity === 'Dead' && isExpensive) action = 'Return';
-                    else if (velocity === 'Slow' && !isExpensive) action = 'Discount';
-                    else if (velocity === 'Fast') action = 'Reorder';
+                    if (prediction) {
+                        if (prediction.avg_daily_sales > 2) velocity = 'Fast';
+                        else if (prediction.avg_daily_sales > 0.5) velocity = 'Medium';
+                        else velocity = 'Slow';
+                    } else {
+                        // If new item, assume based on price (cheaper usually faster)
+                        velocity = item.unit_price < 100 ? 'Medium' : 'Slow';
+                    }
+
+                    // 3. Action Logic
+                    if (velocity === 'Fast' && item.quantity < 10) action = 'Reorder';
+                    else if (velocity === 'Slow' && item.quantity > 50) action = 'Discount';
+                    else if (velocity === 'Dead') action = 'Return';
 
                     return {
                         ...item,
                         insights: {
-                            classification: isExpensive ? 'A' : 'C',
-                            velocity: velocity,
-                            action: action
+                            classification,
+                            velocity,
+                            action
                         }
                     };
                 });
@@ -87,7 +103,7 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest }: InventoryDraftsPro
             .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_staging' }, fetchStaging)
             .subscribe();
         return () => { supabase.removeChannel(channel); };
-    }, [shopId]);
+    }, [shopId, predictions]); // Re-run if predictions load
 
     const handleApproveDraft = async (item: StagingItem) => {
         if (!shopId) return;
@@ -198,10 +214,10 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest }: InventoryDraftsPro
 
                 {/* Upload Section */}
                 <div className="flex flex-col gap-4">
-                    <div className="flex justify-between items-center bg-white p-4 rounded-lg border shadow-sm">
+                    <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-lg border shadow-sm gap-4">
                         <div>
-                            <h3 className="font-semibold text-lg">Upload Invoice / Medicine Strip</h3>
-                            <p className="text-sm text-muted-foreground">Upload an image to auto-detect items (Batch & Expiry).</p>
+                            <h3 className="font-semibold text-lg">Scan Medicine Bill / Strip</h3>
+                            <p className="text-sm text-muted-foreground">Upload a photo of a **Purchase Bill**, **Invoice**, or **Medicine Strip**. AI will extract items automatically.</p>
                         </div>
                         <div className="flex gap-2">
                             <input
@@ -211,8 +227,11 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest }: InventoryDraftsPro
                                 accept="image/*"
                                 onChange={handleScanUpload}
                             />
-                            <Button onClick={() => document.getElementById('inventory-upload')?.click()}>
-                                <Upload className="w-4 h-4 mr-2" /> Upload Scan
+                            <Button variant="outline" onClick={() => document.getElementById('inventory-upload')?.click()}>
+                                <Upload className="w-4 h-4 mr-2" /> Upload Strip
+                            </Button>
+                            <Button onClick={() => document.getElementById('inventory-upload')?.click()} className="bg-purple-600 hover:bg-purple-700">
+                                <Sparkles className="w-4 h-4 mr-2" /> Scan Bill (AI)
                             </Button>
                         </div>
                     </div>

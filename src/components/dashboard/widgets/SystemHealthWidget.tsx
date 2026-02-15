@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ENDPOINTS } from "@/services/aiService"; // Use centralized config
+import { toast } from "sonner";
+import { ENDPOINTS, aiService } from "@/services/aiService"; // Use centralized config
+import { BrainCircuit } from "lucide-react";
 
 export const SystemHealthWidget = () => {
     const [errorCount, setErrorCount] = useState(0);
@@ -158,6 +160,9 @@ export const SystemHealthWidget = () => {
                                 </div>
                                 <div className="flex flex-col gap-2">
                                     <Button size="sm" onClick={() => handleRetry(job)}>Retry</Button>
+                                    <Button size="sm" variant="outline" className="border-purple-200 text-purple-600 hover:bg-purple-50" onClick={() => handleAnalyzeError(job)}>
+                                        <BrainCircuit className="w-4 h-4 mr-2" /> Explain
+                                    </Button>
                                     <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => handleDismiss(job.id)}>Dismiss</Button>
                                 </div>
                             </div>

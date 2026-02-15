@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { aiService } from '@/services/aiService';
 
 export interface Prediction {
     id: string;
@@ -162,7 +163,42 @@ export const useDemandForecast = (shopId?: string) => {
                 };
             });
 
-            // 5. Save to DB (Clear old first)
+            // 5. HYBRID INTELLIGENCE: Enhance Top Risks with Groq
+            const criticalItems = newPredictions?.filter(p => p.predicted_quantity > 0)
+                .sort((a, b) => b.predicted_quantity - a.predicted_quantity) // Highest need first
+                .slice(0, 3) || []; // Limit to top 3 to save tokens/time
+
+            if (criticalItems.length > 0) {
+                toast.loading("Groq AI analyzing trends...", { id: toastId });
+                try {
+                    const prompt = `
+                    Analyze these restocking needs for a pharmacy:
+                    ${JSON.stringify(criticalItems.map(i => ({ item: i.medicine_name, need: i.predicted_quantity, sales: i.avg_daily_sales })))}
+                    
+                    For EACH item, provide a short 1-sentence strategic reason in HINGLISH.
+                    Output JSON Key-Value pair: { "MedicineName": "Reason" }
+                    Example: { "Dolo 650": "High viral fever season demand, stock up." }
+                    `;
+
+                    const aiResponse = await aiService.chatWithAgent(prompt);
+                    const insights = JSON.parse(aiResponse.reply); // Hope for valid JSON, else catch
+
+                    // Merge insights
+                    newPredictions?.forEach(p => {
+                        if (insights[p.medicine_name]) {
+                            p.reason = "🤖 " + insights[p.medicine_name];
+                        } else if (p.predicted_quantity > 0) {
+                            p.reason = `High velocity: selling ~${p.avg_daily_sales.toFixed(1)}/day`;
+                        }
+                    });
+
+                } catch (err) {
+                    console.warn("Groq Insight Failed, using local reasons");
+                    // Fallback to local reasons already set in map above (if any) or default
+                }
+            }
+
+            // 6. Save to DB (Clear old first)
             await supabase.from('restock_predictions').delete().eq('shop_id', shopId);
 
             if (newPredictions && newPredictions.length > 0) {

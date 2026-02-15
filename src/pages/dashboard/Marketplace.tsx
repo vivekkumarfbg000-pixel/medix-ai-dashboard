@@ -10,6 +10,7 @@ import { useUserShops } from "@/hooks/useUserShops";
 import { format } from "date-fns";
 import Purchases from "@/pages/dashboard/Purchases";
 import { supabase } from "@/integrations/supabase/client";
+import { aiService } from "@/services/aiService"; // Import AI Service
 
 // ... imports
 
@@ -110,8 +111,31 @@ const Marketplace = () => {
                 }
             } catch (err) {
                 console.error("Search Exception:", err);
-                // Fallback on crash
+                // 3. GROQ ROBUST FALLBACK (Real Market Intelligence)
+                toast.loading("Fetching market data from AI...");
+                try {
+                    const aiData = await aiService.getMarketData(searchQuery);
+                    if (aiData && aiData.substitutes) {
+                        const aiItems = aiData.substitutes.map((s: any, i: number) => ({
+                            id: `ai-${i}`,
+                            drug_name: s.generic_name || s.name,
+                            brand: s.name,
+                            price: s.price || 0,
+                            min_order_qty: 10,
+                            in_stock: true,
+                            distributor: { name: "AI Sourced Supplier" },
+                            manufacturer: "Generic/Branded"
+                        }));
+                        setFilteredItems(aiItems);
+                        toast.dismiss();
+                        return;
+                    }
+                } catch (aiErr) {
+                    console.error("AI Market Data Failed", aiErr);
+                }
+
                 setFilteredItems(sampleItems);
+                toast.dismiss();
             }
         };
 

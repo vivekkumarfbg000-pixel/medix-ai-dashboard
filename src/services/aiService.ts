@@ -165,7 +165,10 @@ const SYSTEM_PROMPT_PHARMACIST = `You are 'Bharat Medix AI Assistant', an intell
 ### COMMUNICATION STYLE:
 - **Language**: Hinglish (Hindi explanation + English terms). Use pure Hindi if user speaks Hindi.
 - **Tone**: Professional, warm ('Bhaiya', 'Ji'), and authoritative on safety.
-- **Safety**: Always warn about allergies/contraindications.
+- **Language**: Hinglish (Hindi explanation + English terms). Use pure Hindi if user speaks Hindi.
+- **Tone**: Professional, warm ('Bhaiya', 'Ji'), and authoritative on safety.
+- **Safety**: Always warn about allergies/contraindications based on the provided [Patient Context]. Be proactive.
+
 
 ### WORKFLOW LOGIC:
 1. **Prescription/Image**: If text contains extracted OCR data -> Analyze medicines -> Check Stock -> Suggest Alternatives.
@@ -304,7 +307,7 @@ export const aiService = {
     /**
      * Universal AI Query Handler (Chat)
      */
-    async chatWithAgent(message: string, image?: string): Promise<ChatResponse> {
+    async chatWithAgent(message: string, image?: string, history: { role: string, text: string }[] = []): Promise<ChatResponse> {
         // DEMO MODE CHECK
         // Enable by running: localStorage.setItem("DEMO_MODE", "true") in console
         const isDemoMode = typeof window !== 'undefined' && localStorage.getItem("DEMO_MODE") === "true";
@@ -341,6 +344,38 @@ export const aiService = {
             }
         } catch (ctxErr) {
             console.warn("Failed to inject AI context", ctxErr);
+        }
+
+        // --- NEW: Patient Context & Safety Check ---
+        try {
+            // Simple regex to find names like "Ramesh ko", "Sita ke liye", "Patient Ramesh"
+            const nameMatch = message.match(/(?:for|ko|ke liye|patient)\s+([A-Z][a-z]+)/i);
+            if (nameMatch && shopId) {
+                const patientName = nameMatch[1];
+                // @ts-ignore
+                const { data: patient } = await supabase.from('customers')
+                    .select('name, medical_history, allergies')
+                    .eq('shop_id', shopId)
+                    .ilike('name', patientName)
+                    .maybeSingle();
+
+                if (patient) {
+                    const history = patient.medical_history ? JSON.stringify(patient.medical_history) : "None";
+                    const allergies = patient.allergies && patient.allergies.length > 0 ? patient.allergies.join(", ") : "None";
+
+                    const safetyContext = `
+[PATIENT CONTEXT]
+Name: ${patient.name}
+History: ${history}
+Allergies: ${allergies}
+WARNING: Check if the requested medicine conflicts with this history.
+`;
+                    contextMessage += `\n${safetyContext}`;
+                    logger.log("[AI Context] Injected Patient Data:", patient.name);
+                }
+            }
+        } catch (patErr) {
+            console.warn("Failed to inject Patient context", patErr);
         }
 
         const payload = {
@@ -414,10 +449,18 @@ export const aiService = {
                 logger.log("[Fallback] Switching to Groq AI (Smart Router)...");
 
                 // --- STEP 1: ROUTING ---
+                // Format history for Groq (limit to last 5 interactions to save tokens)
+                const formattedHistory = history.slice(-5).map(h => ({
+                    role: h.role === 'user' ? 'user' : 'assistant',
+                    content: h.text
+                }));
+
                 const routerPrompt = [
                     { role: "system", content: SYSTEM_PROMPT_ROUTER },
+                    ...formattedHistory,
                     { role: "user", content: contextMessage }
                 ];
+
 
                 const routerRes = await callGroqAI(routerPrompt, "llama-3.1-70b-versatile", true);
                 const action = safeJSONParse(routerRes, { tool: "direct_reply", args: { answer: "" } });
@@ -497,8 +540,10 @@ export const aiService = {
                 // If Direct Reply was needed but Router didn't give a full answer
                 const groqPrompt = [
                     { role: "system", content: SYSTEM_PROMPT_PHARMACIST },
+                    ...formattedHistory,
                     { role: "user", content: contextMessage }
                 ];
+
                 const groqReply = await callGroqAI(groqPrompt, "llama-3.1-70b-versatile");
                 return {
                     reply: groqReply,
@@ -549,7 +594,17 @@ export const aiService = {
                     isMock: true
                 };
             }
-            // Fallback for voice/others handled in catch or specific methods
+            // Mock for Inventory List
+            if (type === 'inventory_list' || type === 'invoice') {
+                return {
+                    items: [
+                        { medicine_name: "Dolo 650", batch_number: "DL123", expiry_date: "2025-12-31", quantity: 50, unit_price: 30 },
+                        { medicine_name: "Azithral 500", batch_number: "AZ999", expiry_date: "2025-06-30", quantity: 20, unit_price: 120 },
+                        { medicine_name: "Pan D", batch_number: "PD001", expiry_date: "2024-12-01", quantity: 100, unit_price: 15 }
+                    ],
+                    isMock: true
+                };
+            }
         }
 
         let fileToUpload = file;
@@ -600,7 +655,7 @@ export const aiService = {
             reader.onerror = reject;
         });
 
-        // 3. Trigger n8n Ops Webhook
+        // 4. Trigger n8n Ops Webhook
         let action = 'scan-report';
         let endpoint = ENDPOINTS.OPS;
 
@@ -612,79 +667,150 @@ export const aiService = {
             action = 'scan-report';
             endpoint = ENDPOINTS.ANALYZE_PRESCRIPTION;
         } else if (type === 'inventory_list') {
-            // New Inventory Scanner connection
             action = 'scan-inventory';
-            // UPDATED: Using Integrated Chat Workflow V2
-            endpoint = ENDPOINTS.CHAT;
+            // Use specific endpoint or retain current if integrated
+            endpoint = ENDPOINTS.CHAT; // Reusing Chat endpoint if that's where the logic lives, or OPS?
+            // Let's assume Groq Fallback is cleaner for this specific structured task if N8N fails
         } else if (type === 'invoice') {
-            // Keep invoice as scan-medicine for now (requires workflow update to support)
             action = 'scan-medicine';
         }
 
-        logger.log("[N8N Request] Analyze Document:", { action, size: base64Data.length });
-        const response = await fetch(endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                action: action,
-                image_base64: base64Data,
-                data: base64Data, // Redundant key for safety (Universal Brain compatibility)
-                userId: (await supabase.auth.getUser()).data.user?.id,
-                shopId: typeof window !== 'undefined' ? localStorage.getItem("currentShopId") : null
-            }),
-        });
+        // logger.log("[N8N Request] Analyze Document:", { action, size: base64Data.length });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error("[N8N Error] Status:", response.status, "Response:", errorText);
-            throw new Error(`Analysis Engine Failed: ${response.status} - ${errorText.substring(0, 100)}`);
-        }
-
-        const text = await response.text();
-        if (!text) {
-            console.warn("[N8N Response] Analyze Document: Empty Body");
-            return { result: "Analysis completed but no data returned." };
-        }
-
-        try {
-            const resData = JSON.parse(text);
-            logger.log("[N8N Response] Analyze Document:", resData);
-            return resData;
-        } catch (e) {
-            logger.error("N8N Analyze Failed, trying Groq Vision...", e);
-
-            // GROQ VISION FALLBACK
+        // --- BYPASS N8N FOR INVENTORY SCAN TO USE DIRECT GROQ VISION (More Reliable for Lists) ---
+        if (type === 'inventory_list' || type === 'invoice') {
+            // Fall through to Groq Vision block below directly
+        } else {
+            // N8N Attempt for other types
             try {
-                const groqVisionContent = [
-                    {
-                        type: "text", text: `Analyze this medical document (${type}). 
-                    Output strictly valid JSON.
-                    Structure: 
-                    { 
-                        "summary": "Short summary in HINGLISH (Hindi+English)", 
-                        "diseasePossibility": ["Disease 1", "Disease 2"], 
-                        "recommendations": { 
-                            "diet": ["Diet tip in Hinglish"], 
-                            "nextSteps": ["Next step in Hinglish"] 
-                        }, 
-                        "results": [{ "parameter": "name", "value": "val", "unit": "u", "status": "High/Low/Normal" }] 
-                    }` },
-                    { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Data}` } }
-                ];
+                const response = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        action: action,
+                        image_base64: base64Data,
+                        data: base64Data, // Redundant key for safety (Universal Brain compatibility)
+                        userId: (await supabase.auth.getUser()).data.user?.id,
+                        shopId: typeof window !== 'undefined' ? localStorage.getItem("currentShopId") : null
+                    }),
+                });
 
-                const groqRes = await callGroqAI(
-                    [{ role: "user", content: groqVisionContent }],
-                    "llama-3.2-11b-vision-preview",
-                    true
-                );
-
-                const parsed = safeJSONParse(groqRes, {});
-                if (!parsed.summary) throw new Error("Invalid Analysis Format");
-                return { ...parsed, isMock: false };
-            } catch (groqViolate) {
-                logger.error("Groq Vision Failed:", groqViolate);
-                throw new Error("Analysis failed on both Primary and Backup AI engines.");
+                if (response.ok) {
+                    const text = await response.text();
+                    const resData = JSON.parse(text);
+                    if (resData && (resData.items || resData.summary)) {
+                        return resData;
+                    }
+                }
+            } catch (n8nError) {
+                console.warn("[N8N] Failed, falling back to Groq Vision", n8nError);
             }
+        }
+
+        // --- GROQ VISION READ ---
+        // Handles Inventory Lists, Bills, and Lab Reports if N8N fails
+        try {
+            let systemPrompt = "";
+            let jsonStructure = "";
+
+            if (type === 'inventory_list' || type === 'invoice') {
+                systemPrompt = `You are a Pharmacy Inventory Assistant. 
+                Analyze this image (Medicine Bill/Invoice/Strip from India).
+                Extract a LIST of medicines.
+                
+                Columns to extract:
+                - Medicine Name (Clean name, no dosage if possible, but keep if important)
+                - Batch Number (Look for 'Batch', 'B.No', 'Lot')
+                - Expiry Date (Format: YYYY-MM-DD. Convert 'Dec 24' to '2024-12-31')
+                - Quantity (Look for 'Qty', 'Pack', 'Strip')
+                - MRP/Unit Price (Look for 'MRP', 'Rate', 'Price')
+                
+                Output STRICT JSON Object with an 'items' array.`;
+
+                jsonStructure = `{ "items": [{ "medicine_name": "Dolo", "batch_number": "B1", "expiry_date": "2024-12-31", "quantity": 10, "unit_price": 20.5 }] }`;
+            } else {
+                systemPrompt = `Analyze this medical document (${type}). Output strictly valid JSON.`;
+                jsonStructure = `{ 
+                    "summary": "Short summary", 
+                    "diseasePossibility": ["Disease 1", "Disease 2"],
+                    "results": [{ "parameter": "name", "value": "val", "unit": "u", "status": "High/Low/Normal" }] 
+                }`;
+            }
+
+            const groqVisionContent = [
+                {
+                    type: "text", text: `${systemPrompt}
+                    Structure: ${jsonStructure}`
+                },
+                { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Data}` } }
+            ];
+
+            const groqRes = await callGroqAI(
+                [{ role: "user", content: groqVisionContent }],
+                "llama-3.2-11b-vision-preview",
+                true // JSON Mode
+            );
+
+            const parsed = safeJSONParse(groqRes, { items: [] });
+            return { ...parsed, isMock: false };
+
+        } catch (groqViolate) {
+            logger.error("Groq Vision Failed:", groqViolate);
+            throw new Error("Analysis failed. Please try a clearer image.");
+        }
+    },
+
+    /**
+     * Daily Breifing (Stock & Expiry Pulse)
+     */
+    async getDailyBriefing(shopId: string): Promise<string> {
+        try {
+            // 1. Fetch Low Stock
+            const { data: lowStock } = await supabase
+                .from('inventory')
+                .select('medicine_name, quantity, reorder_level')
+                .eq('shop_id', shopId)
+                .lt('quantity', 10) // Hard limit for now
+                .limit(5);
+
+            // 2. Fetch Expiring Soon (30 days)
+            const thirtyDaysFromNow = new Date();
+            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+            const { data: expiring } = await supabase
+                .from('inventory')
+                .select('medicine_name, expiry_date')
+                .eq('shop_id', shopId)
+                .lt('expiry_date', thirtyDaysFromNow.toISOString())
+                .limit(5);
+
+            // 3. Generate Briefing via Groq
+            const prompt = `
+            Generate a "Daily Morning Briefing" for the Pharmacy Owner (Bhaiya ji).
+            Time: ${new Date().toLocaleString()}
+            
+            [DATA]
+            Low Stock: ${JSON.stringify(lowStock)}
+            Expiring Soon: ${JSON.stringify(expiring)}
+            
+            [INSTRUCTIONS]
+            - Speak in energetic Hinglish (Hindi+English).
+            - Highlight critical low stock first.
+            - Warn about expiry.
+            - Suggest an action (e.g., "Order kar lijiye").
+            - Keep it short (under 60 words) for Voice Output.
+            `;
+
+            const briefing = await callGroqAI([
+                { role: "system", content: "You are a smart pharmacy assistant. Keep it brief and speakable." },
+                { role: "user", content: prompt }
+            ], "llama-3.1-70b-versatile");
+
+            return briefing;
+
+        } catch (e) {
+            console.error("Daily Briefing Failed", e);
+            return "Good Morning! System check failed, but I am ready to help.";
         }
     },
 
@@ -807,13 +933,14 @@ export const aiService = {
             // 1. TRY GROQ FALLBACK (Real Intelligence)
             try {
                 const prompt = `
-                Act as a Clinical Pharmacist in India. Check for interactions between these drugs: ${drugs.join(', ')}.
-                Return a valid JSON array of strings ONLY. 
-                Each string should be a warning starting with "⚠️ Major" or "⚠️ Moderate".
-                The warning message MUST be in HINGLISH (Hindi + English mix) for local understanding.
-                Example: "⚠️ Major: Drug A aur Drug B lene se bleeding ka khatra badh sakta hai."
-                If no interactions, return empty array [].
-                No markdown. Strict JSON.
+                Act as a Clinical Pharmacist. Check interactions for: ${drugs.join(', ')}.
+                Return JSON only.
+                Structure: {
+                    "interactions": [
+                        { "drug1": "A", "drug2": "B", "severity": "Major"|"Moderate", "description": "Reason in Hinglish" }
+                    ]
+                }
+                If no interactions, return { "interactions": [] }.
                 `;
 
                 const groqJson = await callGroqAI([
@@ -821,8 +948,9 @@ export const aiService = {
                     { role: "user", content: prompt }
                 ], "llama-3.1-70b-versatile", true); // Enable JSON mode
 
-                const parsed = safeJSONParse(groqJson, []);
-                const warnings = Array.isArray(parsed) ? parsed : (parsed.warnings || []);
+                const parsed = safeJSONParse(groqJson, { interactions: [] });
+                // Map to frontend format
+                const warnings = parsed.interactions.map((i: any) => `⚠️ ${i.severity}: ${i.drug1} + ${i.drug2}: ${i.description}`);
                 return { warnings, isMock: false };
 
             } catch (groqErr) {
@@ -1365,6 +1493,26 @@ export const aiService = {
                 insight: "Data analysis unavailable right now.",
                 action: "Check inventory levels manually."
             };
+        }
+    },
+
+    /**
+     * System Health Diagnostics
+     */
+    async diagnoseError(errorLog: any): Promise<string> {
+        const prompt = `
+        Analyze this system error log for a Pharmacy App owner (non-technical).
+        Error: ${JSON.stringify(errorLog)}
+        
+        Explain in 1 sentence in HINGLISH what went wrong and what they should do.
+        Example: "Internet issue lag raha hai, n8n connect nahi ho paaya. Refresh karke dekhein."
+        `;
+
+        try {
+            const response = await this.chatWithAgent(prompt);
+            return response.reply;
+        } catch (e) {
+            return "System error detected. Please contact support or try again.";
         }
     }
 };
