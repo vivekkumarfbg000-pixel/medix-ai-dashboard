@@ -502,12 +502,12 @@ WARNING: Check if the requested medicine conflicts with this history.
                 }));
 
                 const routerPrompt = [
-                    { role: "system", content: SYSTEM_PROMPT_ROUTER },
+                    { role: "system", content: SYSTEM_PROMPT_ROUTER + "\n\nCRITICAL: You MUST return a JSON object with 'tool' and 'args' keys. Do not return anything else." },
                     ...formattedHistory,
                     { role: "user", content: contextMessage }
                 ];
 
-
+                // Use a slightly lower temperature for deterministic routing
                 const routerRes = await callGroqAI(routerPrompt, "llama-3.3-70b-versatile", true);
                 const action = safeJSONParse(routerRes, { tool: "direct_reply", args: { answer: "" } });
                 logger.log("[Groq Router] Decision:", action);
@@ -978,6 +978,8 @@ WARNING: Check if the requested medicine conflicts with this history.
                     ]
                 }
                 If no interactions, return { "interactions": [] }.
+                
+                CRITICAL: You MUST return a JSON object. Do not return anything else.
                 `;
 
                 const groqJson = await callGroqAI([
@@ -1056,6 +1058,7 @@ WARNING: Check if the requested medicine conflicts with this history.
                 }
                 Ensure prices are realistic for the Indian market.
                 Do not include Markdown (no \`\`\`json). Just the raw JSON string.
+                CRITICAL: You MUST return a JSON object. Do not return anything else.
                 `;
 
                 const groqJson = await callGroqAI([
@@ -1116,6 +1119,7 @@ WARNING: Check if the requested medicine conflicts with this history.
                     "reason": "Reason in Hinglish",
                     "warning_level": "High" | "Medium" | "Low" | "None"
                 }
+                CRITICAL: You MUST return a JSON object. Do not return anything else.
                 `;
 
                 const groqJson = await callGroqAI([
@@ -1178,6 +1182,8 @@ WARNING: Check if the requested medicine conflicts with this history.
                     ]
                 }
                 Data: ${JSON.stringify(simplifiedSales)}
+                
+                CRITICAL: You MUST return a JSON object. Do not return anything else.
                 `;
 
                 const groqJson = await callGroqAI([
