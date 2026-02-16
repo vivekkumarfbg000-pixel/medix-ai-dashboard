@@ -19,11 +19,10 @@ function checkRateLimit(endpoint: string): boolean {
 }
 
 // Configuration from Environment
-// Configuration from Environment
 // Hardcoded Production URL to bypass incorrect environment variables
 const N8N_BASE = "https://n8n.medixai.shop/webhook";
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || "";
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
+const GROQ_API_KEY = (import.meta.env.VITE_GROQ_API_KEY || "").trim();
+const GEMINI_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY || "").trim();
 
 async function callGeminiVision(prompt: string, base64Image: string): Promise<string> {
     try {
@@ -53,12 +52,8 @@ async function callGeminiVision(prompt: string, base64Image: string): Promise<st
     }
 }
 
-
-
-
-
 async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versatile", jsonMode: boolean = false): Promise<string> {
-    try {
+    const makeRequest = async (currentModel: string) => {
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -67,7 +62,7 @@ async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versat
             },
             body: JSON.stringify({
                 messages: messages,
-                model: model,
+                model: currentModel,
                 temperature: 0.7,
                 response_format: jsonMode ? { type: "json_object" } : undefined
             })
@@ -75,15 +70,25 @@ async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versat
 
         if (!response.ok) {
             const err = await response.text();
-            console.error("Groq API Error:", err);
-            throw new Error(`Groq API Failed: ${response.status}`);
+            console.error(`Groq API Error (${currentModel}):`, err);
+            throw new Error(`Groq API Failed: ${response.status} - ${err}`);
         }
 
         const data = await response.json();
         return data.choices[0]?.message?.content || "";
+    };
+
+    try {
+        return await makeRequest(model);
     } catch (e) {
-        console.error("Groq Call Failed", e);
-        throw e;
+        console.warn(`Groq Model ${model} failed, trying fallback...`, e);
+        // Fallback to a different robust model
+        try {
+            return await makeRequest("llama3-70b-8192");
+        } catch (fallbackError) {
+            console.error("Groq Fallback Failed fully", fallbackError);
+            throw fallbackError;
+        }
     }
 }
 
