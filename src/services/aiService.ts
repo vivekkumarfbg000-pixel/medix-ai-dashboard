@@ -54,6 +54,10 @@ async function callGeminiVision(prompt: string, base64Image: string): Promise<st
 
 async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versatile", jsonMode: boolean = false): Promise<string> {
     const makeRequest = async (currentModel: string) => {
+        // DEBUG: Log key status safely
+        if (!GROQ_API_KEY) console.error("❌ GROQ_API_KEY is MISSING in Browser Environment!");
+        else console.log(`✅ GROQ_API_KEY loaded (${GROQ_API_KEY.length} chars, starts with ${GROQ_API_KEY.substring(0, 4)}...)`);
+
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
