@@ -44,6 +44,7 @@ const EnvDebug = lazy(() => import("./pages/EnvDebug"));
 const AiDebug = lazy(() => import("./pages/AiDebug"));
 const StressTest = lazy(() => import("./pages/StressTest"));
 const TestAIFallback = lazy(() => import("./pages/TestAIFallback"));
+const DebugAI = lazy(() => import("./pages/DebugAI"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -115,6 +116,7 @@ const AppRoutes = () => {
         </Route>
 
         <Route path="/test-ai-fallback" element={<TestAIFallback />} />
+        <Route path="/debug-ai" element={<DebugAI />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
