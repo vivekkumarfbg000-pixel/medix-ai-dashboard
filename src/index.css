@@ -217,6 +217,11 @@
     box-shadow: var(--shadow-glass);
   }
 
+  .dark .glass-card {
+    background: hsl(215 28% 14% / 0.6);
+    border-color: hsl(215 28% 20% / 0.5);
+  }
+
   .medical-card {
     @apply glass-card p-5 transition-all duration-300;
   }

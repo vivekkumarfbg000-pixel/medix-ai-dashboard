@@ -23,6 +23,39 @@ function checkRateLimit(endpoint: string): boolean {
 // Hardcoded Production URL to bypass incorrect environment variables
 const N8N_BASE = "https://n8n.medixai.shop/webhook";
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || "";
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
+
+async function callGeminiVision(prompt: string, base64Image: string): Promise<string> {
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        { text: prompt },
+                        { inline_data: { mime_type: "image/jpeg", data: base64Image } }
+                    ]
+                }]
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(`Gemini API Failed: ${response.status} - ${err}`);
+        }
+
+        const data = await response.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    } catch (e) {
+        console.error("Gemini Vision Failed", e);
+        throw e;
+    }
+}
+
+
+
+
 
 async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versatile", jsonMode: boolean = false): Promise<string> {
     try {
@@ -274,13 +307,17 @@ const tool_savePatientNote = async (shopId: string, name: string, note: string, 
     let { data: existing } = await supabase.from('customers').select('id, medical_history').eq('shop_id', shopId).ilike('name', name).limit(1).single();
 
     if (!existing) {
+        // @ts-ignore
         const { data: newCust, error } = await supabase.from('customers').insert({
             shop_id: shopId, name: name, phone: phone || null
         }).select().single();
         if (error || !newCust) return "Could not create patient profile.";
+        // @ts-ignore
         customerId = newCust.id;
+        // @ts-ignore
         existing = { id: customerId, medical_history: [] };
     } else {
+        // @ts-ignore
         customerId = existing.id;
     }
 
@@ -360,17 +397,21 @@ export const aiService = {
                     .maybeSingle();
 
                 if (patient) {
+                    // @ts-ignore
                     const history = patient.medical_history ? JSON.stringify(patient.medical_history) : "None";
+                    // @ts-ignore
                     const allergies = patient.allergies && patient.allergies.length > 0 ? patient.allergies.join(", ") : "None";
 
                     const safetyContext = `
 [PATIENT CONTEXT]
-Name: ${patient.name}
+Name: ${// @ts-ignore
+                        patient.name}
 History: ${history}
 Allergies: ${allergies}
 WARNING: Check if the requested medicine conflicts with this history.
 `;
                     contextMessage += `\n${safetyContext}`;
+                    // @ts-ignore
                     logger.log("[AI Context] Injected Patient Data:", patient.name);
                 }
             }
@@ -419,31 +460,31 @@ WARNING: Check if the requested medicine conflicts with this history.
             // 1. TRY GROQ FALLBACK (Real Intelligence + Tool Use)
             try {
                 // --- VISION FALLBACK PATH ---
+                // --- VISION FALLBACK PATH (Gemini 2.0) ---
                 if (image) {
-                    logger.log("[Fallback] Switching to Groq Vision...");
-                    const visionPrompt = [
-                        {
-                            type: "text",
-                            text: contextMessage || "Analyze this image."
-                        },
-                        {
-                            type: "image_url",
-                            image_url: {
-                                url: image.includes('data:') ? image : `data:image/jpeg;base64,${image}`
-                            }
-                        }
-                    ];
+                    logger.log("[Fallback] Switching to Gemini Vision (2.0-Flash)...");
+                    try {
+                        // Extract Base64 if needed
+                        const base64 = image.includes(',') ? image.split(',')[1] : image;
 
-                    const visionReply = await callGroqAI(
-                        [{ role: "user", content: visionPrompt }],
-                        "llama-3.2-11b-vision-preview"
-                    );
+                        const visionReply = await callGeminiVision(
+                            contextMessage || "Analyze this image in detail.",
+                            base64
+                        );
 
-                    return {
-                        reply: visionReply,
-                        sources: ["Groq Vision (Llama 3.2)"],
-                        isMock: false
-                    };
+                        return {
+                            reply: visionReply,
+                            sources: ["Gemini 2.0 Flash (Vision)"],
+                            isMock: false
+                        };
+                    } catch (geminiErr) {
+                        logger.error("Gemini Fallback Failed:", geminiErr);
+                        return {
+                            reply: "⚠️ Image analysis failed. Please try again or use text chat.",
+                            sources: ["System Error"],
+                            isMock: true
+                        };
+                    }
                 }
 
                 logger.log("[Fallback] Switching to Groq AI (Smart Router)...");
@@ -462,7 +503,7 @@ WARNING: Check if the requested medicine conflicts with this history.
                 ];
 
 
-                const routerRes = await callGroqAI(routerPrompt, "llama-3.1-70b-versatile", true);
+                const routerRes = await callGroqAI(routerPrompt, "llama-3.3-70b-versatile", true);
                 const action = safeJSONParse(routerRes, { tool: "direct_reply", args: { answer: "" } });
                 logger.log("[Groq Router] Decision:", action);
 
@@ -533,7 +574,7 @@ WARNING: Check if the requested medicine conflicts with this history.
                         { role: "system", content: SYSTEM_PROMPT_PHARMACIST },
                         { role: "user", content: `User Query: "${contextMessage}"\n\nTOOL RESULT: ${toolResult}\n\nTask: Answer the user in Hinglish based on this result.` }
                     ];
-                    const finalReply = await callGroqAI(finalPrompt, "llama-3.1-70b-versatile");
+                    const finalReply = await callGroqAI(finalPrompt, "llama-3.3-70b-versatile");
                     return { reply: finalReply, sources: ["Groq AI (Live Data)"], isMock: false };
                 }
 
@@ -677,9 +718,9 @@ WARNING: Check if the requested medicine conflicts with this history.
 
         // logger.log("[N8N Request] Analyze Document:", { action, size: base64Data.length });
 
-        // --- BYPASS N8N FOR INVENTORY SCAN TO USE DIRECT GROQ VISION (More Reliable for Lists) ---
+        // --- BYPASS N8N FOR INVENTORY SCAN TO USE DIRECT GEMINI VISION (More Reliable for Lists) ---
         if (type === 'inventory_list' || type === 'invoice') {
-            // Fall through to Groq Vision block below directly
+            // Fall through to Gemini Vision block below directly
         } else {
             // N8N Attempt for other types
             try {
@@ -707,11 +748,11 @@ WARNING: Check if the requested medicine conflicts with this history.
             }
         }
 
-        // --- GROQ VISION READ ---
+        // --- GEMINI VISION READ (Fallback) ---
         // Handles Inventory Lists, Bills, and Lab Reports if N8N fails
         try {
+            logger.log("[Fallback] Using Gemini 2.0 Flash for Document Analysis...");
             let systemPrompt = "";
-            let jsonStructure = "";
 
             if (type === 'inventory_list' || type === 'invoice') {
                 systemPrompt = `You are a Pharmacy Inventory Assistant. 
@@ -726,36 +767,27 @@ WARNING: Check if the requested medicine conflicts with this history.
                 - MRP/Unit Price (Look for 'MRP', 'Rate', 'Price')
                 
                 Output STRICT JSON Object with an 'items' array.`;
-
-                jsonStructure = `{ "items": [{ "medicine_name": "Dolo", "batch_number": "B1", "expiry_date": "2024-12-31", "quantity": 10, "unit_price": 20.5 }] }`;
             } else {
-                systemPrompt = `Analyze this medical document (${type}). Output strictly valid JSON.`;
-                jsonStructure = `{ 
+                systemPrompt = `Analyze this medical document (${type}). 
+                Output strictly valid JSON with this structure:
+                { 
                     "summary": "Short summary", 
                     "diseasePossibility": ["Disease 1", "Disease 2"],
-                    "results": [{ "parameter": "name", "value": "val", "unit": "u", "status": "High/Low/Normal" }] 
+                    "results": [{ "parameter": "name", "value": "val", "unit": "u", "status": "High/Low/Normal", "normalRange": "range" }],
+                    "recommendations": { "diet": [], "nextSteps": [] }
                 }`;
             }
 
-            const groqVisionContent = [
-                {
-                    type: "text", text: `${systemPrompt}
-                    Structure: ${jsonStructure}`
-                },
-                { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Data}` } }
-            ];
-
-            const groqRes = await callGroqAI(
-                [{ role: "user", content: groqVisionContent }],
-                "llama-3.2-11b-vision-preview",
-                true // JSON Mode
+            const geminiRes = await callGeminiVision(
+                systemPrompt + "\n\nIMPORTANT: Return ONLY raw JSON. No markdown formatting.",
+                base64Data
             );
 
-            const parsed = safeJSONParse(groqRes, { items: [] });
+            const parsed = safeJSONParse(geminiRes, { items: [], summary: "Analysis Failed" });
             return { ...parsed, isMock: false };
 
-        } catch (groqViolate) {
-            logger.error("Groq Vision Failed:", groqViolate);
+        } catch (geminiViolate) {
+            logger.error("Gemini Vision Analysis Failed:", geminiViolate);
             throw new Error("Analysis failed. Please try a clearer image.");
         }
     },
@@ -1321,23 +1353,39 @@ WARNING: Check if the requested medicine conflicts with this history.
                 const transcription = transData.text;
                 logger.log("[Groq Whisper] Text:", transcription);
 
-                // 2. Parse Items using Llama 3 (Hinglish Aware)
+                // 2. Parse Intent & Items using Llama 3 (Hinglish Aware)
                 const prompt = `
-                Extract medicine orders from this voice transcript: "${transcription}".
-                Output JSON: { "items": [{ "name": "Medicine", "quantity": 10 }] }.
-                If quantity is missing, default to 1.
-                IMPORTANT: The transcript may be in HINGLISH. Identify medicines accurately.
+                Analyze this voice transcript: "${transcription}"
+                Determine if the user wants to ORDER/ADD stock or SEARCH/CHECK stock.
+
+                Output JSON: 
+                { 
+                  "intent": "add" | "search",
+                  "items": [{ "name": "Medicine", "quantity": 10 }] 
+                }
+
+                Examples:
+                "Add 10 Dolo" -> intent: "add", items: [{name: "Dolo", quantity: 10}]
+                "Dolo hai kya?" -> intent: "search", items: [{name: "Dolo", quantity: 0}]
+                "Check stock of Pan D" -> intent: "search", items: [{name: "Pan D", quantity: 0}]
                 `;
 
                 const parseJson = await callGroqAI([
-                    { role: "system", content: "You are an Order Parser. Output JSON only." },
+                    { role: "system", content: "You are a Pharmacy Voice Assistant. Output JSON only." },
                     { role: "user", content: prompt }
-                ], "llama-3.1-70b-versatile", true);
+                ], "llama-3.3-70b-versatile", true);
 
-                const parsed = safeJSONParse(parseJson, { items: [] });
+                const parsed = safeJSONParse(parseJson, { items: [], intent: 'add' });
+
+                // Map to frontend expected format
+                const items = (parsed.items || []).map((i: any) => ({
+                    ...i,
+                    intent: parsed.intent || 'add'
+                }));
+
                 return {
                     transcription: transcription,
-                    items: parsed.items || []
+                    items: items
                 };
 
             } catch (whisperErr) {

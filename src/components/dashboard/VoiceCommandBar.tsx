@@ -33,13 +33,22 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
     const items: ParsedItem[] = [];
     const lowerText = text.toLowerCase();
 
-    // Check for Search Intent
-    const isSearch = lowerText.startsWith("search") || lowerText.startsWith("find") || lowerText.startsWith("lookup");
+    // Check for Search Intent (Expanded)
+    const searchKeywords = ["search", "find", "lookup", "check", "stock", "price", "rate", "available", "hai kya", "hai ya", "kitna"];
+    const isSearch = searchKeywords.some(k => lowerText.includes(k));
 
     if (isSearch) {
-      // Extract term after keyword
-      const searchTerm = lowerText.replace(/^(search|find|lookup)\s+(for\s+)?/, "").trim();
-      if (searchTerm) {
+      // Extract term: Remove common keywords to find the medicine name
+      let searchTerm = lowerText;
+      const removeWords = ["search", "find", "lookup", "check", "stock", "of", "for", "available", "price", "rate", "do we have", "is there", "hai kya", "hai ya", "nahi", "kitna", "hai"];
+
+      removeWords.forEach(w => {
+        searchTerm = searchTerm.replace(new RegExp(`\\b${w}\\b`, 'g'), "");
+      });
+
+      searchTerm = searchTerm.trim().replace(/\s+/g, " ");
+
+      if (searchTerm.length > 2) {
         items.push({ name: searchTerm, quantity: 0, intent: 'search' });
       }
       return items;
