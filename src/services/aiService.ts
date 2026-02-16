@@ -983,7 +983,7 @@ WARNING: Check if the requested medicine conflicts with this history.
                 const groqJson = await callGroqAI([
                     { role: "system", content: "You are a clinical interaction checker. Output valid JSON only." },
                     { role: "user", content: prompt }
-                ], "llama-3.1-70b-versatile", true); // Enable JSON mode
+                ], "llama-3.3-70b-versatile", true); // Enable JSON mode
 
                 const parsed = safeJSONParse(groqJson, { interactions: [] });
                 // Map to frontend format
@@ -1061,7 +1061,7 @@ WARNING: Check if the requested medicine conflicts with this history.
                 const groqJson = await callGroqAI([
                     { role: "system", content: "You are a pharmaceutical market expert. Output valid JSON only." },
                     { role: "user", content: prompt }
-                ], "llama-3.1-70b-versatile", true); // Enable JSON mode
+                ], "llama-3.3-70b-versatile", true); // Enable JSON mode
 
                 const parsed = safeJSONParse(groqJson, { substitutes: [] });
                 logger.log("[Groq Response] Market:", parsed);
@@ -1121,7 +1121,7 @@ WARNING: Check if the requested medicine conflicts with this history.
                 const groqJson = await callGroqAI([
                     { role: "system", content: "You are a Regulatory Affairs Specialist for Indian Pharma. Output valid JSON only." },
                     { role: "user", content: prompt }
-                ], "llama-3.1-70b-versatile", true);
+                ], "llama-3.3-70b-versatile", true);
 
                 const parsed = safeJSONParse(groqJson, { is_banned: false, reason: "Analysis inconclusive" });
                 return { ...parsed, isMock: false, source: "Groq AI (Regulatory)" };
@@ -1183,7 +1183,7 @@ WARNING: Check if the requested medicine conflicts with this history.
                 const groqJson = await callGroqAI([
                     { role: "system", content: "You are an Inventory Analyst. Output valid JSON only." },
                     { role: "user", content: prompt }
-                ], "llama-3.1-70b-versatile", true);
+                ], "llama-3.3-70b-versatile", true);
 
                 const parsed = safeJSONParse(groqJson, { forecast: [] });
                 return { ...parsed, isMock: false, source: "Groq AI (Forecast)" };
