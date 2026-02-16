@@ -68,6 +68,7 @@ async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versat
                 messages: messages,
                 model: currentModel,
                 temperature: 0.7,
+                max_tokens: 1024, // Ensure enough space for JSON
                 response_format: jsonMode ? { type: "json_object" } : undefined
             })
         });
@@ -164,16 +165,11 @@ const safeJSONParse = (text: string, fallback: any = null): any => {
         try {
             return JSON.parse(clean);
         } catch {
-            // 3. Try finding first '{' or '[' and last '}' or ']'
+            // 3. Robust Regex Extraction (Finds the largest outer JSON object)
             try {
-                const firstOpen = clean.search(/[\{\[]/);
-                if (firstOpen !== -1) {
-                    const firstChar = clean[firstOpen];
-                    const lastChar = firstChar === '{' ? '}' : ']';
-                    const lastClose = clean.lastIndexOf(lastChar);
-                    if (lastClose !== -1) {
-                        return JSON.parse(clean.substring(firstOpen, lastClose + 1));
-                    }
+                const jsonMatch = clean.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    return JSON.parse(jsonMatch[0]);
                 }
             } catch (e) {
                 logger.warn("JSON Parse Failed completely:", text);
@@ -1111,18 +1107,12 @@ WARNING: Check if the requested medicine conflicts with this history.
             // GROQ FALLBACK
             try {
                 const prompt = `
-                Check strictly for Indian CDSCO/FDA regulations for the drug: "${drugName}".
-                1. Is it a BANNED drug in India? (is_banned)
-                2. Is it a Schedule H/H1 drug requiring prescription? (is_h1)
-                3. Provide a short reason in HINGLISH.
+                Check Indian CDSCO/FDA regulations for: "${drugName}".
                 
-                Return JSON only:
-                {
-                    "is_banned": boolean,
-                    "is_h1": boolean,
-                    "reason": "Reason in Hinglish",
-                    "warning_level": "High" | "Medium" | "Low" | "None"
-                }
+                Example Output:
+                { "is_banned": false, "is_h1": true, "reason": "Requires prescription" }
+
+                Return JSON only.
                 CRITICAL: You MUST return a JSON object. Do not return anything else.
                 `;
 
@@ -1131,7 +1121,12 @@ WARNING: Check if the requested medicine conflicts with this history.
                     { role: "user", content: prompt }
                 ], "llama-3.3-70b-versatile", true);
 
-                const parsed = safeJSONParse(groqJson, { is_banned: false, reason: "Analysis inconclusive" });
+                const parsed = safeJSONParse(groqJson, {
+                    is_banned: false,
+                    is_h1: false,
+                    reason: "AI unavailable - Verify Manually",
+                    warning_level: "Medium"
+                });
                 return { ...parsed, isMock: false, source: "Groq AI (Regulatory)" };
             } catch (groqErr) {
                 logger.error("Groq Compliance Fallback Failed:", groqErr);
@@ -1383,12 +1378,14 @@ WARNING: Check if the requested medicine conflicts with this history.
                 "Add 10 Dolo" -> intent: "add", items: [{name: "Dolo", quantity: 10}]
                 "Dolo hai kya?" -> intent: "search", items: [{name: "Dolo", quantity: 0}]
                 "Check stock of Pan D" -> intent: "search", items: [{name: "Pan D", quantity: 0}]
+                
+                CRITICAL: You MUST return a JSON object. Do not return anything else.
                 `;
 
                 const parseJson = await callGroqAI([
                     { role: "system", content: "You are a Pharmacy Voice Assistant. Output JSON only." },
                     { role: "user", content: prompt }
-                ], "llama-3.3-70b-versatile", true);
+                ], "llama-3.1-8b-instant", true);
 
                 const parsed = safeJSONParse(parseJson, { items: [], intent: 'add' });
 
