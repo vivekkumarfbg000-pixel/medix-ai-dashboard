@@ -84,7 +84,7 @@ async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versat
         console.warn(`Groq Model ${model} failed, trying fallback...`, e);
         // Fallback to a different robust model
         try {
-            return await makeRequest("llama3-70b-8192");
+            return await makeRequest("llama-3.1-8b-instant");
         } catch (fallbackError) {
             console.error("Groq Fallback Failed fully", fallbackError);
             throw fallbackError;
