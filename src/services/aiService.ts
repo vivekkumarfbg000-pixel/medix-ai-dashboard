@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import logger from "@/utils/logger";
 import imageCompression from 'browser-image-compression';
+import { medicalResearchService } from "./medicalResearchService";
 
 // Rate limiting configuration
 const requestCache = new Map<string, number>();
@@ -155,7 +156,7 @@ const cleanN8NResponse = (text: string): any => {
 /**
  * Robust JSON Parser for AI Responses (strips markdown, handles randomness)
  */
-const safeJSONParse = (text: string, fallback: any = null): any => {
+export const safeJSONParse = (text: string, fallback: any = null): any => {
     try {
         // 1. Try direct parse
         return JSON.parse(text);
@@ -257,14 +258,70 @@ Output: { "tool": "save_patient_note", "args": { "name": "Ramesh", "note": "Diab
 const tool_checkInventory = async (shopId: string, query: string) => {
     const { data } = await supabase
         .from('inventory')
-        .select('medicine_name, quantity')
+        .select('medicine_name, quantity, batch_number, expiry_date')
         .eq('shop_id', shopId)
         .ilike('medicine_name', `%${query}%`)
         .limit(5);
 
     if (!data || data.length === 0) return `No stock found for '${query}'.`;
-    // @ts-ignore - Ignoring location error if column missing
-    return data.map(i => `${i.medicine_name}: ${i.quantity} units`).join('\n');
+    return data.map(i => `${i.medicine_name}: ${i.quantity} units (Batch: ${i.batch_number || 'N/A'}, Expiry: ${i.expiry_date || 'N/A'})`).join('\n');
+};
+
+// Enhanced Inventory Tools
+const tool_checkExpiry = async (shopId: string) => {
+    const today = new Date();
+    const thirtyDaysLater = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const { data } = await supabase
+        .from('inventory')
+        .select('medicine_name, quantity, batch_number, expiry_date')
+        .eq('shop_id', shopId)
+        .not('expiry_date', 'is', null)
+        .lte('expiry_date', thirtyDaysLater.toISOString().split('T')[0])
+        .order('expiry_date', { ascending: true })
+        .limit(10);
+
+    if (!data || data.length === 0) return '✅ No medicines expiring in the next 30 days.';
+
+    return '⚠️ Medicines expiring soon:\n' + data.map(i => {
+        const daysLeft = Math.floor((new Date(i.expiry_date).getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+        return `${i.medicine_name} (${i.quantity} units): Expires in ${daysLeft} days (${i.expiry_date})`;
+    }).join('\n');
+};
+
+const tool_checkReorderLevel = async (shopId: string) => {
+    const { data } = await supabase
+        .from('inventory')
+        .select('medicine_name, quantity, reorder_level')
+        .eq('shop_id', shopId)
+        .not('reorder_level', 'is', null)
+        .limit(100); // Get all items to check
+
+    if (!data) return 'Unable to check reorder levels.';
+
+    const needsReorder = data.filter(i => i.quantity <= (i.reorder_level || 0));
+
+    if (needsReorder.length === 0) return '✅ All items are above reorder level.';
+
+    return '⚠️ Items needing reorder:\n' + needsReorder.map(i =>
+        `${i.medicine_name}: ${i.quantity} units (Reorder at: ${i.reorder_level})`
+    ).join('\n');
+};
+
+const tool_getLowStock = async (shopId: string, threshold: number = 10) => {
+    const { data } = await supabase
+        .from('inventory')
+        .select('medicine_name, quantity')
+        .eq('shop_id', shopId)
+        .lte('quantity', threshold)
+        .order('quantity', { ascending: true })
+        .limit(15);
+
+    if (!data || data.length === 0) return `✅ No items with quantity below ${threshold}.`;
+
+    return `⚠️ Low stock items (below ${threshold}):\n` + data.map(i =>
+        `${i.medicine_name}: ${i.quantity} units`
+    ).join('\n');
 };
 
 const tool_getSalesReport = async (shopId: string) => {
@@ -303,6 +360,105 @@ const tool_addToShortbook = async (shopId: string, name: string) => {
     });
     if (error) return `Failed to add ${name} to Shortbook.`;
     return `Added ${name} to Shortbook (Purchase List).`;
+};
+
+// Feature Integration Tools
+const tool_getPrescriptions = async (shopId: string, patientName?: string) => {
+    let query = supabase
+        .from('prescriptions')
+        .select('customer_name, doctor_name, medicines, created_at')
+        .eq('shop_id', shopId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+    if (patientName) {
+        query = query.ilike('customer_name', `%${patientName}%`);
+    }
+
+    const { data } = await query;
+    if (!data || data.length === 0) return patientName ? `No prescriptions found for '${patientName}'.` : 'No recent prescriptions found.';
+
+    return data.map(p => {
+        const meds = typeof p.medicines === 'string' ? JSON.parse(p.medicines) : p.medicines;
+        const medNames = Array.isArray(meds) ? meds.map((m: any) => m.name || m.medicine_name).join(', ') : 'N/A';
+        return `${p.customer_name} (Dr. ${p.doctor_name || 'Unknown'}): ${medNames} [${new Date(p.created_at).toLocaleDateString()}]`;
+    }).join('\n\n');
+};
+
+const tool_checkDrugCompliance = async (drugName: string) => {
+    try {
+        const result = await aiService.checkCompliance(drugName);
+        if (result.is_banned) return `⚠️ BANNED DRUG: ${drugName}\nReason: ${result.reason}`;
+        if (result.is_h1) return `⚠️ H1 DRUG: ${drugName}\nRequires prescription (Schedule H1)`;
+        return `✅ ${drugName} is compliant for sale.`;
+    } catch (e) {
+        return `Unable to verify compliance for ${drugName}. Please check manually.`;
+    }
+};
+
+const tool_getForecast = async (shopId: string) => {
+    try {
+        // Fetch recent sales for forecast
+        const { data: sales } = await supabase
+            .from('orders')
+            .select('order_items, created_at')
+            .eq('shop_id', shopId)
+            .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+            .limit(100);
+
+        if (!sales || sales.length === 0) return 'Not enough sales data for forecasting.';
+
+        const forecast = await aiService.getInventoryForecast(sales);
+
+        if (!forecast.forecast || forecast.forecast.length === 0) {
+            return 'No restocking recommendations at this time.';
+        }
+
+        return '📊 Inventory Forecast:\n' + forecast.forecast.slice(0, 5).map((f: any) =>
+            `${f.product}: Restock ${f.suggested_restock} units (Confidence: ${Math.round(f.confidence * 100)}%)\nReason: ${f.reason}`
+        ).join('\n\n');
+    } catch (e) {
+        return 'Unable to generate forecast. Please try again later.';
+    }
+};
+
+const tool_getSalesAnalytics = async (shopId: string, period: string = 'today') => {
+    try {
+        let startDate: Date;
+        const now = new Date();
+
+        switch (period.toLowerCase()) {
+            case 'today':
+                startDate = new Date(now.setHours(0, 0, 0, 0));
+                break;
+            case 'week':
+                startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                break;
+            case 'month':
+                startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                break;
+            default:
+                startDate = new Date(now.setHours(0, 0, 0, 0));
+        }
+
+        const { data, error } = await supabase
+            .from('orders')
+            .select('net_total, order_items')
+            .eq('shop_id', shopId)
+            .gte('created_at', startDate.toISOString());
+
+        if (error || !data || data.length === 0) return `No sales data for ${period}.`;
+
+        const totalRevenue = data.reduce((sum, order) => sum + (order.net_total || 0), 0);
+        const orderCount = data.length;
+
+        return `📈 Sales Analytics (${period}):\n` +
+            `Total Revenue: ₹${totalRevenue.toFixed(2)}\n` +
+            `Orders: ${orderCount}\n` +
+            `Average Order Value: ₹${(totalRevenue / orderCount).toFixed(2)}`;
+    } catch (e) {
+        return 'Unable to fetch sales analytics.';
+    }
 };
 
 const tool_savePatientNote = async (shopId: string, name: string, note: string, phone?: string) => {
@@ -684,7 +840,9 @@ WARNING: Check if the requested medicine conflicts with this history.
             .from('clinical-uploads')
             .upload(filePath, fileToUpload)
             .then(({ error }) => {
-                if (error) logger.error("Background Upload Failed:", error);
+                if (error && !error.message.includes("Bucket not found")) {
+                    logger.error("Background Upload Failed:", error);
+                }
             });
 
         // 3. Convert to Base64 for N8N (Gemini expects inline data)
@@ -749,7 +907,7 @@ WARNING: Check if the requested medicine conflicts with this history.
                     }
                 }
             } catch (n8nError) {
-                console.warn("[N8N] Failed, falling back to Groq Vision", n8nError);
+                console.warn("[N8N] Failed, falling back to Gemini Vision", n8nError);
             }
         }
 
@@ -772,15 +930,161 @@ WARNING: Check if the requested medicine conflicts with this history.
                 - MRP/Unit Price (Look for 'MRP', 'Rate', 'Price')
                 
                 Output STRICT JSON Object with an 'items' array.`;
+            } else if (type === 'prescription') {
+                // Comprehensive Prescription Analysis Prompt for Diary Scan
+                systemPrompt = `You are an expert Prescription Reader AI specializing in Indian pharmacy prescriptions (handwritten or printed).
+
+Analyze this prescription image and extract all medication details.
+
+### EXTRACTION REQUIREMENTS:
+
+**1. PATIENT & DOCTOR INFO:**
+- Patient Name (if visible)
+- Doctor Name (if visible)
+- Contact/Phone (if visible)
+- Date (if visible)
+
+**2. MEDICATION LIST:**
+For each medicine, extract:
+- **Medication Name**: Full drug name (e.g., "Pan-D", "Azithral 500")
+- **Strength/Dosage**: e.g., "40mg", "500mg", "5ml"
+- **Frequency**: e.g., "1-0-1" (morning-afternoon-night), "BD" (twice daily), "TDS" (thrice daily), "QID" (4 times daily)
+- **Duration**: e.g., "5 days", "1 week", "15 days"
+- **Instructions/Notes**: e.g., "After food", "Before breakfast", "SOS" (if needed)
+- **Indication**: Reason for prescription (if mentioned)
+
+**3. SPECIAL HANDLING:**
+- Recognize Indian medical abbreviations:
+  - BD = Twice daily
+  - TDS/TID = Three times daily  
+  - QID = Four times daily
+  - OD = Once daily
+  - HS = At bedtime
+  - SOS = If needed
+  - AC = Before meals
+  - PC = After meals
+- Handle handwritten text carefully
+- Correct common spelling variations (e.g., "Paracitamol" → "Paracetamol")
+
+### OUTPUT FORMAT (STRICT JSON):
+{
+  "patient_name": "Name or null",
+  "doctor_name": "Dr. Name or null",
+  "patient_contact": "Phone or null",
+  "date": "YYYY-MM-DD or null",
+  "medications": [
+    {
+      "medication_name": "Drug name",
+      "strength": "Dosage strength",
+      "dosage_frequency": "Frequency (1-0-1, BD, etc.)",
+      "duration": "Treatment duration",
+      "notes": "Instructions",
+      "indication": "Reason (if mentioned)"
+    }
+  ]
+}
+
+### IMPORTANT:
+- Return ONLY valid JSON, no markdown formatting
+- If a field is unclear or not visible, use empty string "" or null
+- Extract ALL visible medications from the prescription
+- Medications array must have at least 1 item if prescription is readable`;
             } else {
-                systemPrompt = `Analyze this medical document (${type}). 
-                Output strictly valid JSON with this structure:
-                { 
-                    "summary": "Short summary", 
-                    "diseasePossibility": ["Disease 1", "Disease 2"],
-                    "results": [{ "parameter": "name", "value": "val", "unit": "u", "status": "High/Low/Normal", "normalRange": "range" }],
-                    "recommendations": { "diet": [], "nextSteps": [] }
-                }`;
+                // Comprehensive Lab Report Analysis Prompt with Hinglish Support
+                systemPrompt = `You are an expert Medical AI specializing in Indian healthcare. Analyze this medical lab report and provide comprehensive, patient-friendly insights in Hinglish (Hindi + English mix).
+
+### ANALYSIS REQUIREMENTS:
+
+**1. BIOMARKER EXTRACTION:**
+Extract all test parameters with:
+- Test name (e.g., "Hemoglobin", "WBC Count", "Blood Sugar")
+- Measured value
+- Unit (e.g., "g/dL", "/cumm", "mg/dL")
+- Normal reference range
+- Status: "Normal", "Low", "High", or "Abnormal"
+
+**2. HINGLISH SUMMARY (CRITICAL):**
+Create a patient-friendly explanation mixing Hindi and English naturally. Use this style:
+- "Aapke **blood sugar levels** thoda **elevated** hain (145 mg/dL). Ye **pre-diabetes** ka sign ho sakta hai."
+- "**Hemoglobin** kam hai (10.5 g/dL). Aapko **anemia** hai, jiske liye **iron** ki kami responsible hai."
+- Use Hindi connecting words: "hai", "hain", "ko", "ka", "ke liye", "aur", "lekin"
+- Keep medical terms in English but explain in Hindi
+- Make it conversational and empathetic
+
+**3. POTENTIAL RISKS (with Severity):**
+Identify health risks based on abnormal values:
+- Severity levels: "Low", "Moderate", "High", "Critical"
+- Provide actionable risk descriptions
+- Consider Indian population context (diabetes, anemia prevalence)
+
+Examples:
+- High blood sugar + family history → "Diabetes Risk" (Severity: High)
+- Low Vitamin D + bone pain → "Osteoporosis Risk" (Severity: Moderate)
+- Very high WBC + fever → "Severe Infection" (Severity: Critical)
+
+**4. DISEASE POSSIBILITIES:**
+List potential conditions based on biomarker patterns (2-4 conditions max)
+
+**5. DIET RECOMMENDATIONS:**
+Provide 3-5 specific Indian diet suggestions:
+- Use Indian foods: "Spinach (Palak)", "Jaggery (Gur)", "Amla"
+- Be practical: "Daily 1 cup curd (dahi)"
+- Consider vegetarian and non-vegetarian options
+
+**6. CLINICAL NEXT STEPS:**
+Suggest 2-4 medical actions:
+- Specialist consultations
+- Follow-up tests
+- Medication guidance (generic)
+
+**7. PREVENTION TIPS:**
+Provide 3-5 lifestyle measures:
+- Exercise (specific: "30 min walk daily")
+- Sleep hygiene
+- Stress management
+- Hydration
+- Regular monitoring
+
+### INDIAN MEDICAL CONTEXT:
+- Common conditions: Diabetes, Anemia, Vitamin D deficiency, Thyroid disorders
+- Seasonal factors: Consider monsoon (infections), summer (dehydration)
+- Cultural diet: Vegetarian-friendly options, common Indian foods
+
+### OUTPUT FORMAT (STRICT JSON):
+{
+  "summary": "Brief clinical summary in English",
+  "hinglish_summary": "Patient-friendly Hinglish explanation (2-3 sentences)",
+  "patient_name": "Extract if visible, else null",
+  "report_date": "Extract if visible, else null",
+  "test_results": [
+    {
+      "test_name": "Parameter name",
+      "value": "Measured value",
+      "unit": "Unit",
+      "normal_range": "Reference range",
+      "status": "Normal/Low/High/Abnormal"
+    }
+  ],
+  "disease_possibility": ["Condition 1", "Condition 2"],
+  "potential_risks": [
+    {
+      "risk": "Risk name",
+      "severity": "Low/Moderate/High/Critical",
+      "description": "Why this is a risk"
+    }
+  ],
+  "recommendations": {
+    "diet": ["Diet tip 1", "Diet tip 2"],
+    "medical": ["Next step 1", "Next step 2"],
+    "prevention": ["Prevention tip 1", "Prevention tip 2"]
+  }
+}
+
+### IMPORTANT:
+- Return ONLY valid JSON, no markdown formatting
+- Ensure all arrays have at least 1-2 items
+- Make Hinglish summary conversational and reassuring
+- Prioritize risks by severity (Critical first)`;
             }
 
             const geminiRes = await callGeminiVision(
