@@ -27,6 +27,14 @@ const GEMINI_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY || "").trim();
 
 async function callGeminiVision(prompt: string, base64Image: string): Promise<string> {
     try {
+        // Validate API key
+        if (!GEMINI_API_KEY || GEMINI_API_KEY.length < 20) {
+            logger.error("[Gemini Vision] API key missing or invalid!");
+            throw new Error("Gemini API key is not configured. Please check .env file.");
+        }
+
+        logger.log("[Gemini Vision] Calling Gemini 2.0 Flash...", { promptLength: prompt.length, imageSize: base64Image.length });
+
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -42,14 +50,24 @@ async function callGeminiVision(prompt: string, base64Image: string): Promise<st
 
         if (!response.ok) {
             const err = await response.text();
-            throw new Error(`Gemini API Failed: ${response.status} - ${err}`);
+            logger.error("[Gemini Vision] API Error:", response.status, err.substring(0, 300));
+            throw new Error(`Gemini API Failed (${response.status}): ${err.substring(0, 100)}`);
         }
 
         const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    } catch (e) {
-        console.error("Gemini Vision Failed", e);
-        throw e;
+        const result = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+        if (!result) {
+            logger.error("[Gemini Vision] Empty response", data);
+            throw new Error("Gemini returned empty result");
+        }
+
+        logger.log("[Gemini Vision] ✓ Success!", { responseLength: result.length });
+        return result;
+    } catch (e: any) {
+        logger.error("[Gemini Vision] Error:", e.message);
+        console.error("Full Gemini Error:", e);
+        throw new Error(`Vision Analysis Failed: ${e.message}. Please try a clearer image.`);
     }
 }
 
@@ -1003,13 +1021,26 @@ Extract all test parameters with:
 - Normal reference range
 - Status: "Normal", "Low", "High", or "Abnormal"
 
-**2. HINGLISH SUMMARY (CRITICAL):**
-Create a patient-friendly explanation mixing Hindi and English naturally. Use this style:
-- "Aapke **blood sugar levels** thoda **elevated** hain (145 mg/dL). Ye **pre-diabetes** ka sign ho sakta hai."
-- "**Hemoglobin** kam hai (10.5 g/dL). Aapko **anemia** hai, jiske liye **iron** ki kami responsible hai."
-- Use Hindi connecting words: "hai", "hain", "ko", "ka", "ke liye", "aur", "lekin"
-- Keep medical terms in English but explain in Hindi
-- Make it conversational and empathetic
+**2. HINGLISH SUMMARY (CRITICAL - MOST IMPORTANT PART):**
+Create a natural, caring conversation like a helpful pharmacist or doctor talking to the patient:
+
+**Language Style:**
+- Mix 60% Hindi + 40% English naturally
+- Start friendly: "Dekhiye", "Suniye", "Samajhiye"
+- Use Hindi verbs: "hai", "hain", "ho sakta hai", "dikhai de raha", "chahiye"
+- Keep medical terms in English, explain in Hindi
+- Use respectful "aap/aapka/aapko"
+- Add reassurance when appropriate: "Ghabraane ki zarurat nahi", "Sambhal sakte hain"
+
+**Real Examples:**
+
+Good News: "Bahut achhi baat! Aapki **kidney** aur **liver** bilkul perfect hain. **Cholesterol** bhi normal hai. Jo lifestyle follow kar rahe hain, continue kariye. Bas **Vitamin D** thoda low hai (22) - morning dhoop mein 15-20 minute baithiye."
+
+Concerning: "Dekhiye bhaiya, **blood sugar fasting** 128 mg/dL hai - thoda high hai. Ye **pre-diabetes** stage hai. Par tension mat lo, abhi bhi reverse ho sakta hai! **Diet control** aur daily 30 min **walk** kariye. **Sugar** kam lijiye."
+
+Critical: "Main samajh sakta hoon ye sunke tension hogi. Aapka **hemoglobin** bahut kam - sirf 8.5 g/dL. Severe **anemia** hai, isliye weakness mehsoos hoti hogi. Immediately doctor ko dikhana zaroori hai. Saath mein **palak**, **anar**, **chana** daily khana shuru kariye."
+
+Mixed: "Kuch achha hai kuch pe dhyan dena hoga. **BP** normal hai - bahut achha. Lekin **cholesterol** high nikla - **LDL** 165 (100 se kam hona chahiye). **Oily food** aur **fried items** kam kar dijiye. **Oats** aur **nuts** use kariye."
 
 **3. POTENTIAL RISKS (with Severity):**
 Identify health risks based on abnormal values:
