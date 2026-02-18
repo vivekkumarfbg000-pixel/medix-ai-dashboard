@@ -53,7 +53,7 @@ const aiNavItems = [
   { title: "AI Insights", url: "/dashboard/ai-insights", icon: Brain },
   { title: "Forecasting", url: "/dashboard/forecasting", icon: TrendingUp },
   { title: "Alerts", url: "/dashboard/alerts", icon: Bell },
-  { title: "Stress Test", url: "/dashboard/stress-test", icon: Activity },
+
 ];
 
 export function AppSidebar() {

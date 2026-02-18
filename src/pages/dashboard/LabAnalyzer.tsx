@@ -237,6 +237,24 @@ const LabAnalyzer = () => {
                             </CardHeader>
                             <CardContent>
                                 <p className="text-lg leading-relaxed text-foreground/90 mb-4">{report.summary}</p>
+
+                                {/* Hinglish Patient-Friendly Summary */}
+                                {report.hinglishSummary && (
+                                    <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-xl border-2 border-indigo-200 dark:border-indigo-800 mb-4 animate-in fade-in slide-in-from-top-2">
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0">
+                                                <span className="text-white font-bold text-sm">🇮🇳</span>
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="font-bold text-indigo-900 dark:text-indigo-200 mb-1.5 text-sm uppercase tracking-wide">Hinglish Summary</h4>
+                                                <p className="text-base leading-relaxed text-indigo-900/90 dark:text-indigo-100/90 font-medium italic">
+                                                    {report.hinglishSummary}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="space-y-2">
                                     <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Potential Conditions</h4>
                                     <div className="flex flex-wrap gap-2">
@@ -273,16 +291,19 @@ const LabAnalyzer = () => {
                                         <CheckCircle className="w-4 h-4 mr-2" />
                                         {isSaving ? "Saving..." : "Save to Patient"}
                                     </Button>
-                                    <Button
-                                        variant="secondary"
-                                        className="w-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
-                                        onClick={handleHinglishExplain}
-                                        disabled={explaining}
-                                    >
-                                        <Activity className="w-4 h-4 mr-2" />
-                                        {explaining ? "Translating..." : "Explain in Hinglish 🇮🇳"}
-                                    </Button>
-                                    {hinglishSummary && (
+                                    {/* Optional: Manual Hinglish Translation Button (if auto-summary not sufficient) */}
+                                    {!report.hinglishSummary && (
+                                        <Button
+                                            variant="secondary"
+                                            className="w-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
+                                            onClick={handleHinglishExplain}
+                                            disabled={explaining}
+                                        >
+                                            <Activity className="w-4 h-4 mr-2" />
+                                            {explaining ? "Translating..." : "Translate to Hinglish 🇮🇳"}
+                                        </Button>
+                                    )}
+                                    {hinglishSummary && !report.hinglishSummary && (
                                         <div className="p-3 bg-indigo-50 rounded-lg text-sm text-indigo-900 italic border border-indigo-200 mt-2 animate-in fade-in slide-in-from-top-2">
                                             "{hinglishSummary}"
                                         </div>
@@ -325,6 +346,43 @@ const LabAnalyzer = () => {
                             </div>
                         </Card>
 
+                        {/* Risk Assessment Card */}
+                        {report.potentialRisks && report.potentialRisks.length > 0 && (
+                            <Card className="lg:col-span-2 border-l-4 border-l-orange-500 shadow-md">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
+                                        <AlertTriangle className="w-5 h-5" /> Potential Health Risks
+                                    </CardTitle>
+                                    <CardDescription>Based on abnormal biomarker values</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-3">
+                                        {report.potentialRisks.map((risk, i) => {
+                                            const severityColors = {
+                                                'Low': 'bg-blue-100 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700',
+                                                'Moderate': 'bg-yellow-100 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700',
+                                                'High': 'bg-orange-100 dark:bg-orange-950/30 text-orange-800 dark:text-orange-300 border-orange-300 dark:border-orange-700',
+                                                'Critical': 'bg-red-100 dark:bg-red-950/30 text-red-800 dark:text-red-300 border-red-300 dark:border-red-700'
+                                            };
+                                            const colorClass = severityColors[risk.severity] || severityColors['Moderate'];
+
+                                            return (
+                                                <div key={i} className={`p-4 rounded-xl border-2 ${colorClass} transition-all hover:shadow-md`}>
+                                                    <div className="flex items-start justify-between gap-3 mb-2">
+                                                        <h4 className="font-bold text-base">{risk.risk}</h4>
+                                                        <Badge className={`${colorClass} border-none px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider`}>
+                                                            {risk.severity}
+                                                        </Badge>
+                                                    </div>
+                                                    <p className="text-sm leading-relaxed opacity-90">{risk.description}</p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
                         {/* AI Recommendations */}
                         <div className="space-y-6">
                             <Card className="border-l-4 border-l-green-500 shadow-md h-full">
@@ -360,6 +418,23 @@ const LabAnalyzer = () => {
                                             ))}
                                         </div>
                                     </div>
+
+                                    {/* Prevention Tips Section */}
+                                    {report.recommendations.prevention && report.recommendations.prevention.length > 0 && (
+                                        <div>
+                                            <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                                                <Activity className="w-4 h-4 text-purple-600" /> Prevention & Lifestyle
+                                            </h4>
+                                            <div className="space-y-2">
+                                                {report.recommendations.prevention.map((item, i) => (
+                                                    <div key={i} className="flex items-start p-2.5 bg-purple-50/30 dark:bg-purple-950/10 rounded-lg text-sm border border-purple-200/30 dark:border-purple-800/30">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 mr-2.5 flex-shrink-0" />
+                                                        <span className="text-muted-foreground leading-relaxed">{item}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
                         </div>

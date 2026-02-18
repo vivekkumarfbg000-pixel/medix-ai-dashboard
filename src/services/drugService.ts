@@ -1,4 +1,4 @@
-import { aiService } from "./aiService";
+import { aiService, safeJSONParse } from "./aiService";
 import { supabase } from "@/integrations/supabase/client";
 import logger from "@/utils/logger";
 
@@ -228,9 +228,8 @@ class DrugService {
           // Expected response is stringified JSON in 'reply'.
           const rawJson = aiResponse.reply;
 
-          // Clean JSON (in case of ```json wrapper)
-          const cleanJsonStr = rawJson.replace(/```json/g, '').replace(/```/g, '').trim();
-          data = JSON.parse(cleanJsonStr);
+          // Clean JSON using robust parser
+          data = safeJSONParse(rawJson, null);
           logger.log("Gemini Clinical Data:", data);
 
         } catch (aiErr) {

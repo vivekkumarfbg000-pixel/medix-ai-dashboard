@@ -18,6 +18,70 @@ export interface ParsedItem {
   intent?: 'add' | 'search';
 }
 
+const parseTranscription = (text: string): ParsedItem[] => {
+  // Enhanced Local Parsing
+  const items: ParsedItem[] = [];
+  const lowerText = text.toLowerCase();
+
+  // Check for Search Intent (Expanded)
+  const searchKeywords = ["search", "find", "lookup", "check", "stock", "price", "rate", "available", "hai kya", "hai ya", "kitna"];
+  const isSearch = searchKeywords.some(k => lowerText.includes(k));
+
+  if (isSearch) {
+    // Extract term: Remove common keywords to find the medicine name
+    let searchTerm = lowerText;
+    const removeWords = ["search", "find", "lookup", "check", "stock", "of", "for", "available", "price", "rate", "do we have", "is there", "hai kya", "hai ya", "nahi", "kitna", "hai"];
+
+    removeWords.forEach(w => {
+      searchTerm = searchTerm.replace(new RegExp(`\\b${w}\\b`, 'g'), "");
+    });
+
+    searchTerm = searchTerm.trim().replace(/\s+/g, " ");
+
+    if (searchTerm.length > 2) {
+      items.push({ name: searchTerm, quantity: 0, intent: 'search' });
+    }
+    return items;
+  }
+
+  const parts = lowerText.split(",").map(p => p.trim());
+  let contact: string | undefined;
+
+  parts.forEach(part => {
+    // Check for contact info
+    const contactMatch = part.match(/contact\s+(.+)/i);
+    if (contactMatch) {
+      contact = contactMatch[1].trim();
+      return;
+    }
+
+    // Parse quantity and medicine name
+    const quantityMatch = part.match(/^(\d+)\s+(.+)/);
+    if (quantityMatch) {
+      items.push({
+        name: quantityMatch[2].trim(),
+        quantity: parseInt(quantityMatch[1], 10),
+        contact,
+        intent: 'add'
+      });
+    } else if (part.length > 0) {
+      items.push({
+        name: part,
+        quantity: 1,
+        contact,
+        intent: 'add'
+      });
+    }
+  });
+
+  // Add contact to all items if found
+  if (contact) {
+    items.forEach(item => item.contact = contact);
+  }
+
+  return items;
+};
+
 export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: VoiceCommandBarProps) {
   // ... state ...
   const [isRecording, setIsRecording] = useState(false);
@@ -28,69 +92,7 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationRef = useRef<number | null>(null);
 
-  const parseTranscription = (text: string): ParsedItem[] => {
-    // Enhanced Local Parsing
-    const items: ParsedItem[] = [];
-    const lowerText = text.toLowerCase();
 
-    // Check for Search Intent (Expanded)
-    const searchKeywords = ["search", "find", "lookup", "check", "stock", "price", "rate", "available", "hai kya", "hai ya", "kitna"];
-    const isSearch = searchKeywords.some(k => lowerText.includes(k));
-
-    if (isSearch) {
-      // Extract term: Remove common keywords to find the medicine name
-      let searchTerm = lowerText;
-      const removeWords = ["search", "find", "lookup", "check", "stock", "of", "for", "available", "price", "rate", "do we have", "is there", "hai kya", "hai ya", "nahi", "kitna", "hai"];
-
-      removeWords.forEach(w => {
-        searchTerm = searchTerm.replace(new RegExp(`\\b${w}\\b`, 'g'), "");
-      });
-
-      searchTerm = searchTerm.trim().replace(/\s+/g, " ");
-
-      if (searchTerm.length > 2) {
-        items.push({ name: searchTerm, quantity: 0, intent: 'search' });
-      }
-      return items;
-    }
-
-    const parts = lowerText.split(",").map(p => p.trim());
-    let contact: string | undefined;
-
-    parts.forEach(part => {
-      // Check for contact info
-      const contactMatch = part.match(/contact\s+(.+)/i);
-      if (contactMatch) {
-        contact = contactMatch[1].trim();
-        return;
-      }
-
-      // Parse quantity and medicine name
-      const quantityMatch = part.match(/^(\d+)\s+(.+)/);
-      if (quantityMatch) {
-        items.push({
-          name: quantityMatch[2].trim(),
-          quantity: parseInt(quantityMatch[1], 10),
-          contact,
-          intent: 'add'
-        });
-      } else if (part.length > 0) {
-        items.push({
-          name: part,
-          quantity: 1,
-          contact,
-          intent: 'add'
-        });
-      }
-    });
-
-    // Add contact to all items if found
-    if (contact) {
-      items.forEach(item => item.contact = contact);
-    }
-
-    return items;
-  };
 
   const updateAudioLevel = useCallback(() => {
     if (analyserRef.current) {
@@ -104,20 +106,9 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
     }
   }, [isRecording]);
 
-  // Keyboard Shortcut (F2)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'F2') {
-        e.preventDefault();
-        if (isRecording) stopRecording();
-        else startRecording();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isRecording, isProcessing]); // Re-bind when state changes to capture correct 'isRecording' value
 
-  const startRecording = async () => {
+
+  const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
@@ -185,9 +176,9 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
       logger.error("Microphone access error:", error);
       toast.error(`Could not access microphone: ${error.message || "Permission denied"}`);
     }
-  };
+  }, [onTranscriptionComplete, updateAudioLevel]);
 
-  const stopRecording = () => {
+  const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
@@ -196,7 +187,20 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
         cancelAnimationFrame(animationRef.current);
       }
     }
-  };
+  }, [isRecording]);
+
+  // Keyboard Shortcut (F2)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        if (isRecording) stopRecording();
+        else startRecording();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isRecording, startRecording, stopRecording]); // Re-bind when state changes to capture correct 'isRecording' value
 
   return (
     <div className={cn(

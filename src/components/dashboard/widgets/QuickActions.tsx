@@ -165,42 +165,6 @@ export const QuickActions = () => {
                         </div>
                     )}
                 </div>
-
-                {/* DEMO TOOLS */}
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                    {/* DEMO DATA BUTTON HIDDEN FOR PRODUCTION */}
-                    {/* <div onClick={() => {
-                        const confirmSeed = window.confirm("Fill Dashboard with Fake Data? (For Demo Only)");
-                        // @ts-ignore
-                        if (confirmSeed && currentShop?.id) import("@/utils/demoDataSeeder").then(m => m.seedDemoData(currentShop.id));
-                    }} className="bg-gradient-to-r from-pink-500/10 to-rose-500/10 border border-pink-500/20 p-2 rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-pink-500/20 transition-all text-pink-600 text-xs font-bold text-center">
-                        <Sparkles className="w-3 h-3" />
-                        Fill Demo Data
-                    </div> */}
-
-                    <div onClick={() => {
-                        const data = JSON.stringify({
-                            shop_name: currentShop?.name || "Medix Pharmacy",
-                            gstin: "27AABCU9603R1ZN",
-                            period: "January 2026",
-                            total_sales: 145000,
-                            tax_collected: 18450,
-                            invoices: [
-                                { id: "INV-001", amount: 1200, tax: 180 },
-                                { id: "INV-002", amount: 850, tax: 45 }
-                            ]
-                        }, null, 2);
-                        const blob = new Blob([data], { type: 'application/json' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `GST_RETURN_JAN_2026.json`;
-                        a.click();
-                    }} className="bg-slate-100 border border-slate-200 p-2 rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-200 transition-all text-slate-600 text-xs font-bold text-center">
-                        <FileText className="w-3 h-3" />
-                        Export GST JSON
-                    </div>
-                </div>
             </CardContent>
         </Card>
     );

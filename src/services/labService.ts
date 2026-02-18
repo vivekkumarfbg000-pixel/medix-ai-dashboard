@@ -17,7 +17,13 @@ export interface LabAnalysisReport {
     reportDate?: string;
     results: LabTestResult[];
     summary: string;
+    hinglishSummary?: string; // Patient-friendly explanation in Hinglish
     diseasePossibility: string[];
+    potentialRisks?: Array<{
+        risk: string;
+        severity: 'Low' | 'Moderate' | 'High' | 'Critical';
+        description: string;
+    }>;
     recommendations: {
         prevention: string[];
         diet: string[];
@@ -52,7 +58,9 @@ class LabService {
                 patientName: data.patient_name || rawAnalysis.patient_name,
                 reportDate: data.report_date || rawAnalysis.report_date,
                 summary: data.summary || data.result || "Analysis Complete",
+                hinglishSummary: data.hinglish_summary || rawAnalysis.hinglish_summary,
                 diseasePossibility: healthInsights.disease_risks || data.disease_possibility || [],
+                potentialRisks: data.potential_risks || rawAnalysis.potential_risks || [],
                 results: testResults.map((test: any) => ({
                     parameter: test.test_name || test.parameter || "Unknown",
                     value: test.value || "",
@@ -63,7 +71,7 @@ class LabService {
                 recommendations: {
                     diet: recommendations.dietary || recommendations.diet || data.diet || [],
                     nextSteps: recommendations.medical || recommendations.nextSteps || data.next_steps || [],
-                    prevention: recommendations.lifestyle || []
+                    prevention: recommendations.lifestyle || recommendations.prevention || data.prevention || []
                 }
             };
 

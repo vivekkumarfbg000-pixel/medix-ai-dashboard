@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+  <!-- Content Security Policy -->
+  <link rel="icon" type="image/jpeg" href="/medix-logo.jpg?v=6" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; 
+                   script-src 'self' 'unsafe-inline' 'unsafe-eval'; 
+                   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
+                   img-src 'self' data: https: blob:; 
+                   font-src 'self' data: https://fonts.gstatic.com;
+                   connect-src 'self' https://*.supabase.co https://*.app.n8n.cloud https://n8n.medixai.shop wss://*.supabase.co https://api.groq.com https://generativelanguage.googleapis.com https://api.fda.gov;
+                   media-src 'self' blob: https://ssl.gstatic.com;
+                   worker-src 'self' blob:;
+
+  <title>MedixAI.Shop</title>
+  <meta name=" description" content="AI-Powered Medical Shop Management System" />
+  <meta name="author" content="MedixAI" />
+
+  <meta property="og:title" content="MedixAI Dashboard" />
+  <meta property="og:description" content="AI-Powered Medical Shop Management System" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/medix-logo.jpg" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@MedixAI" />
+  <meta name="twitter:image" content="/medix-logo.jpg" />
+</head>
+
+<body>
+  <div id="root">
+    <div
+      style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; color: #666;">
+      Loading Medix AI Dashboard...
+    </div>
+  </div>
+  <div id="global-error-display"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: white; z-index: 9999; padding: 20px; font-family: monospace;">
+    <h2 style="color: red;">Application Startup Error</h2>
+    <pre id="global-error-message" style="background: #eee; padding: 10px; border-radius: 4px; overflow: auto;"></pre>
+    <button onclick="window.location.reload()"
+      style="margin-top: 20px; padding: 10px 20px; cursor: pointer;">Reload</button>
+  </div>
+  <script>
+    window.addEventListener('error', function (event) {
+      const display = document.getElementById('global-error-display');
+      const message = document.getElementById('global-error-message');
+      if (display && message) {
+        display.style.display = 'block';
+        message.textContent = `Error: ${event.message}\nat ${event.filename}:${event.lineno}:${event.colno}`;
+      }
+    });
+    window.addEventListener('unhandledrejection', function (event) {
+      const display = document.getElementById('global-error-display');
+      const message = document.getElementById('global-error-message');
+      if (display && message) {
+        display.style.display = 'block';
+        message.textContent = `Unhandled Rejection: ${event.reason}`;
+      }
+    });
+  </script>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

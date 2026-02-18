@@ -1776,7 +1776,7 @@ Provide 3-5 lifestyle measures:
         const words = text.toLowerCase().split(' ');
 
         let currentQty = 1;
-        let buffer: string[] = [];
+        const buffer: string[] = [];
 
         for (let i = 0; i < words.length; i++) {
             const w = words[i];

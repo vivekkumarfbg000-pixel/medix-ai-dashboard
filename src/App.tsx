@@ -42,7 +42,7 @@ const Purchases = lazy(() => import("./pages/dashboard/Purchases"));
 const ScheduleH1 = lazy(() => import("./pages/dashboard/ScheduleH1"));
 const EnvDebug = lazy(() => import("./pages/EnvDebug"));
 const AiDebug = lazy(() => import("./pages/AiDebug"));
-const StressTest = lazy(() => import("./pages/StressTest"));
+
 const TestAIFallback = lazy(() => import("./pages/TestAIFallback"));
 const DebugAI = lazy(() => import("./pages/DebugAI"));
 
@@ -112,7 +112,7 @@ const AppRoutes = () => {
           <Route path="schedule-h1" element={<ErrorBoundary><ScheduleH1 /></ErrorBoundary>} />
           <Route path="env-debug" element={<ErrorBoundary><EnvDebug /></ErrorBoundary>} />
           <Route path="ai-debug" element={<ErrorBoundary><AiDebug /></ErrorBoundary>} />
-          <Route path="stress-test" element={<ErrorBoundary><StressTest /></ErrorBoundary>} />
+
         </Route>
 
         <Route path="/test-ai-fallback" element={<TestAIFallback />} />
