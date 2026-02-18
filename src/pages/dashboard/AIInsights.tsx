@@ -398,14 +398,16 @@ const AIInsights = () => {
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'bot' ? 'bg-slate-800 border border-white/10' : 'bg-blue-600'}`}>
                       {msg.role === 'bot' ? <Bot className="w-4 h-4 text-blue-400" /> : <div className="text-xs font-bold text-white">ME</div>}
                     </div>
-                    <div className={`group relative max-w-[80%] p-4 rounded-2xl shadow-sm ${msg.role === 'bot'
+                    <div className={`group relative max-w-[95%] md:max-w-[80%] p-4 rounded-2xl shadow-sm ${msg.role === 'bot'
                       ? 'bg-slate-800/80 border border-white/5 text-slate-200 rounded-tl-none'
                       : 'bg-blue-600 text-white rounded-tr-none'
                       }`}>
                       {msg.image && (
-                        <img src={msg.image} alt="Upload" className="max-w-xs rounded-lg mb-3 border border-white/10" />
+                        <div className="flex justify-center mb-3">
+                          <img src={msg.image} alt="Upload" className="max-w-full md:max-w-sm rounded-lg border border-white/10" />
+                        </div>
                       )}
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">{msg.text}</p>
 
                       {/* Action Chips for Bot */}
                       {msg.role === 'bot' && msg.sources && (
@@ -466,7 +468,7 @@ const AIInsights = () => {
                     value={currentChatInfo}
                     onChange={(e) => setCurrentChatInfo(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleChat()}
-                    className="w-full pl-14 pr-28 py-6 h-14 bg-slate-950/80 border-slate-800 rounded-full focus-visible:ring-2 focus-visible:ring-blue-500/50 text-base placeholder:text-slate-500 shadow-inner font-normal tracking-wide"
+                    className="w-full pl-14 pr-28 py-6 h-14 bg-slate-950/80 border-slate-800 rounded-full focus-visible:ring-2 focus-visible:ring-blue-500/50 text-base text-white placeholder:text-slate-400 shadow-inner font-normal tracking-wide"
                   />
 
                   {/* Right: Actions (Voice + Send) */}

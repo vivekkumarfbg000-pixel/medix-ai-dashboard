@@ -1,8 +1,17 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Sparkles, Package, Check, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { Upload, Sparkles, Check, X, CheckCheck, Trash2, AlertCircle, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { aiService } from "@/services/aiService";
@@ -26,8 +35,8 @@ interface StagingItem {
 
 interface InventoryDraftsProps {
     shopId: string;
-    onRefreshRequest: () => void; // Callback to tell parent strict inventory might have changed
-    predictions?: any[]; // Passed from parent for real velocity check
+    onRefreshRequest: () => void;
+    predictions?: any[];
 }
 
 export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: InventoryDraftsProps) => {
@@ -38,11 +47,10 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
         if (!shopId) return;
 
         try {
-            // @ts-ignore - Table exists
             const { data, error } = await supabase
                 .from("inventory_staging")
                 .select("*")
-                .eq("shop_id", shopId) // EXPLICIT FILTER
+                .eq("shop_id", shopId)
                 .eq("status", "pending")
                 .order("created_at", { ascending: false });
 
@@ -53,13 +61,10 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
                 }
                 logger.error("Error fetching drafts:", error);
             } else {
-                // REAL Enrichment (ABC Analysis + Sales Velocity)
                 const enrichedData = (data || []).map((item: any) => {
-                    // 1. ABC Classification (Pareto Principle based on Value)
                     const value = item.unit_price * item.quantity;
                     const classification = value > 5000 ? 'A' : (value > 1000 ? 'B' : 'C');
 
-                    // 2. Velocity from Real Predictions (if available)
                     const prediction = predictions.find(p => p.medicine_name.toLowerCase() === item.medicine_name.toLowerCase());
                     let velocity = 'Unknown';
                     let action = 'None';
@@ -69,11 +74,9 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
                         else if (prediction.avg_daily_sales > 0.5) velocity = 'Medium';
                         else velocity = 'Slow';
                     } else {
-                        // If new item, assume based on price (cheaper usually faster)
                         velocity = item.unit_price < 100 ? 'Medium' : 'Slow';
                     }
 
-                    // 3. Action Logic
                     if (velocity === 'Fast' && item.quantity < 10) action = 'Reorder';
                     else if (velocity === 'Slow' && item.quantity > 50) action = 'Discount';
                     else if (velocity === 'Dead') action = 'Return';
@@ -103,61 +106,64 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
             .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_staging' }, fetchStaging)
             .subscribe();
         return () => { supabase.removeChannel(channel); };
-    }, [shopId, predictions]); // Re-run if predictions load
+    }, [shopId, predictions]);
+
+    const updateDraftItem = (id: string, field: keyof StagingItem, value: any) => {
+        setStagingItems(prev => prev.map(item =>
+            item.id === id ? { ...item, [field]: value } : item
+        ));
+    };
 
     const handleApproveDraft = async (item: StagingItem) => {
         if (!shopId) return;
 
-        // 1. Move to Main Inventory
         const { error: insertError } = await supabase.from("inventory").insert({
             shop_id: shopId,
             medicine_name: item.medicine_name,
             batch_number: item.batch_number,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
+            quantity: Number(item.quantity) || 0,
+            unit_price: Number(item.unit_price) || 0,
             expiry_date: item.expiry_date,
             source: 'ai_scan'
         } as any);
 
         if (insertError) {
-            // --- FALLBACK: Retry without 'source' ---
-            if (insertError.code === '42703') {
-                const { error: retryError } = await supabase.from("inventory").insert({
-                    shop_id: shopId,
-                    medicine_name: item.medicine_name,
-                    batch_number: item.batch_number,
-                    quantity: item.quantity,
-                    unit_price: item.unit_price,
-                    expiry_date: item.expiry_date
-                    // source removed
-                } as any);
-
-                if (retryError) {
-                    toast.error("Failed to approve item: " + retryError.message);
-                    return;
-                }
-                // Success path falls through
-            } else {
-                toast.error("Failed to approve item: " + insertError.message);
-                logger.error(insertError);
-                return;
-            }
+            toast.error("Failed to approve item: " + insertError.message);
+            return;
         }
 
-        // 2. Mark as Approved
         // @ts-ignore
         await supabase.from("inventory_staging").update({ status: 'approved' }).eq('id', item.id);
-
-        toast.success(`Approved ${item.medicine_name}`);
-        fetchStaging();
-        onRefreshRequest(); // Refresh main inventory
+        toast.success("Approved " + item.medicine_name);
+        setStagingItems(prev => prev.filter(i => i.id !== item.id));
+        onRefreshRequest();
     };
 
     const handleRejectDraft = async (id: string) => {
         // @ts-ignore
         await supabase.from("inventory_staging").update({ status: 'rejected' }).eq('id', id);
         toast.info("Draft rejected");
-        fetchStaging();
+        setStagingItems(prev => prev.filter(i => i.id !== id));
+    };
+
+    const handleApproveAll = async () => {
+        if (stagingItems.length === 0) return;
+        toast.loading("Approving all items...");
+
+        // Process in parallel for speed
+        await Promise.all(stagingItems.map(item => handleApproveDraft(item)));
+
+        toast.dismiss();
+        toast.success("All items approved successfully!");
+    };
+
+    const handleDiscardAll = async () => {
+        if (!confirm("Are you sure you want to discard all drafts?")) return;
+
+        toast.loading("Discarding all items...");
+        await Promise.all(stagingItems.map(item => handleRejectDraft(item.id)));
+        toast.dismiss();
+        toast.info("All drafts discarded");
     };
 
     const handleScanUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -202,84 +208,147 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
     };
 
     return (
-        <Card className="border-purple-200 bg-purple-50/30">
-            <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 rounded-full bg-purple-100 text-purple-600"><Sparkles className="w-6 h-6" /></div>
-                    <div>
-                        <h3 className="font-bold text-lg text-purple-900">AI Drafts</h3>
-                        <p className="text-sm text-purple-700">Items identified by Gemini Vision. Review before adding to stock.</p>
-                    </div>
+        <Card className="border-none shadow-md bg-white">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
+                <div className="space-y-1">
+                    <CardTitle className="text-xl font-bold flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-purple-600" />
+                        AI Draft Review
+                    </CardTitle>
+                    <CardDescription>
+                        Review and edit items extracted from your scan before adding to inventory.
+                    </CardDescription>
                 </div>
-
-                {/* Upload Section */}
-                <div className="flex flex-col gap-4">
-                    <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-lg border shadow-sm gap-4">
-                        <div>
-                            <h3 className="font-semibold text-lg">Scan Medicine Bill / Strip</h3>
-                            <p className="text-sm text-muted-foreground">Upload a photo of a **Purchase Bill**, **Invoice**, or **Medicine Strip**. AI will extract items automatically.</p>
-                        </div>
-                        <div className="flex gap-2">
-                            <input
-                                type="file"
-                                id="inventory-upload"
-                                className="hidden"
-                                accept="image/*"
-                                onChange={handleScanUpload}
-                            />
-                            <Button variant="outline" onClick={() => document.getElementById('inventory-upload')?.click()}>
-                                <Upload className="w-4 h-4 mr-2" /> Upload Strip
+                <div className="flex gap-2">
+                    <input type="file" id="inventory-upload" className="hidden" accept="image/*" onChange={handleScanUpload} />
+                    <Button variant="outline" size="sm" onClick={() => document.getElementById('inventory-upload')?.click()}>
+                        <Upload className="w-4 h-4 mr-2" /> Upload New Bill
+                    </Button>
+                    {stagingItems.length > 0 && (
+                        <>
+                            <Button variant="destructive" size="sm" onClick={handleDiscardAll}>
+                                <Trash2 className="w-4 h-4 mr-2" /> Discard All
                             </Button>
-                            <Button onClick={() => document.getElementById('inventory-upload')?.click()} className="bg-purple-600 hover:bg-purple-700">
-                                <Sparkles className="w-4 h-4 mr-2" /> Scan Bill (AI)
+                            <Button className="bg-green-600 hover:bg-green-700 text-white" size="sm" onClick={handleApproveAll}>
+                                <CheckCheck className="w-4 h-4 mr-2" /> Approve All
                             </Button>
-                        </div>
-                    </div>
-
-                    {loading ? (
-                        <div className="text-center py-12">Loading drafts...</div>
-                    ) : stagingItems.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground/60 border-2 border-dashed border-purple-200 rounded-lg">
-                            No pending drafts. Upload an image above to start.
-                        </div>
-                    ) : (
-                        <div className="grid gap-4">
-                            {stagingItems.map(item => (
-                                <div key={item.id} className="flex items-center justify-between p-4 bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow">
-                                    <div className="space-y-1">
-                                        <h4 className="font-semibold text-lg">{item.medicine_name}</h4>
-                                        <div className="flex gap-4 text-sm text-muted-foreground">
-                                            <span className="flex items-center gap-1"><Package className="w-3 h-3" /> Qty: {item.quantity}</span>
-                                            <span>MRP: ₹{item.unit_price}</span>
-                                            {item.expiry_date && <span>Exp: {item.expiry_date}</span>}
-                                        </div>
-                                        {item.insights && (
-                                            <div className="flex gap-2 mt-2">
-                                                <Badge variant="outline" className={item.insights.classification === 'A' ? 'border-red-500 text-red-600' : 'border-slate-400'}>
-                                                    Class {item.insights.classification}
-                                                </Badge>
-                                                <Badge variant="secondary" className={
-                                                    item.insights.velocity === 'Fast' ? 'bg-green-100 text-green-700' :
-                                                        item.insights.velocity === 'Dead' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                                                }>
-                                                    {item.insights.velocity} Mover
-                                                </Badge>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleRejectDraft(item.id)}>
-                                            <X className="w-5 h-5" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="text-green-500 hover:text-green-700 hover:bg-green-50" onClick={() => handleApproveDraft(item)}>
-                                            <Check className="w-5 h-5" />
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        </>
                     )}
                 </div>
+            </CardHeader>
+            <CardContent className="p-0">
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                        <Sparkles className="w-8 h-8 animate-spin mb-2 text-purple-400" />
+                        <p>Analyzing drafts...</p>
+                    </div>
+                ) : stagingItems.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-center space-y-4 text-muted-foreground bg-slate-50/50">
+                        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
+                            <FileText className="w-8 h-8 text-slate-300" />
+                        </div>
+                        <div>
+                            <p className="font-medium text-slate-900">No Drafts Pending</p>
+                            <p className="text-sm">Upload a bill to let AI extract medicines automatically.</p>
+                        </div>
+                        <Button variant="default" onClick={() => document.getElementById('inventory-upload')?.click()}>
+                            <Upload className="w-4 h-4 mr-2" /> Upload Bill
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="rounded-md border-b">
+                        <Table>
+                            <TableHeader className="bg-slate-50/75">
+                                <TableRow>
+                                    <TableHead className="w-[250px] font-semibold">Medicine Name</TableHead>
+                                    <TableHead className="w-[120px] font-semibold">Batch No</TableHead>
+                                    <TableHead className="w-[140px] font-semibold">Expiry</TableHead>
+                                    <TableHead className="w-[100px] font-semibold">Qty</TableHead>
+                                    <TableHead className="w-[120px] font-semibold text-right">MRP (₹)</TableHead>
+                                    <TableHead className="w-[100px] font-semibold text-center">Insights</TableHead>
+                                    <TableHead className="w-[100px] font-semibold text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {stagingItems.map((item) => (
+                                    <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                                        <TableCell>
+                                            <Input
+                                                value={item.medicine_name}
+                                                onChange={(e) => updateDraftItem(item.id, 'medicine_name', e.target.value)}
+                                                className="border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all font-medium h-9"
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input
+                                                value={item.batch_number || ''}
+                                                onChange={(e) => updateDraftItem(item.id, 'batch_number', e.target.value)}
+                                                placeholder="Batch"
+                                                className="border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all h-9 text-xs"
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input
+                                                value={item.expiry_date || ''}
+                                                onChange={(e) => updateDraftItem(item.id, 'expiry_date', e.target.value)}
+                                                placeholder="YYYY-MM-DD"
+                                                className={`border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all h-9 text-xs ${!item.expiry_date ? 'border-red-200 bg-red-50/50' : ''}`}
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input
+                                                type="number"
+                                                value={item.quantity}
+                                                onChange={(e) => updateDraftItem(item.id, 'quantity', e.target.value)}
+                                                className="border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all h-9 w-20"
+                                            />
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Input
+                                                type="number"
+                                                value={item.unit_price}
+                                                onChange={(e) => updateDraftItem(item.id, 'unit_price', e.target.value)}
+                                                className="border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all h-9 w-24 ml-auto text-right"
+                                            />
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            {item.insights && (
+                                                <Badge
+                                                    variant="secondary"
+                                                    className={`text-[10px] px-2 h-6 ${item.insights.velocity === 'Fast' ? 'bg-green-100 text-green-700' :
+                                                            item.insights.velocity === 'Dead' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                                                        }`}
+                                                >
+                                                    {item.insights.velocity}
+                                                </Badge>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex items-center justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                    onClick={() => handleApproveDraft(item)}
+                                                >
+                                                    <Check className="w-4 h-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                    onClick={() => handleRejectDraft(item.id)}
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

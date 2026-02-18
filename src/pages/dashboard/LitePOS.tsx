@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import {
     ShoppingCart, Mic, Trash2, ArrowLeft,
     Zap, X, TrendingUp, Search, User, IndianRupee, Sparkles,
-    Plus, BookmarkPlus, ChevronRight, PauseCircle, PlayCircle, History, Printer
+    Plus, BookmarkPlus, ChevronRight, PauseCircle, PlayCircle, History, Printer, Eye
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
