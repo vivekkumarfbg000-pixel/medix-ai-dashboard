@@ -85,7 +85,7 @@ async function callGeminiVision(prompt: string, base64Image: string): Promise<st
                     }]
                 })
             },
-            20000 // 20s timeout for images
+            45000 // 45s timeout for complex medical images
         );
 
         if (!response.ok) {
@@ -698,19 +698,23 @@ WARNING: Check if the requested medicine conflicts with this history.
                     // Extract Base64 if needed
                     const base64 = image.includes(',') ? image.split(',')[1] : image;
 
-                    // Check for Lab Report Intent
-                    const isReport = /report|lab|test|jaanch|result|blood/i.test(contextMessage || "");
+                    // Check for Lab Report Intent (BROADENED)
+                    // Added: analyze, check, medical, scan, image, photo, dekho
+                    const isReport = /report|lab|test|jaanch|result|blood|analyze|check|medical|scan|image|photo|dekho/i.test(contextMessage || "");
                     let visionPrompt = contextMessage || "Analyze this image in detail.";
 
                     if (isReport) {
-                        logger.log("[Vision] Detected Lab Report intent");
-                        visionPrompt = LAB_REPORT_PROMPT + `\n\nUSER QUERY: ${contextMessage}`;
+                        logger.log("[Vision] Detected Lab Report intent (using detailed medical prompt)");
+                        // Force JSON
+                        visionPrompt = LAB_REPORT_PROMPT + `\n\nUSER QUERY: ${contextMessage}\n\nIMPORTANT: Return ONLY raw JSON. No markdown formatting.`;
                     }
 
                     const visionReply = await callGeminiVision(
                         visionPrompt,
                         base64
                     );
+
+                    logger.log("[Vision] Raw Reply:", visionReply.substring(0, 100) + "...");
 
                     return {
                         reply: visionReply,
@@ -987,7 +991,8 @@ WARNING: Check if the requested medicine conflicts with this history.
         // logger.log("[N8N Request] Analyze Document:", { action, size: base64Data.length });
 
         // --- BYPASS N8N FOR INVENTORY SCAN TO USE DIRECT GEMINI VISION (More Reliable for Lists) ---
-        if (type === 'inventory_list' || type === 'invoice') {
+        // UPDATED: 'prescription' also bypasses n8n first to use Local Gemini (Primary) -> N8N (Fallback)
+        if (type === 'inventory_list' || type === 'invoice' || type === 'prescription') {
             // Fall through to Gemini Vision block below directly
         } else {
             // N8N Attempt for other types
@@ -1219,16 +1224,65 @@ Provide 3-5 lifestyle measures:
 - Prioritize risks by severity (Critical first)`;
             }
 
-            const geminiRes = await callGeminiVision(
-                systemPrompt + "\n\nIMPORTANT: Return ONLY raw JSON. No markdown formatting.",
-                base64Data
-            );
+            let geminiRes;
+
+            // For Prescriptions: Enforce 30s Timeout
+            if (type === 'prescription') {
+                const timeoutPromise = new Promise<string>((_, reject) =>
+                    setTimeout(() => reject(new Error("Gemini Vision Timed Out (30s)")), 30000)
+                );
+
+                geminiRes = await Promise.race([
+                    callGeminiVision(
+                        systemPrompt + "\n\nIMPORTANT: Return ONLY raw JSON. No markdown formatting.",
+                        base64Data
+                    ),
+                    timeoutPromise
+                ]);
+            } else {
+                // Standard Call
+                geminiRes = await callGeminiVision(
+                    systemPrompt + "\n\nIMPORTANT: Return ONLY raw JSON. No markdown formatting.",
+                    base64Data
+                );
+            }
 
             const parsed = safeJSONParse(geminiRes, { items: [], summary: "Analysis Failed" });
             return { ...parsed, isMock: false };
 
         } catch (geminiViolate) {
             logger.error("Gemini Vision Analysis Failed:", geminiViolate);
+
+            // --- N8N FALLBACK (Specific for Prescription) ---
+            if (type === 'prescription') {
+                logger.warn("[Fallback] Switching to N8N Webhook for Prescription...");
+                try {
+                    // Re-construct N8N Payload
+                    const n8nPayload = {
+                        action: 'analyze-prescription',
+                        image_base64: base64Data,
+                        data: base64Data,
+                        userId: (await supabase.auth.getUser()).data.user?.id,
+                        shopId: typeof window !== 'undefined' ? localStorage.getItem("currentShopId") : null
+                    };
+
+                    const n8nRes = await fetchWithTimeout(ENDPOINTS.ANALYZE_PRESCRIPTION, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(n8nPayload)
+                    }, 30000); // 30s Timeout for fallback as well
+
+                    if (n8nRes.ok) {
+                        const n8nText = await n8nRes.text();
+                        const n8nData = JSON.parse(n8nText);
+                        logger.log("[Fallback] N8N Success:", n8nData);
+                        return n8nData;
+                    }
+                } catch (n8nErr) {
+                    logger.error("[Fallback] N8N Check Failed:", n8nErr);
+                }
+            }
+
             throw new Error("Analysis failed. Please try a clearer image.");
         }
     },
