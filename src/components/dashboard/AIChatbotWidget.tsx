@@ -6,6 +6,7 @@ import { MessageCircle, X, Send, Bot, Sparkles, Loader2, Minimize2 } from "lucid
 import { aiService } from "@/services/aiService";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import VoiceInput from "@/components/common/VoiceInput";
 
 interface Message {
     id: string;
@@ -91,6 +92,17 @@ export function AIChatbotWidget() {
         }
     };
 
+    const handleVoiceTranscript = (text: string) => {
+        if (text) {
+            setInput(text);
+            // Optional: Auto-send for smoother experience
+            // handleSend(); // Tricky because state update is async. Better to just set input for review.
+
+            // To auto-send, we'd need a useEffect or a direct call with the text, bypassing state for the immediate action
+            // Let's just set it for now so user can see what was heard.
+        }
+    };
+
     return (
         <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-4 animate-fade-in font-sans">
 
@@ -165,19 +177,33 @@ export function AIChatbotWidget() {
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={handleKeyPress}
                                 placeholder="Ask about medicines..."
+                                placeholder="Ask about medicines..."
                                 className="pr-10 h-10 rounded-full border-gray-200 dark:border-slate-700 focus-visible:ring-blue-500 shadow-sm bg-slate-50 dark:bg-slate-800"
                             />
-                            <Button
-                                size="icon"
-                                className={cn(
-                                    "absolute right-1 w-8 h-8 rounded-full transition-all duration-200",
-                                    input.trim() ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-gray-100 text-gray-400 dark:bg-slate-700"
-                                )}
-                                onClick={handleSend}
-                                disabled={!input.trim() || loading}
-                            >
-                                <Send className="w-4 h-4 ml-0.5" />
-                            </Button>
+
+                            {!input.trim() && (
+                                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                    <VoiceInput
+                                        onTranscript={handleVoiceTranscript}
+                                        className="h-8 w-8 bg-transparent hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 shadow-none border-0"
+                                        lang="en-IN"
+                                    />
+                                </div>
+                            )}
+
+                            {input.trim() && (
+                                <Button
+                                    size="icon"
+                                    className={cn(
+                                        "absolute right-1 w-8 h-8 rounded-full transition-all duration-200",
+                                        "bg-blue-600 hover:bg-blue-700 text-white"
+                                    )}
+                                    onClick={handleSend}
+                                    disabled={loading}
+                                >
+                                    <Send className="w-4 h-4 ml-0.5" />
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </Card>

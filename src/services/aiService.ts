@@ -302,7 +302,9 @@ You must output a strict JSON object.
 - * Triggers *: "whatsapp karo", "bhejo", "bill send karo"
 8. ** "save_patient_note" **: Clinical history.Args: { "phone": "9876543210", "note": "text", "name": "Patient Name" }
 - * Triggers *: "note kar lo", "history", "yaad rakhna"
-9. ** "direct_reply" **: Medical advice, chat, or ambiguous queries.Args: { "answer": "Hinglish response..." }
+9. ** "get_inventory_forecast" **: Restocking advice.Args: { }
+- * Triggers *: "forecast", "kya mangwana hai", "restock", "future stock", "prediction"
+10. ** "direct_reply" **: Medical advice, chat, or ambiguous queries.Args: { "answer": "Hinglish response..." }
 - * Triggers *: General chat, medical symptoms, "Hello", "Kaise ho"
 
 ### RULES:
@@ -833,6 +835,8 @@ WARNING: Check if the requested medicine conflicts with this history.
                 } else if (action.tool === "save_patient_note" && shopId) {
                     const result = await tool_savePatientNote(shopId, action.args.name, action.args.note, action.args.phone);
                     return { reply: result, sources: ["Patient Records"], isMock: false };
+                } else if (action.tool === "get_inventory_forecast" && shopId) {
+                    toolResult = await tool_getForecast(shopId);
                 } else {
                     // Default to direct reply if tool not found or 'direct_reply' chosen
                     isDirectReply = true;
@@ -1804,61 +1808,11 @@ Provide 3-5 lifestyle measures:
      * Voice Billing Integration
      * Processes voice audio through N8N backend for transcription and parsing
      */
-    async processVoiceBill(audioBlob: Blob): Promise<any> {
-        // DEMO MODE CHECK
-        const isDemoMode = typeof window !== 'undefined' && localStorage.getItem("DEMO_MODE") === "true";
-        if (isDemoMode) {
-            logger.log("[DEMO MODE] Returning Mock Voice Bill");
-            await new Promise(r => setTimeout(r, 1000));
-            return {
-                transcription: "2 Strip Dolo aur 1 bottle Cough Syrup",
-                items: [
-                    { name: "Dolo 650", quantity: 30, confidence: 0.98 },
-                    { name: "Benadryl Cough Syrup", quantity: 1, confidence: 0.95 }
-                ]
-            };
-        }
-
-        const { data: { user } } = await supabase.auth.getUser();
-        const shopId = typeof window !== 'undefined' ? localStorage.getItem("currentShopId") : null;
-
-        // 1. PRIMARY: Try Groq Whisper (Faster & More Reliable)
+    async parseOrderFromText(text: string): Promise<any> {
+        // 1. Try Groq AI (Llama 3) for smart parsing
         try {
-            logger.log("[Voice] Processing with Groq Whisper (Primary)...");
-
-            // Validate API Key Availability
-            if (!GROQ_API_KEY) throw new Error("Groq API Key missing for Voice");
-
-            const formData = new FormData();
-            formData.append("file", audioBlob, "voice_input.webm"); // webm/mp3/wav
-            formData.append("model", "whisper-large-v3");
-
-            // Optional: Add prompt for better context if needed
-            // formData.append("prompt", "Pharmacy medicine order in Hinglish"); 
-            formData.append("response_format", "json");
-
-            const transResponse = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-                method: "POST",
-                headers: { "Authorization": `Bearer ${GROQ_API_KEY}` }, // No Content-Type for FormData
-                body: formData
-            });
-
-            if (!transResponse.ok) {
-                const errText = await transResponse.text();
-                throw new Error(`Groq Whisper Failed: ${transResponse.status} - ${errText}`);
-            }
-
-            const transData = await transResponse.json();
-            const transcription = transData.text;
-            logger.log("[Groq Whisper] Text:", transcription);
-
-            if (!transcription || transcription.trim().length === 0) {
-                return { transcription: "", items: [] };
-            }
-
-            // 2. Parse Intent & Items using Llama 3 (Hinglish Aware)
             const prompt = `
-            Analyze this voice transcript: "${transcription}"
+            Analyze this voice transcript: "${text}"
             Determine if the user wants to ORDER/ADD stock or SEARCH/CHECK stock.
 
             Output JSON: 
@@ -1889,9 +1843,72 @@ Provide 3-5 lifestyle measures:
             }));
 
             return {
-                transcription: transcription,
+                transcription: text,
                 items: items
             };
+
+        } catch (e) {
+            console.warn("[AI Service] Smart Parsing Failed, using Heuristic Fallback", e);
+            // Fallback to local heuristic (processVoiceText)
+            return await this.processVoiceText(text);
+        }
+    },
+
+    /**
+     * Voice Billing Integration
+     * Processes voice audio through Groq/N8N backend for transcription and parsing
+     */
+    async processVoiceBill(audioBlob: Blob): Promise<any> {
+        // DEMO MODE CHECK
+        const isDemoMode = typeof window !== 'undefined' && localStorage.getItem("DEMO_MODE") === "true";
+        if (isDemoMode) {
+            logger.log("[DEMO MODE] Returning Mock Voice Bill");
+            await new Promise(r => setTimeout(r, 1000));
+            return {
+                transcription: "2 Strip Dolo aur 1 bottle Cough Syrup",
+                items: [
+                    { name: "Dolo 650", quantity: 30, confidence: 0.98 },
+                    { name: "Benadryl Cough Syrup", quantity: 1, confidence: 0.95 }
+                ]
+            };
+        }
+
+        const { data: { user } } = await supabase.auth.getUser();
+        const shopId = typeof window !== 'undefined' ? localStorage.getItem("currentShopId") : null;
+
+        // 1. PRIMARY: Try Groq Whisper (Faster & More Reliable)
+        try {
+            logger.log("[Voice] Processing with Groq Whisper (Primary)...");
+
+            // Validate API Key Availability
+            if (!GROQ_API_KEY) throw new Error("Groq API Key missing for Voice");
+
+            const formData = new FormData();
+            formData.append("file", audioBlob, "voice_input.webm"); // webm/mp3/wav
+            formData.append("model", "whisper-large-v3");
+            formData.append("response_format", "json");
+
+            const transResponse = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${GROQ_API_KEY}` }, // No Content-Type for FormData
+                body: formData
+            });
+
+            if (!transResponse.ok) {
+                const errText = await transResponse.text();
+                throw new Error(`Groq Whisper Failed: ${transResponse.status} - ${errText}`);
+            }
+
+            const transData = await transResponse.json();
+            const transcription = transData.text;
+            logger.log("[Groq Whisper] Text:", transcription);
+
+            if (!transcription || transcription.trim().length === 0) {
+                return { transcription: "", items: [] };
+            }
+
+            // 2. Parse Intent & Items using Shared Method
+            return await this.parseOrderFromText(transcription);
 
         } catch (groqError) {
             console.warn("[AI Service] Groq Whisper Failed, trying N8N Fallback", groqError);
@@ -1947,12 +1964,7 @@ Provide 3-5 lifestyle measures:
 
             } catch (n8nError) {
                 logger.error("[Voice] All services failed:", n8nError);
-
-                // 3. FINAL FALLBACK: Mock for Demo (if everything fails)
-                return {
-                    transcription: "System Error: Voice services unavailable.",
-                    items: []
-                };
+                throw new Error("Voice processing failed. Please try again or type.");
             }
         }
     },
@@ -2018,7 +2030,8 @@ Provide 3-5 lifestyle measures:
             items.push({
                 name: name,
                 quantity: currentQty,
-                confidence: 0.8
+                confidence: 0.8,
+                intent: 'add' // Default assumption
             });
         }
 

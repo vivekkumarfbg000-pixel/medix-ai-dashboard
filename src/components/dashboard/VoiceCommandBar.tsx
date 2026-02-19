@@ -18,6 +18,12 @@ export interface ParsedItem {
   intent?: 'add' | 'search';
 }
 
+// Add Web Speech API Types
+interface IWindow extends Window {
+  webkitSpeechRecognition: any;
+  SpeechRecognition: any;
+}
+
 const parseTranscription = (text: string): ParsedItem[] => {
   // Enhanced Local Parsing
   const items: ParsedItem[] = [];
@@ -132,33 +138,22 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
 
       mediaRecorder.onstop = async () => {
         setIsProcessing(true);
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm;codecs=opus" });
 
         try {
           // Call Real AI Service
           const response = await aiService.processVoiceBill(audioBlob);
 
           if (response) {
-            // Prefer n8n parsed items, fallback to local parsing if only text is returned
-            // logger.log("Voice Response:", response); // Debug Log
-            const transcription = response.transcription || response.text || (response.items ? "Voice Order Processed" : "");
-            const items = response.items || parseTranscription(transcription);
-
-            if (!transcription && items.length === 0) {
-              throw new Error("No transcription or items received");
-            }
-
-            onTranscriptionComplete(transcription, items);
-            toast.success("Voice command processed!", {
-              description: transcription
-            });
+            handleTranscriptionSuccess(response);
           } else {
             throw new Error("Empty response from AI");
           }
 
         } catch (error) {
-          logger.error("Transcription error:", error);
-          toast.error("Failed to process voice command. Please try again.");
+          logger.error("Backend Voice Transcription error:", error);
+          // FALLBACK: Try Web Speech API
+          startWebSpeechFallback();
         } finally {
           setIsProcessing(false);
         }
@@ -177,6 +172,71 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
       toast.error(`Could not access microphone: ${error.message || "Permission denied"}`);
     }
   }, [onTranscriptionComplete, updateAudioLevel]);
+
+  const handleTranscriptionSuccess = (response: any) => {
+    const transcription = response.transcription || response.text || (response.items ? "Voice Order Processed" : "");
+    const items = response.items || parseTranscription(transcription);
+
+    if (!transcription && items.length === 0) {
+      throw new Error("No transcription or items received");
+    }
+
+    onTranscriptionComplete(transcription, items);
+    toast.success("Voice command processed!", {
+      description: transcription
+    });
+  };
+
+  const startWebSpeechFallback = () => {
+    const { webkitSpeechRecognition }: IWindow = window as unknown as IWindow;
+
+    if (!webkitSpeechRecognition) {
+      toast.error("Voice processing failed and no browser fallback available.");
+      return;
+    }
+
+    toast.info("Using Browser Fallback...", { description: "Backend failed, trying local speech recognition." });
+
+    const recognition = new webkitSpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-IN'; // Default to Indian English
+
+    recognition.onresult = async (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      logger.log("[WebSpeech] Fallback Transcript:", transcript);
+
+      // Parse locally or via shared helper
+      try {
+        // Use the extracted logic from aiService (even if backend voice failed, text parsing might work)
+        // Or use local parseTranscription if network is totally dead
+        const items = parseTranscription(transcript);
+
+        // Try to be smarter if possible
+        try {
+          const smartResponse = await aiService.parseOrderFromText(transcript);
+          if (smartResponse && smartResponse.items && smartResponse.items.length > 0) {
+            onTranscriptionComplete(transcript, smartResponse.items);
+            toast.success("Processed via Fallback!", { description: transcript });
+            return;
+          }
+        } catch (e) { /* ignore smart parse failure in fallback */ }
+
+        onTranscriptionComplete(transcript, items);
+        toast.success("Processed (Offline Mode)", { description: transcript });
+
+      } catch (e) {
+        toast.error("Could not parse voice command.");
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      logger.error("WebSpeech Error:", event.error);
+      toast.error("Voice command failed completely.");
+    };
+
+    recognition.start();
+  };
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
