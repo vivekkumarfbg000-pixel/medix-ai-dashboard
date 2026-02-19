@@ -1476,12 +1476,12 @@ Provide 3-5 lifestyle measures:
                 Return JSON only.
                 Structure: {
                     "interactions": [
-                        { "drug1": "A", "drug2": "B", "severity": "Major"|"Moderate", "description": "Reason in Hinglish" }
+                        { "drug1": "A", "drug2": "B", "severity": "Major"|"Moderate", "description": "Short reason in Hinglish (max 15 words)" }
                     ]
                 }
                 If no interactions, return { "interactions": [] }.
                 
-                CRITICAL: You MUST return a JSON object. Do not return anything else.
+                CRITICAL: You MUST return a JSON object. Do not return anything else. Keep descriptions brief.
                 `;
 
                 const groqJson = await callGroqAI([
@@ -1577,6 +1577,56 @@ Provide 3-5 lifestyle measures:
                 // Final verification: return empty object so app doesn't crash, will fallback to local logic
                 return { substitutes: [] };
             }
+        }
+    },
+
+    /**
+     * Get Generic Substitutes (Market Intelligence)
+     */
+    async getGenericSubstitutes(medicineName: string): Promise<string[]> {
+        // 1. Try N8N Market Data Endpoint
+        try {
+            if (checkRateLimit(ENDPOINTS.MARKET)) {
+                const response = await fetchWithTimeout(ENDPOINTS.MARKET, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: "substitute", drug_name: medicineName })
+                }, 5000);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.substitutes && Array.isArray(data.substitutes)) {
+                        return data.substitutes.map((s: any) => `${s.name} - ₹${s.price || 0}`);
+                    }
+                    if (Array.isArray(data)) return data;
+                }
+            }
+        } catch (n8nErr) {
+            console.warn("N8N Market Data Failed, switching to Local AI...", n8nErr);
+        }
+
+        // 2. Fallback to Groq AI (Llama 3)
+        try {
+            const prompt = `You are a helpful Indian Pharmacist. List 3-4 cost-effective generic substitutes for "${medicineName}" available in India.
+            Format exactly like this list:
+            "Brand Name (Generic Name) - ₹ApproxPrice"
+            "Brand Name (Generic Name) - ₹ApproxPrice"
+            
+            Return ONLY the list strings.`;
+
+            const aiRes = await callGroqAI([
+                { role: "system", content: "You are a precise medical data assistant." },
+                { role: "user", content: prompt }
+            ], "llama-3.1-8b-instant");
+
+            const lines = aiRes.split('\n').filter(l => l.includes('- ₹'));
+            if (lines.length > 0) return lines.map(l => l.replace(/["]/g, '').trim());
+
+            return [];
+
+        } catch (e) {
+            console.error("AI Substitute check failed", e);
+            throw new Error("Could not fetch substitutes.");
         }
     },
 
@@ -1772,151 +1822,139 @@ Provide 3-5 lifestyle measures:
         const { data: { user } } = await supabase.auth.getUser();
         const shopId = typeof window !== 'undefined' ? localStorage.getItem("currentShopId") : null;
 
-        // Convert Blob to Base64
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        const base64Data = await new Promise<string>((resolve, reject) => {
-            reader.onloadend = () => {
-                const result = reader.result as string;
-                // Remove data URL prefix and CRITICAL: Strip any newlines or whitespace
-                let base64 = result.split(',')[1] || result;
-                base64 = base64.replace(/[\r\n\s]+/g, '');
-                resolve(base64);
-            };
-            reader.onerror = reject;
-        });
-
-
-        // Send JSON Payload (matching N8N expectation)
-        const payload = {
-            action: 'voice-bill',
-            data: base64Data, // N8N expects this in $json.body.data
-            userId: user?.id,
-            shopId: shopId
-        };
-
-        // --- 0. Local "Hinglish Loopback" (Speed + Offline Support) ---
-        // If the 'transcription' is passed directly (simulated) or if we want to mock-parse
-        // (Note: In a real app, this runs ON the N8N side, but for the hackathon reliability, we add a client-side parser fallback)
-
-        // This is a "Dummy" method because we usually send Audio -> Text.
-        // But if the VoiceInput component returns TEXT directly (Web Speech API), we can parse it here.
-        // Since this method takes 'Blob', we'll rely on the N8N/Mock fallback below unless we refactor.
-
-        // ... proceeding to N8N fetch ...
-
-        logger.log("[N8N Request] Voice Bill Payload (size):", JSON.stringify(payload).length);
-
+        // 1. PRIMARY: Try Groq Whisper (Faster & More Reliable)
         try {
-            // User confirmed Universal Brain uses analyze-prescription webhook for ALL operations
-            const response = await fetch(`${N8N_BASE}/analyze-prescription`, {
+            logger.log("[Voice] Processing with Groq Whisper (Primary)...");
+
+            // Validate API Key Availability
+            if (!GROQ_API_KEY) throw new Error("Groq API Key missing for Voice");
+
+            const formData = new FormData();
+            formData.append("file", audioBlob, "voice_input.webm"); // webm/mp3/wav
+            formData.append("model", "whisper-large-v3");
+
+            // Optional: Add prompt for better context if needed
+            // formData.append("prompt", "Pharmacy medicine order in Hinglish"); 
+            formData.append("response_format", "json");
+
+            const transResponse = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
+                headers: { "Authorization": `Bearer ${GROQ_API_KEY}` }, // No Content-Type for FormData
+                body: formData
             });
 
-            if (!response.ok) throw new Error("Voice Billing Agent Failed");
-            const result = await response.json();
-            logger.log("[N8N Response] Voice Bill:", result);
-
-            // 1. Standard format (transcription + items)
-            if (result.transcription || result.items) {
-                const rawItems = result.items || [];
-                // FIX: Map 'qty' (from N8N) to 'quantity' (Frontend expectation)
-                const mappedItems = rawItems.map((item: any) => ({
-                    ...item,
-                    quantity: item.quantity || item.qty || 1
-                }));
-
-                return {
-                    transcription: result.transcription || result.text || result.result || "Voice Order Processed",
-                    items: mappedItems
-                };
+            if (!transResponse.ok) {
+                const errText = await transResponse.text();
+                throw new Error(`Groq Whisper Failed: ${transResponse.status} - ${errText}`);
             }
 
-            // 2. Supabase/Generic Fallbacks
-            if (Array.isArray(result) && result[0]) {
-                return { items: result, transcription: "Order Processed" };
+            const transData = await transResponse.json();
+            const transcription = transData.text;
+            logger.log("[Groq Whisper] Text:", transcription);
+
+            if (!transcription || transcription.trim().length === 0) {
+                return { transcription: "", items: [] };
             }
 
-            return result;
+            // 2. Parse Intent & Items using Llama 3 (Hinglish Aware)
+            const prompt = `
+            Analyze this voice transcript: "${transcription}"
+            Determine if the user wants to ORDER/ADD stock or SEARCH/CHECK stock.
 
-        } catch (error) {
-            console.warn("[AI Service] Voice Backup Triggered", error);
+            Output JSON: 
+            { 
+              "intent": "add" | "search",
+              "items": [{ "name": "Medicine", "quantity": 10 }] 
+            }
 
-            // 1. TRY GROQ WHISPER FALLBACK
+            Examples:
+            "Add 10 Dolo" -> intent: "add", items: [{name: "Dolo", quantity: 10}]
+            "Dolo hai kya?" -> intent: "search", items: [{name: "Dolo", quantity: 0}]
+            "Check stock of Pan D" -> intent: "search", items: [{name: "Pan D", quantity: 0}]
+            
+            CRITICAL: You MUST return a JSON object. Do not return anything else.
+            `;
+
+            const parseJson = await callGroqAI([
+                { role: "system", content: "You are a Pharmacy Voice Assistant. Output JSON only." },
+                { role: "user", content: prompt }
+            ], "llama-3.1-8b-instant", true);
+
+            const parsed = safeJSONParse(parseJson, { items: [], intent: 'add' });
+
+            // Map to frontend expected format
+            const items = (parsed.items || []).map((i: any) => ({
+                ...i,
+                intent: parsed.intent || 'add'
+            }));
+
+            return {
+                transcription: transcription,
+                items: items
+            };
+
+        } catch (groqError) {
+            console.warn("[AI Service] Groq Whisper Failed, trying N8N Fallback", groqError);
+
+            // 2. FALLBACK: N8N Webhook
             try {
-                logger.log("[Fallback] processing with Groq Whisper...");
-                const formData = new FormData();
-                formData.append("file", audioBlob, "voice_input.webm"); // webm/mp3/wav
-                formData.append("model", "whisper-large-v3");
-                formData.append("temperature", "0");
-                formData.append("response_format", "json");
-
-                const transResponse = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-                    method: "POST",
-                    headers: { "Authorization": `Bearer ${GROQ_API_KEY}` }, // No Content-Type for FormData
-                    body: formData
+                // Convert Blob to Base64
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+                const base64Data = await new Promise<string>((resolve, reject) => {
+                    reader.onloadend = () => {
+                        const result = reader.result as string;
+                        let base64 = result.split(',')[1] || result;
+                        base64 = base64.replace(/[\r\n\s]+/g, '');
+                        resolve(base64);
+                    };
+                    reader.onerror = reject;
                 });
 
-                if (!transResponse.ok) throw new Error(`Groq Whisper Failed: ${transResponse.status}`);
-
-                const transData = await transResponse.json();
-                const transcription = transData.text;
-                logger.log("[Groq Whisper] Text:", transcription);
-
-                // 2. Parse Intent & Items using Llama 3 (Hinglish Aware)
-                const prompt = `
-                Analyze this voice transcript: "${transcription}"
-                Determine if the user wants to ORDER/ADD stock or SEARCH/CHECK stock.
-
-                Output JSON: 
-                { 
-                  "intent": "add" | "search",
-                  "items": [{ "name": "Medicine", "quantity": 10 }] 
-                }
-
-                Examples:
-                "Add 10 Dolo" -> intent: "add", items: [{name: "Dolo", quantity: 10}]
-                "Dolo hai kya?" -> intent: "search", items: [{name: "Dolo", quantity: 0}]
-                "Check stock of Pan D" -> intent: "search", items: [{name: "Pan D", quantity: 0}]
-                
-                CRITICAL: You MUST return a JSON object. Do not return anything else.
-                `;
-
-                const parseJson = await callGroqAI([
-                    { role: "system", content: "You are a Pharmacy Voice Assistant. Output JSON only." },
-                    { role: "user", content: prompt }
-                ], "llama-3.1-8b-instant", true);
-
-                const parsed = safeJSONParse(parseJson, { items: [], intent: 'add' });
-
-                // Map to frontend expected format
-                const items = (parsed.items || []).map((i: any) => ({
-                    ...i,
-                    intent: parsed.intent || 'add'
-                }));
-
-                return {
-                    transcription: transcription,
-                    items: items
+                const payload = {
+                    action: 'voice-bill',
+                    data: base64Data,
+                    userId: user?.id,
+                    shopId: shopId
                 };
 
-            } catch (whisperErr) {
-                console.error("Groq Whisper Fallback Failed:", whisperErr);
+                logger.log("[N8N Request] Voice Fallback:", payload.action);
 
-                // 3. FINAL FALLBACK: Mock for Demo
+                // Use Standard Analyzer Endpoint
+                const response = await fetch(`${N8N_BASE}/analyze-prescription`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) throw new Error("N8N Voice Agent Failed");
+                const result = await response.json();
+
+                if (result.transcription || result.items) {
+                    const rawItems = result.items || [];
+                    const mappedItems = rawItems.map((item: any) => ({
+                        ...item,
+                        quantity: item.quantity || item.qty || 1
+                    }));
+
+                    return {
+                        transcription: result.transcription || result.text || "Voice Order Processed",
+                        items: mappedItems
+                    };
+                }
+
+                return result;
+
+            } catch (n8nError) {
+                logger.error("[Voice] All services failed:", n8nError);
+
+                // 3. FINAL FALLBACK: Mock for Demo (if everything fails)
                 return {
-                    transcription: "Mock: 2 Patta Dolo aur 1 Azithral (System Offline Mode)",
-                    items: [
-                        { name: "Dolo 650", quantity: 30, confidence: 0.95 },
-                        { name: "Azithral 500", quantity: 5, confidence: 0.90 }
-                    ]
+                    transcription: "System Error: Voice services unavailable.",
+                    items: []
                 };
             }
         }
-
-
     },
 
     /**
@@ -1990,26 +2028,7 @@ Provide 3-5 lifestyle measures:
         };
     },
 
-    /**
-     * Findings Genric Substitutes (Hackathon Feature)
-     */
-    async getGenericSubstitutes(drugName: string): Promise<string[]> {
-        const prompt = `
-        Act as an Indian Pharmacist. User asks for a cheaper generic substitute for: "${drugName}".
-        List 3 top reliable generic brands available in India (e.g. Cipla, Sun Pharma).
-        OUTPUT: JSON Array of strings ONLY. No markdown.
-        Example: ["Generic A (Cipla) - ₹20", "Generic B (Sun) - ₹15"]
-        `;
 
-        try {
-            const response = await this.chatWithAgent(prompt);
-            return safeJSONParse(response.reply, []);
-        } catch (e) {
-            console.error("Generic Fetch Failed", e);
-            // Fallback for Hackathon Demo
-            return [`${drugName} Generic (Cipla) - ₹${(Math.random() * 50).toFixed(2)}`, `Jan Aushadhi Version - ₹${(Math.random() * 20).toFixed(2)}`];
-        }
-    },
 
     /**
      * Hinglish Explainer (Hackathon Feature)

@@ -193,6 +193,8 @@
 
   .dark body {
     background: linear-gradient(180deg, hsl(215 28% 9%) 0%, hsl(215 28% 7%) 100%);
+    color: hsl(var(--foreground));
+    /* Force White Text */
   }
 
   h1,

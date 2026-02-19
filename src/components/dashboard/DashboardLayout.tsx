@@ -18,6 +18,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useSessionEnforcement } from "@/hooks/useSessionEnforcement"; // [NEW]
 import { ThemeToggle } from "../common/ThemeToggle";
 import { SyncStatus } from "../common/SyncStatus";
+import { AIChatbotWidget } from "./AIChatbotWidget";
 
 // Inner component that has access to SidebarContext
 function DashboardContent() {
@@ -104,7 +105,7 @@ function DashboardContent() {
         parsedItems={parsedItems}
         shopId={currentShop?.id}
       />
-      <div className="min-h-screen flex w-full bg-medical-canvas">
+      <div className="min-h-screen flex w-full bg-background text-foreground">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
 
@@ -158,6 +159,7 @@ function DashboardContent() {
           <main className="flex-1 p-4 lg:p-6 overflow-auto"><Outlet /></main>
         </div>
       </div>
+      <AIChatbotWidget />
     </>
   );
 }

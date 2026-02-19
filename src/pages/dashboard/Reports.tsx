@@ -4,14 +4,12 @@ import { Button } from "@/components/ui/button";
 import { useUserShops } from "@/hooks/useUserShops";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
-import { subDays, startOfMonth, endOfMonth } from "date-fns";
 import { Calendar as CalendarIcon, Download, TrendingUp, DollarSign, CreditCard } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 import { safeFormat } from "@/utils/dateHelpers";
 import { toast } from "sonner";
 
@@ -42,6 +40,7 @@ export default function Reports() {
             const endDate = new Date(date.to);
             endDate.setHours(23, 59, 59, 999);
 
+            // @ts-ignore
             const { data, error } = await supabase.rpc('get_sales_report', {
                 start_date: startDate.toISOString(),
                 end_date: endDate.toISOString(),

@@ -85,8 +85,8 @@ export default function AuditLogs({ embedded = false }: { embedded?: boolean }) 
 
   const filteredLogs = logs.filter((log) => {
     const matchesSearch =
-      log.table_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.record_id.toLowerCase().includes(searchTerm.toLowerCase());
+      (log.table_name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+      (log.record_id?.toLowerCase() || "").includes(searchTerm.toLowerCase());
     const matchesAction = actionFilter === "all" || log.action === actionFilter;
     const matchesTable = tableFilter === "all" || log.table_name === tableFilter;
 
