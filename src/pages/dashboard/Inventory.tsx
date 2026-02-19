@@ -84,8 +84,8 @@ const Inventory = () => {
   // stagingItems removed
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const { currentShop } = useUserShops();
-  const { canModify } = useUserRole(currentShop?.id);
+  const { currentShop, currentShopId } = useUserShops();
+  const { canModify } = useUserRole(currentShopId); // Use ID directly
   const [activeTab, setActiveTab] = useState("stock");
 
   // AI Forecast Hook
@@ -140,11 +140,15 @@ const Inventory = () => {
   // fetchStaging removed
 
   useEffect(() => {
-    if (currentShop?.id) {
+    if (currentShopId) {
       setLoading(true);
       fetchInventory();
     } else {
-      setLoading(false);
+      // Only set loading false if we really don't have an ID (and not just waiting for async)
+      // If currentShopId is from localStorage, it's instant.
+      if (!localStorage.getItem("currentShopId")) {
+        setLoading(false);
+      }
     }
 
     const channel = supabase
@@ -153,7 +157,7 @@ const Inventory = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [currentShop?.id]);
+  }, [currentShopId]);
 
   const getExpiryStatus = (expiryDate: string | null) => {
     if (!expiryDate) return "safe";
@@ -307,11 +311,12 @@ const Inventory = () => {
 
   const handleAddToShortbook = async (item: InventoryItem) => {
     if (!currentShop?.id) return;
-    const { error } = await supabase.from('shortbook_items' as any).insert({
+    const { error } = await supabase.from('shortbook').insert({
       shop_id: currentShop.id,
-      medicine_name: item.medicine_name,
-      quantity_needed: "10 strips", // Default suggestion
-      priority: 'normal'
+      product_name: item.medicine_name,
+      quantity: 10, // Default suggestion
+      priority: 'medium',
+      added_from: 'inventory_card'
     });
 
     if (error) toast.error("Failed to add to Shortbook");

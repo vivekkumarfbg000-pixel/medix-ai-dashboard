@@ -34,10 +34,23 @@ const DebugAI = () => {
             <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
                 <button
                     disabled={loading}
-                    onClick={() => runTest('Chat (Router)', () => aiService.chatWithAgent('Hello', 'test-user', 'test-shop'))}
+                    onClick={() => runTest('Chat (Router)', () => aiService.chatWithAgent('Hello', undefined, [{ role: 'user', text: 'Hello' }]))}
                     style={{ padding: '10px 20px', cursor: 'pointer' }}>
                     Test Chat
                 </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, border: '1px solid #ccc', padding: '0 10px', borderRadius: 4 }}>
+                    <input
+                        type="checkbox"
+                        checked={localStorage.getItem("FORCE_AI_FAIL") === "true"}
+                        onChange={(e) => {
+                            if (e.target.checked) localStorage.setItem("FORCE_AI_FAIL", "true");
+                            else localStorage.removeItem("FORCE_AI_FAIL");
+                            // Force re-render not really needed as we read from LS, but for UI feedback:
+                            setLoading(prev => !prev); setTimeout(() => setLoading(false), 50);
+                        }}
+                    />
+                    <label>Force Primary AI Fail</label>
+                </div>
                 <button
                     disabled={loading}
                     onClick={() => runTest('Market Data', () => aiService.getMarketData('Dolo 650'))}
@@ -55,6 +68,20 @@ const DebugAI = () => {
                     onClick={() => runTest('Forecast', () => aiService.getInventoryForecast([{ medicine_name: 'Dolo', quantity: 10 }] as any))}
                     style={{ padding: '10px 20px', cursor: 'pointer' }}>
                     Test Forecast
+                </button>
+                <button
+                    disabled={loading}
+                    onClick={() => {
+                        const health = {
+                            localStorage: typeof localStorage !== 'undefined',
+                            indexedDB: typeof indexedDB !== 'undefined',
+                            online: navigator.onLine,
+                            userAgent: navigator.userAgent
+                        };
+                        log(health);
+                    }}
+                    style={{ padding: '10px 20px', cursor: 'pointer', background: '#e0f7fa' }}>
+                    System Health
                 </button>
                 <button
                     disabled={loading}

@@ -11,13 +11,17 @@ interface Shop {
 interface UserShopsState {
   shops: Shop[];
   currentShop: Shop | null;
+  currentShopId: string | null; // NEW: Expose ID directly for fast loading
   loading: boolean;
   switchShop: (shopId: string) => void;
 }
 
 export function useUserShops(): UserShopsState {
   const [shops, setShops] = useState<Shop[]>([]);
-  const [currentShopId, setCurrentShopId] = useState<string | null>(null);
+  // OPTIMIZATION: Initialize directly from LocalStorage to avoid waiting for network
+  const [currentShopId, setCurrentShopId] = useState<string | null>(() => {
+    return localStorage.getItem("currentShopId");
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -68,13 +72,16 @@ export function useUserShops(): UserShopsState {
 
           // Smart Selection: LocalStorage -> Primary -> First
           const savedShopId = localStorage.getItem("currentShopId");
-          const savedShop = savedShopId ? mappedShops.find((s: Shop) => s.id === savedShopId) : null;
+          const isValidSaved = savedShopId && mappedShops.some(s => s.id === savedShopId);
 
-          const defaultShopId = savedShop?.id || mappedShops.find(s => s.is_primary)?.id || mappedShops[0]?.id;
-
-          if (defaultShopId) {
-            setCurrentShopId(defaultShopId);
-            localStorage.setItem("currentShopId", defaultShopId);
+          // If we already have a valid ID (checked against new data), keep it. 
+          // Otherwise, switch to primary/default.
+          if (!isValidSaved) {
+            const defaultShopId = mappedShops.find(s => s.is_primary)?.id || mappedShops[0]?.id;
+            if (defaultShopId) {
+              setCurrentShopId(defaultShopId);
+              localStorage.setItem("currentShopId", defaultShopId);
+            }
           }
         }
       } catch (err) {
@@ -97,6 +104,7 @@ export function useUserShops(): UserShopsState {
   return {
     shops,
     currentShop,
+    currentShopId,
     loading,
     switchShop,
   };

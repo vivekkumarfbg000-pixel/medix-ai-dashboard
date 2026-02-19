@@ -4,6 +4,8 @@ import { Pill } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 
+import { WidgetErrorBoundary } from "@/components/WidgetErrorBoundary";
+
 // Widgets
 import { QuickActions } from "@/components/dashboard/widgets/QuickActions";
 import { SafetyWidget } from "@/components/dashboard/widgets/SafetyWidget";
@@ -62,12 +64,16 @@ const Overview = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
         {/* LEFT COLUMN: QUICK ACTIONS */}
         <div className="h-full min-h-[300px]">
-          <QuickActions />
+          <WidgetErrorBoundary title="Quick Actions">
+            <QuickActions />
+          </WidgetErrorBoundary>
         </div>
 
         {/* RIGHT COLUMN: SAFETY */}
         <div className="h-full min-h-[300px]">
-          <SafetyWidget />
+          <WidgetErrorBoundary title="Safety Monitor">
+            <SafetyWidget />
+          </WidgetErrorBoundary>
         </div>
       </div>
 
@@ -75,20 +81,26 @@ const Overview = () => {
       <div className="grid grid-cols-1 gap-6">
         {/* AI COMMAND CENTRE (Full Width) */}
         <div className="h-full">
-          <AICommandCentre />
+          <WidgetErrorBoundary title="AI Command Centre">
+            <AICommandCentre />
+          </WidgetErrorBoundary>
         </div>
       </div>
 
       {/* ROW 3: METRICS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <DayEndTally />
+        <WidgetErrorBoundary title="Day Tally">
+          <DayEndTally />
+        </WidgetErrorBoundary>
         {/* System Pulse Removed */}
       </div>
 
       {/* Activity Feed & Detailed Metrics */}
       <div className="mt-8">
         <h2 className="text-xl font-bold mb-4 text-foreground/80">Recent Activity</h2>
-        <ActivityFeed />
+        <WidgetErrorBoundary title="Activity Feed">
+          <ActivityFeed />
+        </WidgetErrorBoundary>
       </div>
     </div>
   );

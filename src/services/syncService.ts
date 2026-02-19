@@ -12,9 +12,10 @@ class SyncService {
 
         // Initial check - DEFERRED to prevent startup blocking
         if (navigator.onLine) {
+            // Defer sync further to allow app to fully hydrate and render critical UI
             setTimeout(() => {
                 this.syncOrders();
-            }, 2000);
+            }, 5000);
         }
     }
 

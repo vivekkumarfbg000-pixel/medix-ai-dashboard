@@ -98,14 +98,33 @@ export default defineConfig(({ mode }) => ({
     })
   ].filter(Boolean),
   build: {
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // remove console logs in production
+        drop_debugger: true,
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-slot', '@radix-ui/react-toast', 'lucide-react', 'class-variance-authority', 'clsx', 'tailwind-merge'],
+          'ui-vendor': [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-slot',
+            '@radix-ui/react-toast',
+            '@radix-ui/react-dropdown-menu',
+            '@radix-ui/react-select',
+            'lucide-react',
+            'class-variance-authority',
+            'clsx',
+            'tailwind-merge'
+          ],
           'chart-vendor': ['recharts'],
           'supabase-vendor': ['@supabase/supabase-js'],
           'query-vendor': ['@tanstack/react-query'],
+          'form-vendor': ['react-hook-form', 'zod', '@hookform/resolvers'],
+          'utils-vendor': ['date-fns', 'papaparse', 'jspdf', 'jspdf-autotable']
         }
       }
     }
