@@ -177,7 +177,6 @@ export function AIChatbotWidget() {
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={handleKeyPress}
                                 placeholder="Ask about medicines..."
-                                placeholder="Ask about medicines..."
                                 className="pr-10 h-10 rounded-full border-gray-200 dark:border-slate-700 focus-visible:ring-blue-500 shadow-sm bg-slate-50 dark:bg-slate-800"
                             />
 
