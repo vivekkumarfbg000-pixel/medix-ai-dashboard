@@ -18,50 +18,39 @@ export interface ParsedItem {
   intent?: 'add' | 'search';
 }
 
-// Add Web Speech API Types
-interface IWindow extends Window {
-  webkitSpeechRecognition: any;
-  SpeechRecognition: any;
-}
-
 const parseTranscription = (text: string): ParsedItem[] => {
-  // Enhanced Local Parsing
   const items: ParsedItem[] = [];
   const lowerText = text.toLowerCase();
 
-  // Check for Search Intent (Expanded)
+  // Check for Search Intent
   const searchKeywords = ["search", "find", "lookup", "check", "stock", "price", "rate", "available", "hai kya", "hai ya", "kitna"];
   const isSearch = searchKeywords.some(k => lowerText.includes(k));
 
   if (isSearch) {
-    // Extract term: Remove common keywords to find the medicine name
     let searchTerm = lowerText;
     const removeWords = ["search", "find", "lookup", "check", "stock", "of", "for", "available", "price", "rate", "do we have", "is there", "hai kya", "hai ya", "nahi", "kitna", "hai"];
-
     removeWords.forEach(w => {
       searchTerm = searchTerm.replace(new RegExp(`\\b${w}\\b`, 'g'), "");
     });
-
     searchTerm = searchTerm.trim().replace(/\s+/g, " ");
-
     if (searchTerm.length > 2) {
       items.push({ name: searchTerm, quantity: 0, intent: 'search' });
     }
     return items;
   }
 
-  const parts = lowerText.split(",").map(p => p.trim());
+  // Parse as add intent — split by "and" / "aur" / comma
+  const parts = lowerText.split(/,|\band\b|\baur\b/).map(p => p.trim()).filter(p => p.length > 0);
   let contact: string | undefined;
 
   parts.forEach(part => {
-    // Check for contact info
     const contactMatch = part.match(/contact\s+(.+)/i);
     if (contactMatch) {
       contact = contactMatch[1].trim();
       return;
     }
 
-    // Parse quantity and medicine name
+    // Match "2 dolo" or "two dolo" patterns
     const quantityMatch = part.match(/^(\d+)\s+(.+)/);
     if (quantityMatch) {
       items.push({
@@ -71,16 +60,20 @@ const parseTranscription = (text: string): ParsedItem[] => {
         intent: 'add'
       });
     } else if (part.length > 0) {
-      items.push({
-        name: part,
-        quantity: 1,
-        contact,
-        intent: 'add'
-      });
+      // No quantity specified — default to 1
+      // Remove filler words
+      let cleaned = part.replace(/\b(add|dedo|de|do|give|bhai|bhaiya|please|mujhe|chahiye)\b/gi, '').trim();
+      if (cleaned.length > 1) {
+        items.push({
+          name: cleaned,
+          quantity: 1,
+          contact,
+          intent: 'add'
+        });
+      }
     }
   });
 
-  // Add contact to all items if found
   if (contact) {
     items.forEach(item => item.contact = contact);
   }
@@ -89,172 +82,198 @@ const parseTranscription = (text: string): ParsedItem[] => {
 };
 
 export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: VoiceCommandBarProps) {
-  // ... state ...
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const animationRef = useRef<number | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const audioLevelInterval = useRef<number | null>(null);
 
+  // Get SpeechRecognition API (works in Chrome, Edge, Safari, Firefox)
+  const getSpeechRecognition = useCallback(() => {
+    return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  }, []);
 
+  // Process transcript: try AI smart parsing first, then local fallback
+  const processTranscript = useCallback(async (transcript: string) => {
+    setIsProcessing(true);
+    logger.log("[Voice] Transcript received:", transcript);
 
-  const updateAudioLevel = useCallback(() => {
-    if (analyserRef.current) {
-      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-      analyserRef.current.getByteFrequencyData(dataArray);
-      const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-      setAudioLevel(average / 255);
+    try {
+      // 1. Try AI smart parsing (fast text-only call, not audio processing)
+      try {
+        const smartResult = await aiService.parseOrderFromText(transcript);
+        if (smartResult?.items?.length > 0) {
+          logger.log("[Voice] AI parsed items:", smartResult.items);
+          onTranscriptionComplete(transcript, smartResult.items);
+          toast.success("Voice order processed!", { description: transcript });
+          return;
+        }
+      } catch (aiError) {
+        logger.warn("[Voice] AI parsing failed, using local parser:", aiError);
+      }
+
+      // 2. Fallback: Local parsing (instant, no network)
+      const localItems = parseTranscription(transcript);
+      if (localItems.length > 0) {
+        logger.log("[Voice] Local parsed items:", localItems);
+        onTranscriptionComplete(transcript, localItems);
+        toast.success("Voice order processed!", { description: transcript });
+      } else {
+        // 3. Last resort: Pass raw text as single item
+        const fallbackItems: ParsedItem[] = [{
+          name: transcript.trim(),
+          quantity: 1,
+          intent: 'add'
+        }];
+        onTranscriptionComplete(transcript, fallbackItems);
+        toast.info("Added as voice item", { description: transcript });
+      }
+    } catch (error) {
+      logger.error("[Voice] Processing error:", error);
+      toast.error("Could not process voice command.");
+    } finally {
+      setIsProcessing(false);
     }
-    if (isRecording) {
-      animationRef.current = requestAnimationFrame(updateAudioLevel);
-    }
-  }, [isRecording]);
+  }, [onTranscriptionComplete]);
 
-
-
+  // PRIMARY: Start browser speech recognition (instant, no network for capture)
   const startRecording = useCallback(async () => {
+    const SpeechRecognitionAPI = getSpeechRecognition();
+
+    if (!SpeechRecognitionAPI) {
+      // No browser support — fall back to MediaRecorder + backend AI
+      startMediaRecorderFallback();
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognitionAPI();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-IN'; // Indian English (good for Hinglish too)
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setIsRecording(true);
+        // Simulate audio level for visual feedback
+        audioLevelInterval.current = window.setInterval(() => {
+          setAudioLevel(Math.random() * 0.6 + 0.2);
+        }, 150);
+        toast.info("🎙️ Listening...", { description: "Say the medicine name" });
+      };
+
+      recognition.onresult = async (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        const confidence = event.results[0][0].confidence;
+        logger.log(`[Voice] Heard: "${transcript}" (confidence: ${(confidence * 100).toFixed(0)}%)`);
+
+        setIsRecording(false);
+        clearAudioLevel();
+
+        // Process the transcript
+        await processTranscript(transcript);
+      };
+
+      recognition.onerror = (event: any) => {
+        logger.error("[Voice] SpeechRecognition error:", event.error);
+        setIsRecording(false);
+        clearAudioLevel();
+
+        if (event.error === 'not-allowed') {
+          toast.error("Microphone permission denied. Enable it in browser settings.");
+        } else if (event.error === 'no-speech') {
+          toast.warning("No speech detected. Tap the mic and speak clearly.");
+        } else if (event.error === 'network') {
+          toast.warning("Network error. Trying offline mode...");
+        } else {
+          toast.error(`Voice error: ${event.error}`);
+        }
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+        clearAudioLevel();
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+
+    } catch (error: any) {
+      logger.error("[Voice] Failed to start recognition:", error);
+      toast.error(`Microphone error: ${error.message || "Permission denied"}`);
+    }
+  }, [getSpeechRecognition, processTranscript]);
+
+  // FALLBACK: MediaRecorder + backend AI (only when browser SpeechRecognition unavailable)
+  const startMediaRecorderFallback = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      // Set up audio analysis for visualization
-      const audioContext = new AudioContext();
-      const source = audioContext.createMediaStreamSource(stream);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      analyserRef.current = analyser;
-
       const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+      const audioChunks: Blob[] = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
+        if (event.data.size > 0) audioChunks.push(event.data);
       };
 
       mediaRecorder.onstop = async () => {
         setIsProcessing(true);
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm;codecs=opus" });
+        const audioBlob = new Blob(audioChunks, { type: "audio/webm;codecs=opus" });
 
         try {
-          // Call Real AI Service
           const response = await aiService.processVoiceBill(audioBlob);
-
-          if (response) {
-            handleTranscriptionSuccess(response);
+          if (response?.transcription || response?.items?.length > 0) {
+            const transcription = response.transcription || "Voice Order";
+            const items = response.items || parseTranscription(transcription);
+            onTranscriptionComplete(transcription, items);
+            toast.success("Voice order processed!", { description: transcription });
           } else {
-            throw new Error("Empty response from AI");
+            toast.error("Could not understand. Please try again.");
           }
-
         } catch (error) {
-          logger.error("Backend Voice Transcription error:", error);
-          // FALLBACK: Try Web Speech API
-          startWebSpeechFallback();
+          logger.error("[Voice] Backend processing failed:", error);
+          toast.error("Voice processing failed. Please try again.");
         } finally {
           setIsProcessing(false);
+          stream.getTracks().forEach(track => track.stop());
         }
-
-        // Clean up
-        stream.getTracks().forEach(track => track.stop());
-        audioContext.close();
       };
 
       mediaRecorder.start();
       setIsRecording(true);
-      updateAudioLevel();
-      toast.info("Listening...", { description: "Speak clearly now" });
+      toast.info("🎙️ Recording...", { description: "Speak your order, then tap to stop" });
+
+      // Auto-stop after 10s
+      setTimeout(() => {
+        if (mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+          setIsRecording(false);
+        }
+      }, 10000);
+
+      // Store ref for manual stop
+      recognitionRef.current = { stop: () => { mediaRecorder.stop(); setIsRecording(false); } };
+
     } catch (error: any) {
-      logger.error("Microphone access error:", error);
-      toast.error(`Could not access microphone: ${error.message || "Permission denied"}`);
+      toast.error(`Microphone error: ${error.message || "Permission denied"}`);
     }
-  }, [onTranscriptionComplete, updateAudioLevel]);
+  }, [onTranscriptionComplete]);
 
-  const handleTranscriptionSuccess = (response: any) => {
-    const transcription = response.transcription || response.text || (response.items ? "Voice Order Processed" : "");
-    const items = response.items || parseTranscription(transcription);
-
-    if (!transcription && items.length === 0) {
-      throw new Error("No transcription or items received");
+  const clearAudioLevel = () => {
+    if (audioLevelInterval.current) {
+      clearInterval(audioLevelInterval.current);
+      audioLevelInterval.current = null;
     }
-
-    onTranscriptionComplete(transcription, items);
-    toast.success("Voice command processed!", {
-      description: transcription
-    });
-  };
-
-  const startWebSpeechFallback = () => {
-    // Support both standard and webkit-prefixed APIs
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognitionAPI) {
-      toast.error("Voice processing failed and no browser fallback available.");
-      return;
-    }
-
-    toast.info("Using Browser Fallback...", { description: "Backend failed, trying local speech recognition." });
-
-    const recognition = new SpeechRecognitionAPI();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'en-IN'; // Default to Indian English
-
-    recognition.onresult = async (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      logger.log("[WebSpeech] Fallback Transcript:", transcript);
-
-      // Parse locally or via shared helper
-      try {
-        // Use the extracted logic from aiService (even if backend voice failed, text parsing might work)
-        // Or use local parseTranscription if network is totally dead
-        const items = parseTranscription(transcript);
-
-        // Try to be smarter if possible
-        try {
-          const smartResponse = await aiService.parseOrderFromText(transcript);
-          if (smartResponse && smartResponse.items && smartResponse.items.length > 0) {
-            onTranscriptionComplete(transcript, smartResponse.items);
-            toast.success("Processed via Fallback!", { description: transcript });
-            return;
-          }
-        } catch (e) { /* ignore smart parse failure in fallback */ }
-
-        onTranscriptionComplete(transcript, items);
-        toast.success("Processed (Offline Mode)", { description: transcript });
-
-      } catch (e) {
-        toast.error("Could not parse voice command.");
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      logger.error("WebSpeech Error:", event.error);
-      if (event.error === 'not-allowed') {
-        toast.error("Microphone permission denied.");
-      } else if (event.error === 'no-speech') {
-        toast.warning("No speech detected. Please try again.");
-      } else {
-        toast.error(`Voice fallback failed: ${event.error}`);
-      }
-    };
-
-    recognition.start();
+    setAudioLevel(0);
   };
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      setAudioLevel(0);
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (e) { /* ignore */ }
+      recognitionRef.current = null;
     }
-  }, [isRecording]);
+    setIsRecording(false);
+    clearAudioLevel();
+  }, []);
 
   // Keyboard Shortcut (F2)
   useEffect(() => {
@@ -267,7 +286,7 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isRecording, startRecording, stopRecording]); // Re-bind when state changes to capture correct 'isRecording' value
+  }, [isRecording, startRecording, stopRecording]);
 
   return (
     <div className={cn(
@@ -287,10 +306,10 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
         <div className={cn("flex-1 flex items-center justify-center gap-3", compact && "justify-start")}>
           <span className={cn("text-sm text-muted-foreground hidden sm:block transition-all", compact && "text-xs truncate max-w-[200px] hidden lg:block", isRecording && "text-primary font-medium")}>
             {isRecording
-              ? "Listening... Speak your order"
+              ? "Listening... Say medicine name"
               : isProcessing
-                ? "Analyzing voice data..."
-                : "Tap microphone to start"}
+                ? "Processing order..."
+                : "Tap mic to add by voice"}
           </span>
 
           {/* Audio level indicator */}
