@@ -1856,7 +1856,7 @@ Provide 3-5 lifestyle measures:
 
     /**
      * Voice Billing Integration
-     * Processes voice audio through Groq/N8N backend for transcription and parsing
+     * Processes voice audio through N8N (primary) with Groq Whisper fallback
      */
     async processVoiceBill(audioBlob: Blob): Promise<any> {
         // DEMO MODE CHECK
@@ -1876,94 +1876,99 @@ Provide 3-5 lifestyle measures:
         const { data: { user } } = await supabase.auth.getUser();
         const shopId = typeof window !== 'undefined' ? localStorage.getItem("currentShopId") : null;
 
-        // 1. PRIMARY: Try Groq Whisper (Faster & More Reliable)
+        // 1. PRIMARY: N8N Backend (AI Call)
         try {
-            logger.log("[Voice] Processing with Groq Whisper (Primary)...");
+            logger.log("[Voice] Processing with N8N Backend (Primary)...");
 
-            // Validate API Key Availability
-            if (!GROQ_API_KEY) throw new Error("Groq API Key missing for Voice");
-
-            const formData = new FormData();
-            formData.append("file", audioBlob, "voice_input.webm"); // webm/mp3/wav
-            formData.append("model", "whisper-large-v3");
-            formData.append("response_format", "json");
-
-            const transResponse = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-                method: "POST",
-                headers: { "Authorization": `Bearer ${GROQ_API_KEY}` }, // No Content-Type for FormData
-                body: formData
+            // Convert Blob to Base64
+            const reader = new FileReader();
+            reader.readAsDataURL(audioBlob);
+            const base64Data = await new Promise<string>((resolve, reject) => {
+                reader.onloadend = () => {
+                    const result = reader.result as string;
+                    let base64 = result.split(',')[1] || result;
+                    base64 = base64.replace(/[\r\n\s]+/g, '');
+                    resolve(base64);
+                };
+                reader.onerror = reject;
             });
 
-            if (!transResponse.ok) {
-                const errText = await transResponse.text();
-                throw new Error(`Groq Whisper Failed: ${transResponse.status} - ${errText}`);
-            }
+            const payload = {
+                action: 'voice-bill',
+                data: base64Data,
+                userId: user?.id,
+                shopId: shopId
+            };
 
-            const transData = await transResponse.json();
-            const transcription = transData.text;
-            logger.log("[Groq Whisper] Text:", transcription);
+            logger.log("[N8N Request] Voice Primary:", payload.action);
 
-            if (!transcription || transcription.trim().length === 0) {
-                return { transcription: "", items: [] };
-            }
+            const response = await fetchWithTimeout(`${N8N_BASE}/analyze-prescription`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            }, 20000); // 20s timeout for N8N
 
-            // 2. Parse Intent & Items using Shared Method
-            return await this.parseOrderFromText(transcription);
+            if (!response.ok) throw new Error(`N8N Voice Agent Failed: ${response.status}`);
+            const result = await response.json();
 
-        } catch (groqError) {
-            console.warn("[AI Service] Groq Whisper Failed, trying N8N Fallback", groqError);
+            if (result.transcription || result.items) {
+                const rawItems = result.items || [];
+                const mappedItems = rawItems.map((item: any) => ({
+                    ...item,
+                    quantity: item.quantity || item.qty || 1
+                }));
 
-            // 2. FALLBACK: N8N Webhook
-            try {
-                // Convert Blob to Base64
-                const reader = new FileReader();
-                reader.readAsDataURL(audioBlob);
-                const base64Data = await new Promise<string>((resolve, reject) => {
-                    reader.onloadend = () => {
-                        const result = reader.result as string;
-                        let base64 = result.split(',')[1] || result;
-                        base64 = base64.replace(/[\r\n\s]+/g, '');
-                        resolve(base64);
-                    };
-                    reader.onerror = reject;
-                });
-
-                const payload = {
-                    action: 'voice-bill',
-                    data: base64Data,
-                    userId: user?.id,
-                    shopId: shopId
+                logger.log("[N8N] Voice Success:", result.transcription);
+                return {
+                    transcription: result.transcription || result.text || "Voice Order Processed",
+                    items: mappedItems
                 };
+            }
 
-                logger.log("[N8N Request] Voice Fallback:", payload.action);
+            return result;
 
-                // Use Standard Analyzer Endpoint
-                const response = await fetch(`${N8N_BASE}/analyze-prescription`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
+        } catch (n8nError) {
+            console.warn("[AI Service] N8N Voice Failed, trying Groq Whisper Fallback", n8nError);
 
-                if (!response.ok) throw new Error("N8N Voice Agent Failed");
-                const result = await response.json();
+            // 2. FALLBACK: Groq Whisper
+            try {
+                logger.log("[Voice] Falling back to Groq Whisper...");
 
-                if (result.transcription || result.items) {
-                    const rawItems = result.items || [];
-                    const mappedItems = rawItems.map((item: any) => ({
-                        ...item,
-                        quantity: item.quantity || item.qty || 1
-                    }));
+                if (!GROQ_API_KEY) throw new Error("Groq API Key missing for Voice fallback");
 
-                    return {
-                        transcription: result.transcription || result.text || "Voice Order Processed",
-                        items: mappedItems
-                    };
+                const formData = new FormData();
+                formData.append("file", audioBlob, "voice_input.webm");
+                formData.append("model", "whisper-large-v3");
+                formData.append("response_format", "json");
+
+                const transResponse = await fetchWithTimeout(
+                    "https://api.groq.com/openai/v1/audio/transcriptions",
+                    {
+                        method: "POST",
+                        headers: { "Authorization": `Bearer ${GROQ_API_KEY}` },
+                        body: formData
+                    },
+                    15000 // 15s timeout for Groq
+                );
+
+                if (!transResponse.ok) {
+                    const errText = await transResponse.text();
+                    throw new Error(`Groq Whisper Failed: ${transResponse.status} - ${errText}`);
                 }
 
-                return result;
+                const transData = await transResponse.json();
+                const transcription = transData.text;
+                logger.log("[Groq Whisper Fallback] Text:", transcription);
 
-            } catch (n8nError) {
-                logger.error("[Voice] All services failed:", n8nError);
+                if (!transcription || transcription.trim().length === 0) {
+                    return { transcription: "", items: [] };
+                }
+
+                // Parse Intent & Items using Shared Method
+                return await this.parseOrderFromText(transcription);
+
+            } catch (groqError) {
+                logger.error("[Voice] All services failed (N8N + Groq):", groqError);
                 throw new Error("Voice processing failed. Please try again or type.");
             }
         }

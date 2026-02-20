@@ -1,43 +1,40 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { App } from '@capacitor/app';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 export const useMobileBackHandler = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const lastBackPressRef = useRef(0);
+    const locationRef = useRef(location);
+
+    // Keep location ref in sync without triggering effect re-run
+    useEffect(() => {
+        locationRef.current = location;
+    }, [location]);
 
     useEffect(() => {
-        let lastBackPressTime = 0;
+        let listenerHandle: any = null;
 
-        const handleBackButton = async (event: any) => {
-            // Prevent default behavior
-            if (document.URL.indexOf('http') !== 0) {
-                // Optimization for file schema if needed
-            }
-
+        const handleBackButton = async () => {
             const now = Date.now();
+            const currentPath = locationRef.current.pathname;
 
-            // If on root auth or dashboard overview, or if no history, maybe exit?
-            // For now, let's keep it simple: can go back? go back. Else exit.
-
-            if (location.pathname === '/auth' || location.pathname === '/dashboard') {
-                // Double tap to exit could be implemented here
-                if (now - lastBackPressTime < 2000) {
+            if (currentPath === '/auth' || currentPath === '/dashboard') {
+                // Double tap to exit
+                if (now - lastBackPressRef.current < 2000) {
                     App.exitApp();
                 } else {
-                    // Maybe show a toast "Press back again to exit" if you had a toast service here
-                    // For now just update the time
-                    lastBackPressTime = now;
+                    lastBackPressRef.current = now;
                 }
             } else {
-                // Go back in history
                 navigate(-1);
             }
         };
 
         const setupListener = async () => {
             try {
-                await App.addListener('backButton', handleBackButton);
+                listenerHandle = await App.addListener('backButton', handleBackButton);
             } catch (e) {
                 console.warn('Back button listener setup failed (not in capacitor?)', e);
             }
@@ -46,7 +43,10 @@ export const useMobileBackHandler = () => {
         setupListener();
 
         return () => {
-            App.removeAllListeners();
+            // Only remove the back button listener, not ALL listeners
+            if (listenerHandle && typeof listenerHandle.remove === 'function') {
+                listenerHandle.remove();
+            }
         };
-    }, [navigate, location]);
+    }, [navigate]); // Only depends on navigate (stable ref), NOT location
 };

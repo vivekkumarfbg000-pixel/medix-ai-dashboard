@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 
 // Global Sync Error Handler
 window.onerror = function (msg, url, lineNo, columnNo, error) {
-    const string = msg.toLowerCase();
+    const string = (typeof msg === 'string' ? msg : '').toLowerCase();
     const substring = "script error";
     if (string.indexOf(substring) > -1) {
         console.error('Script Error: See Browser Console for Detail');
@@ -23,6 +23,15 @@ window.onerror = function (msg, url, lineNo, columnNo, error) {
 
 // Global Async Error Handler (Promise Rejections)
 window.addEventListener('unhandledrejection', (event) => {
+    const msg = event.reason?.message || String(event.reason) || "";
+    const isNetworkError = /fetch|network|timeout|abort|failed to fetch|load failed|ns_error/i.test(msg);
+
+    if (isNetworkError) {
+        // Network errors on mobile are expected — log, don't crash
+        console.warn('[Network] Unhandled rejection (suppressed overlay):', msg);
+        return;
+    }
+
     console.error('Unhandled Promise Rejection:', event.reason);
     showCriticalError(event.reason?.message || "Unknown Async Error", event.reason?.stack);
 });

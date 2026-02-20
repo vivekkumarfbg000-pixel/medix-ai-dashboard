@@ -188,16 +188,17 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
   };
 
   const startWebSpeechFallback = () => {
-    const { webkitSpeechRecognition }: IWindow = window as unknown as IWindow;
+    // Support both standard and webkit-prefixed APIs
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-    if (!webkitSpeechRecognition) {
+    if (!SpeechRecognitionAPI) {
       toast.error("Voice processing failed and no browser fallback available.");
       return;
     }
 
     toast.info("Using Browser Fallback...", { description: "Backend failed, trying local speech recognition." });
 
-    const recognition = new webkitSpeechRecognition();
+    const recognition = new SpeechRecognitionAPI();
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = 'en-IN'; // Default to Indian English
@@ -232,7 +233,13 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
 
     recognition.onerror = (event: any) => {
       logger.error("WebSpeech Error:", event.error);
-      toast.error("Voice command failed completely.");
+      if (event.error === 'not-allowed') {
+        toast.error("Microphone permission denied.");
+      } else if (event.error === 'no-speech') {
+        toast.warning("No speech detected. Please try again.");
+      } else {
+        toast.error(`Voice fallback failed: ${event.error}`);
+      }
     };
 
     recognition.start();

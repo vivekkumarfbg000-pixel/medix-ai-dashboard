@@ -98,6 +98,7 @@ const LitePOS = () => {
                 const source = state.voiceItems ? "Voice" : "Prescription Scan";
                 const description = state.voiceTranscription || "Imported from Pulse Scan";
 
+                console.log(`[LitePOS] Processing ${source} Items:`, itemsToProcess);
                 toast.info(`Processing ${source} Data...`, { description });
 
                 const newCartItems: { item: OfflineInventory; qty: number }[] = [];
@@ -105,12 +106,17 @@ const LitePOS = () => {
                 // Fetch ALL inventory to match (from Dexie for speed)
                 const inventory = await db.inventory.where('shop_id').equals(currentShop.id).toArray();
 
+                // Create a Map for faster exact lookups
+                const inventoryMap = new Map(inventory.map(i => [i.medicine_name.toLowerCase(), i]));
+
                 for (const incomingItem of itemsToProcess) {
                     const searchName = incomingItem.name.toLowerCase().trim();
+                    let match = inventoryMap.get(searchName);
 
-                    // Match Logic (Direct Includes)
-                    // TODO: Improve with Fuzzy Search if needed
-                    const match = inventory.find(i => i.medicine_name.toLowerCase().includes(searchName));
+                    // 1. Exact Match Failed? Try Partial Match
+                    if (!match) {
+                        match = inventory.find(i => i.medicine_name.toLowerCase().includes(searchName));
+                    }
 
                     if (match) {
                         newCartItems.push({
@@ -118,17 +124,31 @@ const LitePOS = () => {
                             qty: incomingItem.quantity || 1
                         });
                     } else {
-                        // Notify missing item - maybe add as 'Manual' item?
-                        // For now just warn
-                        toast.warning(`Item not found: ${incomingItem.name}`);
+                        // 2. No Match? Add as MANUAL ITEM (so user doesn't lose it)
+                        newCartItems.push({
+                            item: {
+                                id: `MANUAL_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                                shop_id: currentShop.id,
+                                medicine_name: incomingItem.name + " (Manual)",
+                                quantity: 999, // Infinite stock for manual
+                                unit_price: 0, // User must set price
+                                purchase_price: 0,
+                                is_synced: 0,
+                                batch_number: "MANUAL",
+                                expiry_date: undefined
+                            } as OfflineInventory,
+                            qty: incomingItem.quantity || 1
+                        });
+                        toast.warning(`Added "${incomingItem.name}" as Manual Item (Set Price!)`);
                     }
                 }
 
                 if (newCartItems.length > 0) {
                     setCart(prev => {
-                        // Avoid duplicates if React Double Invoke happens
-                        // We will just append for now, user can dedupe in UI
-                        return [...prev, ...newCartItems];
+                        // Simple dedupe: Filter out items that are already in cart by ID
+                        const existingIds = new Set(prev.map(p => p.item.id));
+                        const uniqueNew = newCartItems.filter(n => !existingIds.has(n.item.id));
+                        return [...prev, ...uniqueNew];
                     });
                     toast.success(`Added ${newCartItems.length} items from ${source}`);
 
@@ -1107,7 +1127,38 @@ const LitePOS = () => {
 
                     {/* MOBILE: Center Voice Trigger - Made Prominent */}
                     <div className="md:hidden">
-                        <VoiceCommandBar compact={true} onTranscriptionComplete={(txt) => { setSearch(txt); setShowMobileCatalog(true); }} />
+                        <VoiceCommandBar compact={true} onTranscriptionComplete={async (txt, parsedItems) => {
+                            // If parsed items have 'add' intent, match to inventory and add to cart
+                            if (parsedItems && parsedItems.length > 0 && parsedItems[0].intent === 'add') {
+                                toast.info(`Processing voice order...`);
+                                const inventory = await db.inventory.where('shop_id').equals(currentShop?.id || '').toArray();
+                                for (const pItem of parsedItems) {
+                                    const searchName = pItem.name.toLowerCase();
+                                    let match = inventory.find(i => i.medicine_name.toLowerCase() === searchName);
+                                    if (!match) match = inventory.find(i => i.medicine_name.toLowerCase().includes(searchName));
+                                    if (match) {
+                                        addToCart(match, pItem.quantity || 1);
+                                        toast.success(`Added ${match.medicine_name}`);
+                                    } else {
+                                        const tempItem: OfflineInventory = {
+                                            id: `VOICE_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                            shop_id: currentShop?.id || '',
+                                            medicine_name: pItem.name + " (Voice)",
+                                            quantity: 999,
+                                            unit_price: 0,
+                                            is_synced: 0
+                                        };
+                                        setCart(prev => [...prev, { item: tempItem, qty: pItem.quantity || 1 }]);
+                                        toast.warning(`"${pItem.name}" not found. Added as Manual Item.`);
+                                    }
+                                }
+                            } else {
+                                // Search intent or no items — set search text
+                                const searchTerm = parsedItems?.[0]?.name || txt;
+                                setSearch(searchTerm);
+                                setShowMobileCatalog(true);
+                            }
+                        }} />
                     </div>
 
                     {/* MOBILE: Toggle Catalog */}

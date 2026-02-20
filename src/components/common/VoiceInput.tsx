@@ -28,7 +28,8 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
                 // Assume support, but check permissions later
                 setHasSupport(true);
             } else {
-                if (!('webkitSpeechRecognition' in window)) {
+                // Check for both standard and webkit-prefixed APIs
+                if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) {
                     setHasSupport(false);
                 }
             }
@@ -98,14 +99,16 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
                 }
             }
         } else {
-            // Web implementation
-            if (!('webkitSpeechRecognition' in window)) {
-                toast.error("Browser does not support voice input.");
+            // Web implementation — support both standard and webkit-prefixed APIs
+            const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+            if (!SpeechRecognitionAPI) {
+                toast.error("Browser does not support voice input. Try Chrome or Edge.");
                 setIsListening(false);
                 return;
             }
 
-            const recognition = new (window as any).webkitSpeechRecognition();
+            const recognition = new SpeechRecognitionAPI();
             recognition.lang = lang;
             recognition.continuous = false;
             recognition.interimResults = false;
@@ -120,7 +123,14 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
             };
 
             recognition.onerror = (event: any) => {
-                console.error(event.error);
+                console.error("SpeechRecognition error:", event.error);
+                if (event.error === 'not-allowed') {
+                    toast.error("Microphone permission denied.");
+                } else if (event.error === 'no-speech') {
+                    toast.warning("No speech detected. Try again.");
+                } else {
+                    toast.error(`Voice error: ${event.error}`);
+                }
                 setIsListening(false);
             };
 

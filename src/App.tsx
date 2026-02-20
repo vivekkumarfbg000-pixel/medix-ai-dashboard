@@ -49,9 +49,9 @@ const DebugAI = lazy(() => import("./pages/DebugAI"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 0,
+      staleTime: 60_000, // 60s — data stays fresh, prevents refetch storm on mobile resume
       retry: 1,
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false, // CRITICAL: Prevents ALL queries re-fetching on mobile app resume
     },
     mutations: {
       retry: 0,
