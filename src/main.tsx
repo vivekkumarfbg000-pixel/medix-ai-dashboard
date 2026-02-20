@@ -1,33 +1,78 @@
 console.log("🚀 Main.tsx is executing... (Versions 2.4 Debug)");
 import { createRoot } from "react-dom/client";
 
+// Helper: Detect stale Vite chunk errors (happens after new deploy when old cached chunks are gone)
+function isChunkLoadError(msg: string): boolean {
+    return /dynamically imported module|importing a module|load failed|chunk/i.test(msg);
+}
+
+// Helper: Detect network/fetch errors (common on mobile with spotty connection)
+function isNetworkError(msg: string): boolean {
+    return /fetch|network|timeout|abort|failed to fetch|load failed|ns_error/i.test(msg);
+}
+
+// Auto-reload once for stale chunk errors (prevents infinite loop via sessionStorage flag)
+function handleChunkError(msg: string) {
+    const reloadKey = 'medix_chunk_reload';
+    if (!sessionStorage.getItem(reloadKey)) {
+        console.warn('[ChunkError] Stale build detected, auto-reloading:', msg);
+        sessionStorage.setItem(reloadKey, '1');
+        window.location.reload();
+    } else {
+        // Already reloaded once — show error (avoid infinite loop)
+        sessionStorage.removeItem(reloadKey);
+        showCriticalError("App update failed to load. Please clear cache and reload.", msg);
+    }
+}
+
+// Clear the chunk reload flag on successful load (set later after bootstrap succeeds)
+
 // Global Sync Error Handler
 window.onerror = function (msg, url, lineNo, columnNo, error) {
-    const string = (typeof msg === 'string' ? msg : '').toLowerCase();
-    const substring = "script error";
-    if (string.indexOf(substring) > -1) {
+    const msgStr = (typeof msg === 'string' ? msg : '').toLowerCase();
+
+    if (msgStr.indexOf('script error') > -1) {
         console.error('Script Error: See Browser Console for Detail');
-    } else {
-        const message = [
-            'Message: ' + msg,
-            'URL: ' + url,
-            'Line: ' + lineNo,
-            'Column: ' + columnNo,
-            'Error object: ' + JSON.stringify(error)
-        ].join(' - ');
-        console.error("Global Error:", message);
-        showCriticalError(msg as string, error?.stack);
+        return false;
     }
+
+    // Handle stale chunk errors with auto-reload
+    if (isChunkLoadError(msgStr)) {
+        handleChunkError(msgStr);
+        return true; // Suppress default
+    }
+
+    // Suppress network errors on mobile
+    if (isNetworkError(msgStr)) {
+        console.warn('[Network] Sync error (suppressed overlay):', msgStr);
+        return false;
+    }
+
+    const message = [
+        'Message: ' + msg,
+        'URL: ' + url,
+        'Line: ' + lineNo,
+        'Column: ' + columnNo,
+        'Error object: ' + JSON.stringify(error)
+    ].join(' - ');
+    console.error("Global Error:", message);
+    showCriticalError(msg as string, error?.stack);
     return false;
 };
 
 // Global Async Error Handler (Promise Rejections)
 window.addEventListener('unhandledrejection', (event) => {
     const msg = event.reason?.message || String(event.reason) || "";
-    const isNetworkError = /fetch|network|timeout|abort|failed to fetch|load failed|ns_error/i.test(msg);
 
-    if (isNetworkError) {
-        // Network errors on mobile are expected — log, don't crash
+    // Handle stale chunk errors with auto-reload
+    if (isChunkLoadError(msg)) {
+        handleChunkError(msg);
+        event.preventDefault();
+        return;
+    }
+
+    // Suppress network errors on mobile
+    if (isNetworkError(msg)) {
         console.warn('[Network] Unhandled rejection (suppressed overlay):', msg);
         return;
     }
@@ -127,6 +172,8 @@ const bootstrap = async () => {
                 </ErrorBoundary>
             );
             console.log("🚀 React Root Mounted Successfully");
+            // Clear chunk reload flag on successful load
+            sessionStorage.removeItem('medix_chunk_reload');
         })();
 
         const timeout = new Promise((_, reject) =>
@@ -137,6 +184,11 @@ const bootstrap = async () => {
 
     } catch (error: any) {
         console.error("🔥 BOOTSTRAP FAILURE:", error);
+        // Handle stale chunk errors with auto-reload
+        if (isChunkLoadError(error.message || '')) {
+            handleChunkError(error.message);
+            return;
+        }
         showCriticalError(error.message, error.stack);
     }
 };
