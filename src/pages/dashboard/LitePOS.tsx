@@ -1128,35 +1128,38 @@ const LitePOS = () => {
                     {/* MOBILE: Center Voice Trigger - Made Prominent */}
                     <div className="md:hidden">
                         <VoiceCommandBar compact={true} onTranscriptionComplete={async (txt, parsedItems) => {
-                            // If parsed items have 'add' intent, match to inventory and add to cart
-                            if (parsedItems && parsedItems.length > 0 && parsedItems[0].intent === 'add') {
-                                toast.info(`Processing voice order...`);
-                                const inventory = await db.inventory.where('shop_id').equals(currentShop?.id || '').toArray();
-                                for (const pItem of parsedItems) {
-                                    const searchName = pItem.name.toLowerCase();
-                                    let match = inventory.find(i => i.medicine_name.toLowerCase() === searchName);
-                                    if (!match) match = inventory.find(i => i.medicine_name.toLowerCase().includes(searchName));
-                                    if (match) {
-                                        addToCart(match, pItem.quantity || 1);
-                                        toast.success(`Added ${match.medicine_name}`);
-                                    } else {
-                                        const tempItem: OfflineInventory = {
-                                            id: `VOICE_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                                            shop_id: currentShop?.id || '',
-                                            medicine_name: pItem.name + " (Voice)",
-                                            quantity: 999,
-                                            unit_price: 0,
-                                            is_synced: 0
-                                        };
-                                        setCart(prev => [...prev, { item: tempItem, qty: pItem.quantity || 1 }]);
-                                        toast.warning(`"${pItem.name}" not found. Added as Manual Item.`);
-                                    }
+                            // ALWAYS add to cart — voice button is for billing, not searching
+                            toast.info(`Processing voice: "${txt}"`);
+                            const inventory = await db.inventory.where('shop_id').equals(currentShop?.id || '').toArray();
+
+                            // Use parsed items if available, otherwise treat raw text as medicine name
+                            const itemsToAdd = (parsedItems && parsedItems.length > 0)
+                                ? parsedItems
+                                : [{ name: txt.trim(), quantity: 1, intent: 'add' as const }];
+
+                            for (const pItem of itemsToAdd) {
+                                const searchName = pItem.name.toLowerCase().trim();
+                                // Try exact match, then partial match
+                                let match = inventory.find(i => i.medicine_name.toLowerCase() === searchName);
+                                if (!match) match = inventory.find(i => i.medicine_name.toLowerCase().includes(searchName));
+                                if (!match) match = inventory.find(i => searchName.includes(i.medicine_name.toLowerCase()));
+
+                                if (match) {
+                                    addToCart(match, pItem.quantity || 1);
+                                    toast.success(`✅ Added ${match.medicine_name} to cart`);
+                                } else {
+                                    // Not in inventory — add as manual item so user doesn't lose it
+                                    const tempItem: OfflineInventory = {
+                                        id: `VOICE_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                        shop_id: currentShop?.id || '',
+                                        medicine_name: pItem.name,
+                                        quantity: 999,
+                                        unit_price: 0,
+                                        is_synced: 0
+                                    };
+                                    setCart(prev => [...prev, { item: tempItem, qty: pItem.quantity || 1 }]);
+                                    toast.warning(`"${pItem.name}" added to cart (set price manually)`);
                                 }
-                            } else {
-                                // Search intent or no items — set search text
-                                const searchTerm = parsedItems?.[0]?.name || txt;
-                                setSearch(searchTerm);
-                                setShowMobileCatalog(true);
                             }
                         }} />
                     </div>
@@ -1194,42 +1197,43 @@ const LitePOS = () => {
                                         autoFocus
                                     />
                                 </div>
-                                {/* Munim-ji Voice Trigger */}
+                                {/* Voice-to-Cart Trigger (Search Bar Mic) */}
                                 <div className="">
                                     <VoiceInput
                                         onTranscript={async (text) => {
-                                            toast.info(`Processing: "${text}"`);
-                                            const result = await aiService.processVoiceText(text);
+                                            // DIRECTLY add to cart — don't put in search
+                                            toast.info(`🎙️ Voice: "${text}"`);
+                                            const spokenName = text.trim();
 
-                                            if (result.items && result.items.length > 0) {
-                                                for (const item of result.items) {
-                                                    // 1. Fuzzy Search in DB
-                                                    const matches = await db.inventory
-                                                        .where('shop_id').equals(currentShop?.id || '')
-                                                        .filter(i => i.medicine_name.toLowerCase().includes(item.name.toLowerCase()))
-                                                        .toArray();
+                                            if (!spokenName || spokenName.length < 2) {
+                                                toast.warning("Could not hear clearly. Try again.");
+                                                return;
+                                            }
 
-                                                    if (matches.length > 0) {
-                                                        // Pick best match (first one)
-                                                        addToCart(matches[0], item.quantity);
-                                                        toast.success(`Added ${matches[0].medicine_name}`);
-                                                    } else {
-                                                        // Add as Temp
-                                                        toast.warning(`"${item.name}" not found in inventory. Added as Manual Item.`);
-                                                        const tempItem: OfflineInventory = {
-                                                            id: `VOICE_${Date.now()}`,
-                                                            shop_id: currentShop?.id || '',
-                                                            medicine_name: item.name + " (Voice)",
-                                                            quantity: 999,
-                                                            unit_price: 0, // Needs manual price
-                                                            is_synced: 0
-                                                        };
-                                                        setCart(prev => [...prev, { item: tempItem, qty: item.quantity }]);
-                                                    }
-                                                }
+                                            // Match against inventory
+                                            const inventory = await db.inventory.where('shop_id').equals(currentShop?.id || '').toArray();
+                                            const searchLower = spokenName.toLowerCase();
+
+                                            // Try exact → partial → reverse partial
+                                            let match = inventory.find(i => i.medicine_name.toLowerCase() === searchLower);
+                                            if (!match) match = inventory.find(i => i.medicine_name.toLowerCase().includes(searchLower));
+                                            if (!match) match = inventory.find(i => searchLower.includes(i.medicine_name.toLowerCase()));
+
+                                            if (match) {
+                                                addToCart(match, 1);
+                                                toast.success(`✅ Added ${match.medicine_name} to checkout`);
                                             } else {
-                                                toast.error("Could not understand order.");
-                                                setSearch(text); // Fallback to search
+                                                // Not in inventory — add as manual item directly to cart
+                                                const tempItem: OfflineInventory = {
+                                                    id: `VOICE_${Date.now()}`,
+                                                    shop_id: currentShop?.id || '',
+                                                    medicine_name: spokenName,
+                                                    quantity: 999,
+                                                    unit_price: 0,
+                                                    is_synced: 0
+                                                };
+                                                setCart(prev => [...prev, { item: tempItem, qty: 1 }]);
+                                                toast.warning(`"${spokenName}" added to checkout (set price manually)`);
                                             }
                                         }}
                                     />
