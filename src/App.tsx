@@ -110,13 +110,21 @@ const AppRoutes = () => {
           <Route path="suppliers" element={<ErrorBoundary><Suppliers /></ErrorBoundary>} />
           <Route path="purchases" element={<ErrorBoundary><Purchases /></ErrorBoundary>} />
           <Route path="schedule-h1" element={<ErrorBoundary><ScheduleH1 /></ErrorBoundary>} />
-          <Route path="env-debug" element={<ErrorBoundary><EnvDebug /></ErrorBoundary>} />
-          <Route path="ai-debug" element={<ErrorBoundary><AiDebug /></ErrorBoundary>} />
+          {import.meta.env.DEV && (
+            <>
+              <Route path="env-debug" element={<ErrorBoundary><EnvDebug /></ErrorBoundary>} />
+              <Route path="ai-debug" element={<ErrorBoundary><AiDebug /></ErrorBoundary>} />
+            </>
+          )}
 
         </Route>
 
-        <Route path="/test-ai-fallback" element={<TestAIFallback />} />
-        <Route path="/debug-ai" element={<DebugAI />} />
+        {import.meta.env.DEV && (
+          <>
+            <Route path="/test-ai-fallback" element={<TestAIFallback />} />
+            <Route path="/debug-ai" element={<DebugAI />} />
+          </>
+        )}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

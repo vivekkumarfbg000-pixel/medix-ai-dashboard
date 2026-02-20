@@ -38,7 +38,7 @@ const Compliance = () => {
             const { data: orders, error } = await supabase
                 .from("orders")
                 .select("*")
-                .eq("shop_id", currentShop.id)
+                .eq("shop_id", currentShop?.id)
                 .order("created_at", { ascending: false });
 
             if (error) throw error;

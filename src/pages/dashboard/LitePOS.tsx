@@ -104,7 +104,7 @@ const LitePOS = () => {
                 const newCartItems: { item: OfflineInventory; qty: number }[] = [];
 
                 // Fetch ALL inventory to match (from Dexie for speed)
-                const inventory = await db.inventory.where('shop_id').equals(currentShop.id).toArray();
+                const inventory = await db.inventory.where('shop_id').equals(currentShop?.id).toArray();
 
                 // Create a Map for faster exact lookups
                 const inventoryMap = new Map(inventory.map(i => [i.medicine_name.toLowerCase(), i]));
@@ -128,7 +128,7 @@ const LitePOS = () => {
                         newCartItems.push({
                             item: {
                                 id: `MANUAL_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                                shop_id: currentShop.id,
+                                shop_id: currentShop?.id,
                                 medicine_name: incomingItem.name + " (Manual)",
                                 quantity: 999, // Infinite stock for manual
                                 unit_price: 0, // User must set price
@@ -509,13 +509,13 @@ const LitePOS = () => {
             const { data, error } = await supabase
                 .from('inventory')
                 .select('*')
-                .eq('shop_id', currentShop.id);
+                .eq('shop_id', currentShop?.id);
 
             if (error) throw error;
 
             // 2. Refresh Local DB
             await db.transaction('rw', db.inventory, async () => {
-                await db.inventory.where('shop_id').equals(currentShop.id).delete(); // Clear old
+                await db.inventory.where('shop_id').equals(currentShop?.id).delete(); // Clear old
 
                 // Map to OfflineInventory format
                 const items = data.map((item: any) => ({
@@ -616,7 +616,7 @@ const LitePOS = () => {
                 const notFound = [];
 
                 // OPTIMIZATION: Fetch ALL inventory ONCE and create a Lookup Map
-                const allItems = await db.inventory.where('shop_id').equals(currentShop.id).toArray();
+                const allItems = await db.inventory.where('shop_id').equals(currentShop?.id).toArray();
 
                 // Create Lowercase Map for fuzzy matching: "dolo 650" -> Item
                 // We use a Map<string, Item[]> in case of duplicates, but simplest is Last Win or First Win.
@@ -642,7 +642,7 @@ const LitePOS = () => {
                         matches.push({
                             item: {
                                 id: 'TEMP_' + Date.now() + Math.random(),
-                                shop_id: currentShop.id,
+                                shop_id: currentShop?.id,
                                 medicine_name: imp.name + " (Manual)",
                                 quantity: 999,
                                 unit_price: imp.unit_price || 0,
@@ -706,13 +706,13 @@ const LitePOS = () => {
 
                 return db.inventory
                     .where('shop_id')
-                    .equals(currentShop.id)
+                    .equals(currentShop?.id)
                     .filter(i => i.medicine_name.toLowerCase().includes(lowerSearch)) // Includes is better than startsWith for users
                     .limit(20)
                     .toArray();
             }
 
-            return db.inventory.where("shop_id").equals(currentShop.id).limit(20).toArray();
+            return db.inventory.where("shop_id").equals(currentShop?.id).limit(20).toArray();
         },
         [debouncedSearch, currentShop?.id]
     );

@@ -183,7 +183,7 @@ export const DiaryScan = () => {
         if (currentShop?.id) {
           try {
             const prescriptionData = {
-              shop_id: currentShop.id,
+              shop_id: currentShop?.id,
               customer_name: result.patient_name || patientName || "Unknown Patient",
               doctor_name: result.doctor_name || doctorName || "Unknown Doctor",
               customer_phone: result.patient_contact || patientContact || null,
@@ -297,7 +297,7 @@ export const DiaryScan = () => {
         const { data: inventoryItem } = await supabase
           .from('inventory')
           .select('id, medicine_name, quantity, purchase_price')
-          .eq('shop_id', currentShop.id)
+          .eq('shop_id', currentShop?.id)
           .ilike('medicine_name', `%${item.medication_name}%`)
           .single();
 
@@ -335,7 +335,7 @@ export const DiaryScan = () => {
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
-          shop_id: currentShop.id,
+          shop_id: currentShop?.id,
           customer_name: "Diary Sales",
           total_amount: totalAmount,
           payment_mode: "cash",

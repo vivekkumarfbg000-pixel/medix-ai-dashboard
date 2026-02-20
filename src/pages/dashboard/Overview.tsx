@@ -47,7 +47,11 @@ const Overview = () => {
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-foreground tracking-tight">Command Center</h1>
           <p className="text-muted-foreground mt-1 text-sm font-medium">
-            Good Morning, Vivek.
+            {(() => {
+              const hour = new Date().getHours();
+              const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+              return `${greeting}! Here's your pharmacy at a glance.`;
+            })()}
           </p>
         </div>
         <Button

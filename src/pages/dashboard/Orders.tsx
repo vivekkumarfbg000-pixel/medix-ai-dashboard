@@ -312,7 +312,7 @@ const Orders = () => {
     const invoiceNum = `INV-${Date.now().toString().slice(-6)}`;
 
     const { error } = await supabase.from('orders').insert({
-      shop_id: currentShop.id,
+      shop_id: currentShop?.id || '',
       customer_name: customerName || "Walk-in",
       customer_phone: customerPhone,
       total_amount: totals.totalPayable,

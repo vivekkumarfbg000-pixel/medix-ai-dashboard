@@ -312,7 +312,7 @@ const Inventory = () => {
   const handleAddToShortbook = async (item: InventoryItem) => {
     if (!currentShop?.id) return;
     const { error } = await supabase.from('shortbook').insert({
-      shop_id: currentShop.id,
+      shop_id: currentShop?.id || '',
       product_name: item.medicine_name,
       quantity: 10, // Default suggestion
       priority: 'medium',

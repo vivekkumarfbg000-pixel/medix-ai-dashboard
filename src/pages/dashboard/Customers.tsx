@@ -256,7 +256,7 @@ const Customers = () => {
 
                 {/* REFILLS TAB */}
                 <TabsContent value="refills" className="space-y-4">
-                    <RefillReminderList shopId={currentShop.id} />
+                    <RefillReminderList shopId={currentShop?.id || ''} />
                 </TabsContent>
 
                 {/* KHATA TAB */}
