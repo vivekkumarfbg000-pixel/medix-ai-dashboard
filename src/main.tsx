@@ -195,7 +195,7 @@ const bootstrap = async () => {
         })();
 
         const timeout = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Bootstrap Timed Out (15s). Check Network or Console.")), 15000)
+            setTimeout(() => reject(new Error("Slow network detected. Still trying to load... If this fails, tap Reload App.")), 45000)
         );
 
         await Promise.race([activeLoad, timeout]);
