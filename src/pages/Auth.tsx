@@ -21,6 +21,37 @@ const Auth = () => {
     // Check if already logged in (with timeout to avoid hanging on blocked ISP)
     const checkExistingSession = async () => {
       try {
+        // [CRITICAL FIX]: Since we disabled `detectSessionInUrl` globally (to prevent
+        // ISP-blocked hanging on import), we must manually catch email verification links here.
+        const hash = window.location.hash;
+        if (hash && hash.includes("access_token=")) {
+          setIsLoading(true);
+          toast.info("Verifying email link...");
+
+          // Parse the hash parameters natively
+          const params = new URLSearchParams(hash.substring(1)); // remove the #
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+
+          if (accessToken && refreshToken) {
+            // Restore session manually using the tokens from the URL
+            const { error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+            if (!sessionError) {
+              // Clean the URL hash
+              window.history.replaceState(null, '', window.location.pathname);
+              toast.success("Email verified successfully!");
+              navigate("/dashboard");
+              return;
+            } else {
+              toast.error("Invalid or expired verification link.");
+            }
+          }
+        }
+
         const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
         const sessionCheck = supabase.auth.getSession().then(({ data }) => data.session);
         const session = await Promise.race([sessionCheck, timeout]);
@@ -29,6 +60,8 @@ const Auth = () => {
         }
       } catch {
         // Supabase unreachable — stay on login page
+      } finally {
+        setIsLoading(false);
       }
     };
     checkExistingSession();
