@@ -18,13 +18,22 @@ const Auth = () => {
   const [shopName, setShopName] = useState("");
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        navigate("/dashboard");
+    // Check if already logged in (with timeout to avoid hanging on blocked ISP)
+    const checkExistingSession = async () => {
+      try {
+        const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
+        const sessionCheck = supabase.auth.getSession().then(({ data }) => data.session);
+        const session = await Promise.race([sessionCheck, timeout]);
+        if (session?.user) {
+          navigate("/dashboard");
+        }
+      } catch {
+        // Supabase unreachable — stay on login page
       }
-    });
+    };
+    checkExistingSession();
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         navigate("/dashboard");
       }
@@ -37,16 +46,27 @@ const Auth = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    try {
+      // Race the login against a 5-second timeout
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Connection timed out. Your ISP may be blocking Supabase. Try using a VPN or changing DNS to 8.8.8.8")), 5000)
+      );
 
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Welcome back!");
-      navigate("/dashboard");
+      const loginAttempt = supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      const { error } = await Promise.race([loginAttempt, timeout]);
+
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Welcome back!");
+        navigate("/dashboard");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Login failed. Check your network connection.");
     }
 
     setIsLoading(false);

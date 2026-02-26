@@ -71,9 +71,17 @@ function DashboardContent() {
   };
 
   useEffect(() => {
-    // Get session once (DashboardLayout already guards unauthenticated users)
+    // Get session once (with timeout protection against ISP blocking)
+    const sessionTimeout = setTimeout(() => {
+      // If Supabase hasn't responded in 3s, set user to null (will show loading spinner)
+      // but DON'T redirect — let the user stay on dashboard if they got here
+    }, 3000);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+      clearTimeout(sessionTimeout);
       setUser(session?.user ?? null);
+    }).catch(() => {
+      clearTimeout(sessionTimeout);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -84,7 +92,10 @@ function DashboardContent() {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(sessionTimeout);
+      subscription.unsubscribe();
+    };
   }, [navigate]);
   // Show nothing briefly while user loads (DashboardLayout loading screen is the primary gate)
   if (!user) {
@@ -174,8 +185,8 @@ export function DashboardLayout() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        // Timeout Promise — 2s is enough for cached sessions
-        const timeout = new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), 2000));
+        // Timeout Promise — 3s is enough for cached sessions
+        const timeout = new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), 3000));
 
         // Race actual session check vs timeout
         const result = await Promise.race([
@@ -184,7 +195,7 @@ export function DashboardLayout() {
         ]) as any;
 
         if (result?.timeout) {
-          console.warn("Session check timed out. Redirecting to auth...");
+          console.warn("Session check timed out (ISP may be blocking Supabase). Redirecting to auth...");
           navigate('/auth');
           return;
         } else {

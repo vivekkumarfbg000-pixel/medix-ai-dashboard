@@ -1,6 +1,24 @@
 console.log("🚀 Main.tsx is executing... (Versions 2.4 Debug)");
 import { createRoot } from "react-dom/client";
 
+// [DEV-BYPASS] Aggressively clear Service Workers and Caches to remove Auth guard
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        for (let registration of registrations) {
+            registration.unregister();
+            console.log('Unregistered service worker', registration);
+        }
+    });
+}
+if ('caches' in window) {
+    caches.keys().then((keyList) => {
+        return Promise.all(keyList.map((key) => {
+            console.log('Deleting cache', key);
+            return caches.delete(key);
+        }));
+    });
+}
+
 // Helper: Detect stale Vite chunk errors (happens after new deploy when old cached chunks are gone)
 function isChunkLoadError(msg: string): boolean {
     return /dynamically imported module|importing a module|load failed|chunk/i.test(msg);

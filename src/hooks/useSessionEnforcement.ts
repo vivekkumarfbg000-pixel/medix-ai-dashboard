@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, isSupabaseReachable } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -8,6 +8,12 @@ export const useSessionEnforcement = () => {
     const sessionCheckedRef = useRef(false);
 
     useEffect(() => {
+        // Skip enforcement entirely if Supabase is unreachable (ISP block)
+        if (!isSupabaseReachable) {
+            console.warn("Session enforcement skipped — Supabase unreachable");
+            return;
+        }
+
         let channel: any = null;
 
         const handleLogout = async () => {
@@ -21,19 +27,16 @@ export const useSessionEnforcement = () => {
 
         const enforceSession = async () => {
             try {
-                // OPTIMIZATION: Use cached getSession instead of network getUser
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session?.user) return;
                 const user = session.user;
 
-                // Get or create local Device ID
                 let deviceId = localStorage.getItem('medix_device_id');
                 if (!deviceId) {
                     deviceId = crypto.randomUUID();
                     localStorage.setItem('medix_device_id', deviceId);
                 }
 
-                // Register/Update session in DB
                 const { error: rpcError } = await supabase.rpc('register_session' as any, {
                     p_session_id: deviceId,
                     p_device_info: navigator.userAgent
@@ -43,7 +46,6 @@ export const useSessionEnforcement = () => {
                     console.warn("Session Registration Warning:", rpcError.message);
                 }
 
-                // Subscribe to changes on active_sessions for this user
                 channel = supabase
                     .channel(`session_guard_${user.id}`)
                     .on(

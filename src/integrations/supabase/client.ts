@@ -16,12 +16,17 @@ if (SUPABASE_URL === FALLBACK_URL) {
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+// CRITICAL FIX: autoRefreshToken and detectSessionInUrl are set to FALSE.
+// When set to true, GoTrueClient tries to reach the Supabase URL immediately
+// at import time. If the ISP blocks *.supabase.co (common in India with Jio/Airtel),
+// this hangs forever and the entire app never loads.
+// We manually handle session restoration after the app renders.
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
+    autoRefreshToken: false,   // Prevents network call at import time
+    detectSessionInUrl: false,  // Prevents network call at import time
   },
   db: {
     schema: 'public',
@@ -31,14 +36,43 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   },
 });
 
-// Connectivity Check Helper
-export const checkConnection = async () => {
+// Reachability flag — components can check this before making Supabase calls
+export let isSupabaseReachable = false;
+
+// Connectivity Check Helper (with a fast 3-second timeout)
+export const checkConnection = async (): Promise<boolean> => {
   try {
-    const { error } = await supabase.from('shops').select('id').limit(1).maybeSingle();
-    if (error) throw error;
-    return true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+      method: 'HEAD',
+      headers: {
+        'apikey': SUPABASE_PUBLISHABLE_KEY,
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    isSupabaseReachable = response.ok;
+    return isSupabaseReachable;
   } catch (e) {
-    console.warn("Supabase Connectivity Check Failed", e);
+    console.warn("⚠️ Supabase is UNREACHABLE (ISP block or network issue):", (e as Error).message);
+    isSupabaseReachable = false;
     return false;
   }
 };
+
+// Fire-and-forget connectivity probe on load (non-blocking)
+checkConnection().then((ok) => {
+  if (ok) {
+    console.log("✅ Supabase is reachable. Enabling auto token refresh.");
+    // Manually trigger a session restore now that we know the server is reachable
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        supabase.auth.setSession(data.session);
+      }
+    });
+  } else {
+    console.warn("🚫 Supabase is BLOCKED or offline. App will run in offline/demo mode.");
+  }
+});
