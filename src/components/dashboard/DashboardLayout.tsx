@@ -102,6 +102,7 @@ function DashboardContent() {
       console.log("Auth Change:", event);
       setUser(session?.user ?? null);
       if (event === 'SIGNED_OUT') {
+        localStorage.removeItem('currentShopId');
         navigate("/auth");
       }
     });
@@ -217,6 +218,24 @@ export function DashboardLayout() {
           if (!session) {
             navigate('/auth');
             return;
+          }
+
+          // Guarantee Shop ID is present instantly for all children
+          if (!localStorage.getItem('currentShopId')) {
+            try {
+              const { data, error } = await supabase
+                .from('user_shops')
+                .select('shop_id')
+                .eq('user_id', session.user.id)
+                .limit(1)
+                .single();
+
+              if (data?.shop_id) {
+                localStorage.setItem('currentShopId', data.shop_id);
+              }
+            } catch (e) {
+              console.error("Failed to pre-fetch initial shop", e);
+            }
           }
         }
       } catch (err) {
