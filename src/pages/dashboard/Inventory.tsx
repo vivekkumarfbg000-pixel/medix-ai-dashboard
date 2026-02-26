@@ -826,7 +826,7 @@ const Inventory = () => {
                             <Badge variant={item.quantity < 10 ? "destructive" : "secondary"}>{item.quantity} units</Badge>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground mb-3 bg-slate-50 p-2 rounded">
+                          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground mb-3 bg-muted p-2 rounded">
                             <div title="Location">📍 {item.rack_number ? `${item.rack_number}-${item.shelf_number || ''}` : 'No Loc'}</div>
                             <div title="Tax">🧾 GST: {item.gst_rate}%</div>
                           </div>
@@ -835,11 +835,11 @@ const Inventory = () => {
                             <span className="font-bold text-base">₹{item.unit_price}</span>
                             <div className="flex gap-1">
                               {(item.unit_price > 0 && (item.cost_price || item.purchase_price)) ? (
-                                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50">
                                   Margin: {Math.round(((item.unit_price - (item.cost_price || item.purchase_price || 0)) / item.unit_price) * 100)}%
                                 </Badge>
                               ) : null}
-                              <Badge variant={status === 'expired' ? 'destructive' : 'outline'} className="text-[10px]">{status === 'safe' ? `Exp: ${item.expiry_date}` : 'Check Expiry'}</Badge>
+                              <Badge variant={status === 'expired' ? 'destructive' : 'outline'} className="text-[10px]">{!item.expiry_date ? 'No Expiry Data' : status === 'safe' ? `Exp: ${item.expiry_date}` : 'Check Expiry'}</Badge>
                             </div>
                           </div>
                         </div>
@@ -847,16 +847,16 @@ const Inventory = () => {
                         {/* Stock Actions */}
                         {canModify && (
                           <div className="flex gap-2 mt-auto pt-3 border-t items-center">
-                            <Button variant="outline" size="sm" className="flex-1 text-green-600 hover:text-green-700 hover:bg-green-50 h-8" onClick={() => setAdjustmentDialog({ isOpen: true, item, type: 'IN' })}>
+                            <Button variant="outline" size="sm" className="flex-1 text-green-600 hover:text-green-700 hover:bg-green-50 dark:text-green-500 dark:hover:bg-green-900/20 dark:hover:text-green-400 h-8" onClick={() => setAdjustmentDialog({ isOpen: true, item, type: 'IN' })}>
                               <Plus className="w-3 h-3 mr-1" /> In
                             </Button>
-                            <Button variant="outline" size="sm" className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 h-8" onClick={() => setAdjustmentDialog({ isOpen: true, item, type: 'OUT' })}>
+                            <Button variant="outline" size="sm" className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400 h-8" onClick={() => setAdjustmentDialog({ isOpen: true, item, type: 'OUT' })}>
                               <X className="w-3 h-3 mr-1" /> Out
                             </Button>
                             <Button
                               variant="outline"
                               size="icon"
-                              className="w-8 h-8 text-purple-600 hover:bg-purple-50 border-purple-200"
+                              className="w-8 h-8 text-purple-600 hover:bg-purple-50 border-purple-200 dark:text-purple-400 dark:hover:bg-purple-900/20 dark:border-purple-800/50"
                               title="Add to Shortbook"
                               onClick={async () => {
                                 const { error } = await supabase.from('shortbook').insert({
@@ -872,7 +872,7 @@ const Inventory = () => {
                             >
                               <ShoppingCart className="w-4 h-4" />
                             </Button>
-                            <Button variant="outline" size="sm" className="flex-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8" onClick={() => handleAddToShortbook(item)}>
+                            <Button variant="outline" size="sm" className="flex-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-500 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 h-8" onClick={() => handleAddToShortbook(item)}>
                               <NotebookPen className="w-3 h-3 mr-1" /> Note
                             </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-500" onClick={() => handleDeleteItem(item.id, item.medicine_name)}>
