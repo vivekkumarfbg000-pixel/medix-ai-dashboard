@@ -22,6 +22,11 @@ function checkConnectivity(): void {
  * Fetch with strict timeout to prevent hangs
  */
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = 15000): Promise<Response> {
+    // [CRITICAL FIX]: N8N is offline. Instantly reject any n8n calls to trigger local AI fallbacks.
+    if (url.includes('n8n') || url.includes('webhook')) {
+        throw new Error("N8N infrastructure is offline. Forcing local AI fallback.");
+    }
+
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -1013,7 +1018,7 @@ WARNING: Check if the requested medicine conflicts with this history.
         } else {
             // N8N Attempt for other types
             try {
-                const response = await fetch(endpoint, {
+                const response = await fetchWithTimeout(endpoint, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -1550,7 +1555,7 @@ CRITICAL: You MUST return a JSON object. Do not return anything else. Keep descr
         logger.log("[N8N Request] Market:", { drugName });
 
         try {
-            const response = await fetch(ENDPOINTS.MARKET, {
+            const response = await fetchWithTimeout(ENDPOINTS.MARKET, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ drugName }),
@@ -1660,7 +1665,7 @@ CRITICAL: You MUST return a JSON object. Do not return anything else. Keep descr
     async checkCompliance(drugName: string): Promise<ComplianceResult> {
         logger.log("[N8N Request] Compliance:", { drugName });
         try {
-            const response = await fetch(ENDPOINTS.COMPLIANCE, {
+            const response = await fetchWithTimeout(ENDPOINTS.COMPLIANCE, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ drugName }),
@@ -1722,7 +1727,7 @@ CRITICAL: You MUST return a JSON object. Do not return anything else. Keep descr
         logger.log("[N8N Request] Forecast:", { salesHistory });
 
         try {
-            const response = await fetch(FORECAST_URL, {
+            const response = await fetchWithTimeout(FORECAST_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
