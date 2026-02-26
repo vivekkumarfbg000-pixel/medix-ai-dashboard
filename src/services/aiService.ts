@@ -980,7 +980,11 @@ WARNING: Check if the requested medicine conflicts with this history.
         reader.readAsDataURL(fileToUpload);
         const base64Data = await new Promise<string>((resolve, reject) => {
             reader.onloadend = () => {
-                const result = reader.result as string;
+                const result = reader.result;
+                if (!result || typeof result !== 'string') {
+                    reject(new Error("Failed to convert image to Base64 (result is null or invalid)"));
+                    return;
+                }
                 // Remove data URL prefix and CRITICAL: Strip any newlines or whitespace
                 let base64 = result.split(',')[1] || result;
                 base64 = base64.replace(/[\r\n\s]+/g, '');
