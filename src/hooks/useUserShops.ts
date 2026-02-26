@@ -99,6 +99,8 @@ export function useUserShops(): UserShopsState {
   const switchShop = (shopId: string) => {
     setCurrentShopId(shopId);
     localStorage.setItem("currentShopId", shopId);
+    // Force a full app sync to update all isolated components instantly
+    window.location.reload();
   };
 
   const currentShop = shops.find((s) => s.id === currentShopId) || null;

@@ -25,22 +25,6 @@ const getAuthErrorMessage = (error: any) => {
   return "An unexpected error occurred. Please contact support if this continues.";
 };
 
-// Robust Frontend Validation & Error Handling
-const validatePassword = (pwd: string) => {
-  // Min 8 chars, 1 letter, 1 number, 1 special character
-  const regex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
-  return regex.test(pwd);
-};
-
-const getAuthErrorMessage = (error: any) => {
-  const msg = error?.message?.toLowerCase() || "";
-  if (msg.includes('invalid login credentials')) return "Incorrect email or password.";
-  if (msg.includes('rate limit')) return "Too many attempts. Please try again later.";
-  if (msg.includes('already registered')) return "An account with this email already exists.";
-  if (msg.includes('fetch') || msg.includes('network')) return "Network error. Please check your connection.";
-  return "An unexpected error occurred. Please contact support if this continues.";
-};
-
 const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -48,7 +32,6 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [shopName, setShopName] = useState("");
-  const [rememberMe, setRememberMe] = useState(false); // Default to false for shared devices
   const [rememberMe, setRememberMe] = useState(false); // Default to false for shared devices
 
   useEffect(() => {
