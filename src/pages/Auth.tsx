@@ -3,11 +3,43 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Pill, ShieldCheck, TrendingUp, Users } from "lucide-react";
+
+// Robust Frontend Validation & Error Handling
+const validatePassword = (pwd: string) => {
+  // Min 8 chars, 1 letter, 1 number, 1 special character
+  const regex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
+  return regex.test(pwd);
+};
+
+const getAuthErrorMessage = (error: any) => {
+  const msg = error?.message?.toLowerCase() || "";
+  if (msg.includes('invalid login credentials')) return "Incorrect email or password.";
+  if (msg.includes('rate limit')) return "Too many attempts. Please try again later.";
+  if (msg.includes('already registered')) return "An account with this email already exists.";
+  if (msg.includes('fetch') || msg.includes('network')) return "Network error. Please check your connection.";
+  return "An unexpected error occurred. Please contact support if this continues.";
+};
+
+// Robust Frontend Validation & Error Handling
+const validatePassword = (pwd: string) => {
+  // Min 8 chars, 1 letter, 1 number, 1 special character
+  const regex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
+  return regex.test(pwd);
+};
+
+const getAuthErrorMessage = (error: any) => {
+  const msg = error?.message?.toLowerCase() || "";
+  if (msg.includes('invalid login credentials')) return "Incorrect email or password.";
+  if (msg.includes('rate limit')) return "Too many attempts. Please try again later.";
+  if (msg.includes('already registered')) return "An account with this email already exists.";
+  if (msg.includes('fetch') || msg.includes('network')) return "Network error. Please check your connection.";
+  return "An unexpected error occurred. Please contact support if this continues.";
+};
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -16,6 +48,8 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [shopName, setShopName] = useState("");
+  const [rememberMe, setRememberMe] = useState(false); // Default to false for shared devices
+  const [rememberMe, setRememberMe] = useState(false); // Default to false for shared devices
 
   useEffect(() => {
     // Check if already logged in (with timeout to avoid hanging on blocked ISP)
@@ -24,16 +58,22 @@ const Auth = () => {
         // [CRITICAL FIX]: Since we disabled `detectSessionInUrl` globally (to prevent
         // ISP-blocked hanging on import), we must manually catch email verification links here.
         const hash = window.location.hash;
-        if (hash && hash.includes("access_token=")) {
-          setIsLoading(true);
-          toast.info("Verifying email link...");
-
-          // Parse the hash parameters natively
+        if (hash) {
           const params = new URLSearchParams(hash.substring(1)); // remove the #
+
+          if (params.has('error')) {
+            toast.error(params.get('error_description')?.replace(/\+/g, ' ') || 'Verification failed');
+            window.history.replaceState(null, '', window.location.pathname);
+            return;
+          }
+
           const accessToken = params.get('access_token');
           const refreshToken = params.get('refresh_token');
 
           if (accessToken && refreshToken) {
+            setIsLoading(true);
+            toast.info("Verifying email link...");
+
             // Restore session manually using the tokens from the URL
             const { error: sessionError } = await supabase.auth.setSession({
               access_token: accessToken,
@@ -44,10 +84,13 @@ const Auth = () => {
               // Clean the URL hash
               window.history.replaceState(null, '', window.location.pathname);
               toast.success("Email verified successfully!");
+
+              if (!rememberMe) sessionStorage.setItem('temporary_session', 'true');
+
               navigate("/dashboard");
               return;
             } else {
-              toast.error("Invalid or expired verification link.");
+              toast.error(getAuthErrorMessage(sessionError));
             }
           }
         }
@@ -93,9 +136,17 @@ const Auth = () => {
       const { error } = await Promise.race([loginAttempt, timeout]);
 
       if (error) {
-        toast.error(error.message);
+        toast.error(getAuthErrorMessage(error));
       } else {
         toast.success("Welcome back!");
+
+        // Flag for the global layout to wipe on departure if not remembered
+        if (!rememberMe) {
+          sessionStorage.setItem('temporary_session', 'true');
+        } else {
+          sessionStorage.removeItem('temporary_session');
+        }
+
         navigate("/dashboard");
       }
     } catch (err: any) {
@@ -107,6 +158,13 @@ const Auth = () => {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Frontend Security Validation
+    if (!validatePassword(password)) {
+      toast.error("Password must be at least 8 characters and include a number and special character.");
+      return;
+    }
+
     setIsLoading(true);
 
     const redirectUrl = `${window.location.origin}/dashboard`;
@@ -124,13 +182,16 @@ const Auth = () => {
     });
 
     if (error) {
-      if (error.message.includes("already registered")) {
-        toast.error("This email is already registered. Please sign in instead.");
-      } else {
-        toast.error(error.message);
-      }
+      toast.error(getAuthErrorMessage(error));
     } else {
       toast.success("Account created successfully!");
+
+      if (!rememberMe) {
+        sessionStorage.setItem('temporary_session', 'true');
+      } else {
+        sessionStorage.removeItem('temporary_session');
+      }
+
       navigate("/dashboard");
     }
 
@@ -268,6 +329,15 @@ const Auth = () => {
                           className="h-11"
                         />
                       </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="remember-me" checked={rememberMe} onCheckedChange={(checked) => setRememberMe(checked === true)} />
+                        <label
+                          htmlFor="remember-me"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-muted-foreground"
+                        >
+                          Remember me on this device
+                        </label>
+                      </div>
                       <Button
                         type="submit"
                         className="w-full h-11 font-medium"
@@ -328,6 +398,15 @@ const Auth = () => {
                         minLength={6}
                         className="h-11"
                       />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="remember-me-signup" checked={rememberMe} onCheckedChange={(checked) => setRememberMe(checked === true)} />
+                      <label
+                        htmlFor="remember-me-signup"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-muted-foreground"
+                      >
+                        Remember me on this device
+                      </label>
                     </div>
                     <Button
                       type="submit"

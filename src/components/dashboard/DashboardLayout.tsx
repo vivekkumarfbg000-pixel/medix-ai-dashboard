@@ -56,7 +56,21 @@ function DashboardContent() {
     };
 
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+
+    // Privacy protection for shared medical shop computers
+    const handleUnload = () => {
+      if (sessionStorage.getItem('temporary_session') === 'true') {
+        // We do a sync localStorage wipe for maximum safety on unload
+        // since async supabase.auth.signOut() can be cancelled by browser close
+        localStorage.removeItem('sb-kivnclaxovxomrmexrtx-auth-token');
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('beforeunload', handleUnload);
+    };
   }, [navigate, openMobile]);
 
   const handleTranscriptionComplete = (text: string, items: ParsedItem[]) => {
