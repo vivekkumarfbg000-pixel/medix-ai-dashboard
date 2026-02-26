@@ -17,13 +17,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { aiService } from "@/services/aiService";
 import { logger } from "@/utils/logger";
 
-interface StagingItem {
+interface DraftItem {
     id: string;
-    medicine_name: string;
-    batch_number: string | null;
-    expiry_date: string | null;
+    brand_name: string;
+    salt: string | null;
     quantity: number;
-    unit_price: number;
+    mrp: number;
+    expiry: string | null;
+    uom: string | null;
+    status: string;
+    reorder_threshold: number | null;
     source: string;
     created_at: string;
     insights?: {
@@ -41,31 +44,31 @@ interface InventoryDraftsProps {
 
 export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: InventoryDraftsProps) => {
     const [loading, setLoading] = useState(true);
-    const [stagingItems, setStagingItems] = useState<StagingItem[]>([]);
+    const [stagingItems, setStagingItems] = useState<DraftItem[]>([]);
 
     const fetchStaging = async () => {
         if (!shopId) return;
 
         try {
             const { data, error } = await supabase
-                .from("inventory_staging")
+                .from("inventory_drafts" as any)
                 .select("*")
                 .eq("shop_id", shopId)
-                .eq("status", "pending")
+                .eq("status", "Pending_Verification")
                 .order("created_at", { ascending: false });
 
             if (error) {
                 if (error.code === '42P01') {
-                    logger.warn("inventory_staging table missing");
+                    logger.warn("inventory_drafts table missing");
                     return;
                 }
                 logger.error("Error fetching drafts:", error);
             } else {
                 const enrichedData = (data || []).map((item: any) => {
-                    const value = item.unit_price * item.quantity;
+                    const value = (item.mrp || 0) * (item.quantity || 10);
                     const classification = value > 5000 ? 'A' : (value > 1000 ? 'B' : 'C');
 
-                    const prediction = predictions.find(p => p.medicine_name.toLowerCase() === item.medicine_name.toLowerCase());
+                    const prediction = predictions.find(p => p.medicine_name?.toLowerCase() === item.brand_name?.toLowerCase());
                     let velocity = 'Unknown';
                     let action = 'None';
 
@@ -74,11 +77,11 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
                         else if (prediction.avg_daily_sales > 0.5) velocity = 'Medium';
                         else velocity = 'Slow';
                     } else {
-                        velocity = item.unit_price < 100 ? 'Medium' : 'Slow';
+                        velocity = (item.mrp || 0) < 100 ? 'Medium' : 'Slow';
                     }
 
-                    if (velocity === 'Fast' && item.quantity < 10) action = 'Reorder';
-                    else if (velocity === 'Slow' && item.quantity > 50) action = 'Discount';
+                    if (velocity === 'Fast' && (item.quantity || 10) < 10) action = 'Reorder';
+                    else if (velocity === 'Slow' && (item.quantity || 10) > 50) action = 'Discount';
                     else if (velocity === 'Dead') action = 'Return';
 
                     return {
@@ -90,7 +93,7 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
                         }
                     };
                 });
-                setStagingItems(enrichedData as StagingItem[]);
+                setStagingItems(enrichedData as DraftItem[]);
             }
         } catch (e) {
             logger.warn("Compliance check offline", e);
@@ -103,28 +106,29 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
         fetchStaging();
         const channel = supabase
             .channel('inventory-drafts-updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_staging' }, fetchStaging)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_drafts' }, fetchStaging)
             .subscribe();
         return () => { supabase.removeChannel(channel); };
     }, [shopId, predictions]);
 
-    const updateDraftItem = (id: string, field: keyof StagingItem, value: any) => {
+    const updateDraftItem = (id: string, field: keyof DraftItem, value: any) => {
         setStagingItems(prev => prev.map(item =>
             item.id === id ? { ...item, [field]: value } : item
         ));
     };
 
-    const handleApproveDraft = async (item: StagingItem) => {
+    const handleApproveDraft = async (item: DraftItem) => {
         if (!shopId) return;
 
         const { error: insertError } = await supabase.from("inventory").insert({
             shop_id: shopId,
-            medicine_name: item.medicine_name,
-            batch_number: item.batch_number,
-            quantity: Number(item.quantity) || 0,
-            unit_price: Number(item.unit_price) || 0,
-            expiry_date: item.expiry_date,
-            source: 'ai_scan'
+            medicine_name: item.brand_name,
+            salt_composition: item.salt,
+            quantity: Number(item.quantity) || 10,
+            unit_price: Number(item.mrp) || 0,
+            expiry_date: item.expiry,
+            reorder_level: item.reorder_threshold || Math.ceil((Number(item.quantity) || 10) * 0.2) || 2,
+            source: 'ai_unstructured'
         } as any);
 
         if (insertError) {
@@ -132,16 +136,14 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
             return;
         }
 
-        // @ts-ignore
-        await supabase.from("inventory_staging").update({ status: 'approved' }).eq('id', item.id);
-        toast.success("Approved " + item.medicine_name);
+        await supabase.from("inventory_drafts" as any).update({ status: 'approved' }).eq('id', item.id);
+        toast.success("Approved " + item.brand_name);
         setStagingItems(prev => prev.filter(i => i.id !== item.id));
         onRefreshRequest();
     };
 
     const handleRejectDraft = async (id: string) => {
-        // @ts-ignore
-        await supabase.from("inventory_staging").update({ status: 'rejected' }).eq('id', id);
+        await supabase.from("inventory_drafts" as any).update({ status: 'rejected' }).eq('id', id);
         toast.info("Draft rejected");
         setStagingItems(prev => prev.filter(i => i.id !== id));
     };
@@ -181,16 +183,17 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
                 if (itemsToSave.length > 0) {
                     const formattedItems = itemsToSave.map((item: any) => ({
                         shop_id: shopId,
-                        medicine_name: item.medicine_name || item.name || "Unknown",
-                        batch_number: item.batch_number || item.batch || null,
-                        expiry_date: item.expiry_date || item.expiry || null,
-                        quantity: parseInt(item.quantity || item.qty || '0'),
-                        unit_price: parseFloat(item.unit_price || item.mrp || item.price || '0'),
-                        status: 'pending',
+                        brand_name: item.medicine_name || item.name || "Unknown",
+                        salt: item.salt || null,
+                        quantity: parseInt(item.quantity || item.qty || '10'),
+                        mrp: parseFloat(item.unit_price || item.mrp || item.price || '0'),
+                        expiry: item.expiry_date || item.expiry || null,
+                        uom: item.batch_number || item.batch || null,
+                        status: 'Pending_Verification',
                         source: 'scan'
                     }));
 
-                    const { error } = await supabase.from('inventory_staging' as any).insert(formattedItems);
+                    const { error } = await supabase.from('inventory_drafts' as any).insert(formattedItems);
                     if (error) {
                         logger.error("Manual Staging Save Error:", error);
                     } else {
@@ -249,7 +252,7 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
                         </div>
                         <div>
                             <p className="font-medium text-slate-900">No Drafts Pending</p>
-                            <p className="text-sm">Upload a bill to let AI extract medicines automatically.</p>
+                            <p className="text-sm">Upload a bill or scan via "Scan/Add Unstructured" button.</p>
                         </div>
                         <Button variant="default" onClick={() => document.getElementById('inventory-upload')?.click()}>
                             <Upload className="w-4 h-4 mr-2" /> Upload Bill
@@ -260,11 +263,12 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
                         <Table>
                             <TableHeader className="bg-slate-50/75">
                                 <TableRow>
-                                    <TableHead className="w-[250px] font-semibold">Medicine Name</TableHead>
-                                    <TableHead className="w-[120px] font-semibold">Batch No</TableHead>
+                                    <TableHead className="w-[200px] font-semibold">Medicine/Brand</TableHead>
+                                    <TableHead className="w-[120px] font-semibold">Salt</TableHead>
+                                    <TableHead className="w-[120px] font-semibold">Pack (UOM)</TableHead>
                                     <TableHead className="w-[140px] font-semibold">Expiry</TableHead>
-                                    <TableHead className="w-[100px] font-semibold">Qty</TableHead>
-                                    <TableHead className="w-[120px] font-semibold text-right">MRP (₹)</TableHead>
+                                    <TableHead className="w-[80px] font-semibold">Qty</TableHead>
+                                    <TableHead className="w-[100px] font-semibold text-right">MRP (₹)</TableHead>
                                     <TableHead className="w-[100px] font-semibold text-center">Insights</TableHead>
                                     <TableHead className="w-[100px] font-semibold text-right">Actions</TableHead>
                                 </TableRow>
@@ -274,41 +278,49 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
                                     <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors group">
                                         <TableCell>
                                             <Input
-                                                value={item.medicine_name}
-                                                onChange={(e) => updateDraftItem(item.id, 'medicine_name', e.target.value)}
+                                                value={item.brand_name || ''}
+                                                onChange={(e) => updateDraftItem(item.id, 'brand_name', e.target.value)}
                                                 className="border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all font-medium h-9"
                                             />
                                         </TableCell>
                                         <TableCell>
                                             <Input
-                                                value={item.batch_number || ''}
-                                                onChange={(e) => updateDraftItem(item.id, 'batch_number', e.target.value)}
-                                                placeholder="Batch"
+                                                value={item.salt || ''}
+                                                onChange={(e) => updateDraftItem(item.id, 'salt', e.target.value)}
+                                                placeholder="Salt"
                                                 className="border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all h-9 text-xs"
                                             />
                                         </TableCell>
                                         <TableCell>
                                             <Input
-                                                value={item.expiry_date || ''}
-                                                onChange={(e) => updateDraftItem(item.id, 'expiry_date', e.target.value)}
+                                                value={item.uom || ''}
+                                                onChange={(e) => updateDraftItem(item.id, 'uom', e.target.value)}
+                                                placeholder="Bottle/Strip"
+                                                className="border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all h-9 text-xs"
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input
+                                                value={item.expiry || ''}
+                                                onChange={(e) => updateDraftItem(item.id, 'expiry', e.target.value)}
                                                 placeholder="YYYY-MM-DD"
-                                                className={`border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all h-9 text-xs ${!item.expiry_date ? 'border-red-200 bg-red-50/50' : ''}`}
+                                                className={`border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all h-9 text-xs ${!item.expiry ? 'border-red-200 bg-red-50/50' : ''}`}
                                             />
                                         </TableCell>
                                         <TableCell>
                                             <Input
                                                 type="number"
-                                                value={item.quantity}
+                                                value={item.quantity || 0}
                                                 onChange={(e) => updateDraftItem(item.id, 'quantity', e.target.value)}
-                                                className="border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all h-9 w-20"
+                                                className="border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all h-9 w-16"
                                             />
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <Input
                                                 type="number"
-                                                value={item.unit_price}
-                                                onChange={(e) => updateDraftItem(item.id, 'unit_price', e.target.value)}
-                                                className="border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all h-9 w-24 ml-auto text-right"
+                                                value={item.mrp || 0}
+                                                onChange={(e) => updateDraftItem(item.id, 'mrp', e.target.value)}
+                                                className="border-transparent bg-transparent hover:bg-white hover:border-input focus:bg-white transition-all h-9 w-20 ml-auto text-right"
                                             />
                                         </TableCell>
                                         <TableCell className="text-center">
@@ -316,7 +328,7 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
                                                 <Badge
                                                     variant="secondary"
                                                     className={`text-[10px] px-2 h-6 ${item.insights.velocity === 'Fast' ? 'bg-green-100 text-green-700' :
-                                                            item.insights.velocity === 'Dead' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                                                        item.insights.velocity === 'Dead' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                                                         }`}
                                                 >
                                                     {item.insights.velocity}

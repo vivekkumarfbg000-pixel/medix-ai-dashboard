@@ -94,6 +94,10 @@ const Inventory = () => {
   /* Add Item State */
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
+  const [isScanUnstructuredOpen, setIsScanUnstructuredOpen] = useState(false);
+  const [scanText, setScanText] = useState("");
+  const [scanImage, setScanImage] = useState<File | null>(null);
+  const [isProcessingUnstructured, setIsProcessingUnstructured] = useState(false);
 
   /* Debug Logging */
   /* Debug Logging */
@@ -134,6 +138,53 @@ const Inventory = () => {
       toast.error("Critical Error loading inventory");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleProcessUnstructured = async () => {
+    if (!scanText && !scanImage) {
+      toast.error("Please provide text, voice note, or an image.");
+      return;
+    }
+    setIsProcessingUnstructured(true);
+    const toastId = toast.loading("AI is analyzing your input...");
+    try {
+      const activeShopId = currentShop?.id || localStorage.getItem("currentShopId");
+      if (!activeShopId) throw new Error("Shop ID missing");
+
+      const items = await aiService.processUnstructuredInventory(scanText, scanImage || undefined);
+
+      if (items && items.length > 0) {
+        const formattedItems = items.map((item: any) => ({
+          shop_id: activeShopId,
+          brand_name: item.brand_name || "Unknown",
+          salt: item.salt || null,
+          quantity: item.quantity ? parseFloat(item.quantity) : 10,
+          mrp: item.mrp ? parseFloat(item.mrp) : null,
+          expiry: item.expiry || null,
+          uom: item.uom || null,
+          confidence_score: item.confidence_score || 0.9,
+          status: 'Pending_Verification',
+          reorder_threshold: typeof item.quantity === 'number' ? Math.ceil(item.quantity * 0.2) : 2,
+          source: 'ai_unstructured'
+        }));
+
+        const { error } = await supabase.from('inventory_drafts').insert(formattedItems);
+        if (error) throw error;
+
+        toast.success(`Successfully drafted ${formattedItems.length} items!`, { id: toastId });
+        setIsScanUnstructuredOpen(false);
+        setScanText("");
+        setScanImage(null);
+        setActiveTab("drafts"); // Switch to drafts tab to see the items
+      } else {
+        toast.error("No items could be extracted.", { id: toastId });
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to process.", { id: toastId });
+    } finally {
+      setIsProcessingUnstructured(false);
     }
   };
 
@@ -686,10 +737,51 @@ const Inventory = () => {
             </Card>
 
             {canModify && (
-              <>
-                <Button size="lg" className="shadow-lg" onClick={() => setIsAddDialogOpen(true)}>
+              <div className="flex gap-2">
+                <Button size="lg" className="shadow-lg bg-indigo-600 hover:bg-indigo-700 text-white" onClick={() => setIsScanUnstructuredOpen(true)}>
+                  <Sparkles className="w-4 h-4 mr-2" /> Scan/Add Unstructured
+                </Button>
+                <Button size="lg" className="shadow-lg" variant="outline" onClick={() => setIsAddDialogOpen(true)}>
                   <Plus className="w-4 h-4 mr-2" /> Add Manual
                 </Button>
+
+                {/* Scan Unstructured Dialog */}
+                <Dialog open={isScanUnstructuredOpen} onOpenChange={setIsScanUnstructuredOpen}>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2"><Sparkles className="w-5 h-5 text-indigo-500" /> AI Inventory Architect</DialogTitle>
+                      <DialogDescription>
+                        Paste messy notes, voice-to-text, or upload a photo of medicines. AI will structure it automatically into Drafts.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="scanText">Unstructured Text / Voice Note</Label>
+                        <textarea
+                          id="scanText"
+                          className="min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          placeholder='e.g. "Got 10 strips of Pan-D, expires March 27"'
+                          value={scanText}
+                          onChange={(e) => setScanText(e.target.value)}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="scanImage">Or Upload Photo</Label>
+                        <Input
+                          id="scanImage"
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setScanImage(e.target.files?.[0] || null)}
+                        />
+                      </div>
+                      <Button onClick={handleProcessUnstructured} disabled={isProcessingUnstructured} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
+                        {isProcessingUnstructured ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                        Process with AI
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
                 <Suspense fallback={<div />}>
                   <AddMedicineDialog
                     open={isAddDialogOpen}
@@ -697,7 +789,7 @@ const Inventory = () => {
                     onSuccess={fetchInventory}
                   />
                 </Suspense>
-              </>
+              </div>
             )}
           </div>
 

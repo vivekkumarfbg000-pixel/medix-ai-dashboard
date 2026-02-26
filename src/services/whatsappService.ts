@@ -3,10 +3,17 @@ export interface WhatsAppOrder {
     invoice_number?: string;
     customer_name: string;
     shop_name?: string;
+    shop_address?: string;
+    shop_phone?: string;
+    shop_gstin?: string;
     created_at: string;
     total_amount: number | null;
     status: string;
+    payment_mode?: string;
+    doctor_name?: string;
     items: { name: string; qty?: number; price: number }[];
+    gst?: { cgst: number; sgst: number };
+    discount?: number;
 }
 
 export interface WhatsAppPrescription {
@@ -35,25 +42,50 @@ export const whatsappService = {
     },
 
     /**
-     * Generate Invoice Message
+     * Generate Professional GST Invoice Message
      */
     generateInvoiceLink(phone: string | null, order: WhatsAppOrder): string {
         const items = Array.isArray(order.items) ? order.items : [];
         const itemsList = items.map((item, idx) =>
-            `${idx + 1}. ${item.name} x${item.qty || 1} = ₹${item.price * (item.qty || 1)}`
+            `${idx + 1}. ${item.name} x${item.qty || 1} = ₹${(item.price * (item.qty || 1)).toFixed(2)}`
         ).join('\n');
 
-        const message = `🧾 *INVOICE #${order.invoice_number || 'NA'}*\n` +
-            `🏪 *${order.shop_name || 'Medix Pharmacy & Diagnostics'}*\n` +
-            `📍 Date: ${new Date(order.created_at).toLocaleDateString()}\n` +
-            `--------------------------------\n` +
-            itemsList +
-            `\n--------------------------------\n` +
-            `💰 *GRAND TOTAL: ₹${order.total_amount}*\n` +
-            `✅ Status: ${order.status.toUpperCase()}\n` +
-            `--------------------------------\n` +
-            `Thank you for your trust! 🙏\n` +
-            `_Powered by MedixAI_`;
+        const subtotal = items.reduce((sum, i) => sum + (i.price * (i.qty || 1)), 0);
+        const discountAmt = order.discount || 0;
+        const hasTax = order.gst && (order.gst.cgst > 0 || order.gst.sgst > 0);
+
+        let message = `🧾 *TAX INVOICE*\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `🏪 *${order.shop_name || 'Medix Pharmacy'}*\n`;
+        if (order.shop_address) message += `📍 ${order.shop_address}\n`;
+        if (order.shop_phone) message += `📞 ${order.shop_phone}\n`;
+        if (order.shop_gstin) message += `🔖 GSTIN: ${order.shop_gstin}\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `📋 Invoice: *#${order.invoice_number || 'NA'}*\n`;
+        message += `📅 Date: ${new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} ${new Date(order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}\n`;
+        message += `👤 Patient: ${order.customer_name}\n`;
+        if (order.doctor_name) message += `👨‍⚕️ Dr: ${order.doctor_name}\n`;
+        message += `💳 Payment: ${(order.payment_mode || order.status).toUpperCase()}\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `*ITEMS:*\n`;
+        message += itemsList;
+        message += `\n━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `Subtotal: ₹${subtotal.toFixed(2)}\n`;
+        if (discountAmt > 0) message += `Discount: -₹${discountAmt.toFixed(2)}\n`;
+        if (hasTax) {
+            message += `CGST: ₹${order.gst!.cgst.toFixed(2)}\n`;
+            message += `SGST: ₹${order.gst!.sgst.toFixed(2)}\n`;
+        }
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `💰 *GRAND TOTAL: ₹${(order.total_amount || 0).toFixed(2)}*\n`;
+        if (order.status === 'pending') {
+            message += `⏳ *Payment Pending (Credit)*\n`;
+        } else {
+            message += `✅ *PAID*\n`;
+        }
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `🙏 Thank you for your trust!\n`;
+        message += `_Powered by PharmaAssist.AI_`;
 
         return `https://wa.me/${this.formatPhone(phone)}?text=${encodeURIComponent(message)}`;
     },

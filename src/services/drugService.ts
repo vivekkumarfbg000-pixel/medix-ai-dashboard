@@ -466,14 +466,26 @@ class DrugService {
     if (interactions.length > 0) return interactions;
 
     try {
-      // 2. Direct call to N8N via AI Service
+      // 2. Direct call to AI Service
       const { warnings } = await aiService.checkInteractions(drugs);
-      const mappedResults: InteractionResult[] = warnings.map(r => ({
-        drug1: drugs[0],
-        drug2: drugs[1] || "Drug B",
-        severity: "Major", // AI service typically returns major warnings
-        description: r.replace("⚠️ Danger: ", "")
-      }));
+      const mappedResults: InteractionResult[] = (warnings || []).map(r => {
+        // Try to parse "⚠️ Severity: DrugA + DrugB: Description"
+        const match = r.match(/⚠️\s*(.*?):\s*(.*?)\s*\+\s*(.*?):\s*(.*)/);
+        if (match) {
+          return {
+            drug1: match[2].trim(),
+            drug2: match[3].trim(),
+            severity: match[1].trim() as any,
+            description: match[4].trim()
+          };
+        }
+        return {
+          drug1: drugs[0],
+          drug2: drugs[1] || "Drug",
+          severity: "Moderate" as any,
+          description: r
+        };
+      });
       return mappedResults;
     } catch (err) {
       logger.error("Failed to check interactions via AI", err);

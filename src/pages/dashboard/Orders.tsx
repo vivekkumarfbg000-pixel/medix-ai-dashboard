@@ -207,14 +207,19 @@ const Orders = () => {
       return;
     }
 
-    // Generate link
+    // Generate link with full shop details
     const link = whatsappService.generateInvoiceLink(phone, {
       invoice_number: order.invoice_number || 'INV-000',
       customer_name: order.customer_name,
       created_at: order.created_at,
       total_amount: order.total_amount,
       status: order.status,
-      items: order.order_items
+      items: order.order_items,
+      shop_name: currentShop?.name || 'Pharmacy',
+      shop_address: currentShop?.address || '',
+      shop_phone: currentShop?.phone || '',
+      shop_gstin: currentShop?.gst_no || '',
+      payment_mode: 'cash'
     });
 
     // Try to open, with fallback
@@ -311,32 +316,58 @@ const Orders = () => {
     setLoading(true);
     const invoiceNum = `INV-${Date.now().toString().slice(-6)}`;
 
-    const { error } = await supabase.from('orders').insert({
-      shop_id: currentShop?.id || '',
-      customer_name: customerName || "Walk-in",
-      customer_phone: customerPhone,
-      total_amount: totals.totalPayable,
-      status: 'approved',
-      source: 'web_pos',
-      payment_mode: payLater ? 'credit' : 'cash',
-      payment_status: payLater ? 'pending' : 'paid',
-      invoice_number: invoiceNum,
-      order_items: cart.map(c => ({
-        name: c.name,
-        qty: c.quantity,
-        price: c.price,
-        inventory_id: c.id
-      }))
-    });
+    try {
+      // 1. Create order
+      const { data: order, error } = await supabase.from('orders').insert({
+        shop_id: currentShop?.id || '',
+        customer_name: customerName || "Walk-in",
+        customer_phone: customerPhone,
+        total_amount: totals.totalPayable,
+        status: 'approved',
+        source: 'web_pos',
+        payment_mode: payLater ? 'credit' : 'cash',
+        payment_status: payLater ? 'pending' : 'paid',
+        invoice_number: invoiceNum,
+        order_items: cart.map(c => ({
+          id: c.id,
+          name: c.name,
+          qty: c.quantity,
+          price: c.price,
+          inventory_id: c.id
+        }))
+      }).select().single();
 
-    if (error) {
-      toast.error("Order failed: " + error.message);
-    } else {
+      if (error) throw error;
+
+      // 2. Create order_items rows (for Analytics joins)
+      // @ts-ignore
+      await supabase.from('order_items').insert(
+        cart.map(c => ({
+          order_id: order.id,
+          inventory_id: c.id,
+          name: c.name,
+          qty: c.quantity,
+          price: c.price,
+          cost_price: 0
+        }))
+      );
+
+      // 3. Deduct inventory stock
+      await Promise.all(cart.map(c =>
+        // @ts-ignore
+        supabase.rpc('decrement_stock', {
+          row_id: c.id,
+          amount: c.quantity
+        })
+      ));
+
       toast.success(payLater ? "Order saved to Khata" : "Sale Completed!");
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");
       fetchOrders();
+    } catch (err: any) {
+      toast.error("Order failed: " + err.message);
     }
     setLoading(false);
   };

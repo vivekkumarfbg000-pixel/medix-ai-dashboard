@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Pill } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
@@ -16,26 +16,8 @@ import { AddMedicineDialog } from "@/components/dashboard/inventory/AddMedicineD
 import { SystemHealthCheck } from "@/components/debug/SystemHealthCheck";
 
 const Overview = () => {
-  const [loading, setLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
-  useEffect(() => {
-    // Simulate initial data load or real fetch
-    setTimeout(() => setLoading(false), 1000);
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="h-12 w-48 bg-gradient-to-r from-muted via-muted-foreground/10 to-muted rounded animate-pulse" />
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[400px]">
-          <div className="bg-gradient-to-r from-muted via-muted-foreground/10 to-muted rounded-xl animate-pulse" />
-          <div className="lg:col-span-2 bg-gradient-to-r from-muted via-muted-foreground/10 to-muted rounded-xl animate-pulse" />
-          <div className="bg-gradient-to-r from-muted via-muted-foreground/10 to-muted rounded-xl animate-pulse" />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fade-in pb-8">

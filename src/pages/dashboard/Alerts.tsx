@@ -26,7 +26,6 @@ interface Reminder {
 }
 
 import { useUserShops } from "@/hooks/useUserShops";
-import { useUserShops } from "@/hooks/useUserShops";
 import { whatsappService } from "@/services/whatsappService";
 import { aiService } from "@/services/aiService"; // Import AI
 import { toast } from "sonner"; // Ensure toast is imported
@@ -274,7 +273,7 @@ const AlertsList = ({ alerts, loading, emptyMessage = "No alerts" }: AlertsListP
                     window.open(link, '_blank');
                   } else {
                     // Fallback if no phone
-                    alert('No phone number linking found for this patient.');
+                    toast.error('No phone number found for this patient.');
                   }
                 }}
               >

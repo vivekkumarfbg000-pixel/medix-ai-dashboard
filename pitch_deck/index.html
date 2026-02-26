@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PharmaAssist.AI — Incubator Pitch Deck</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <!-- NAVIGATION -->
+    <nav class="nav-bar">
+        <div class="nav-logo">Pharma<span>Assist.AI</span></div>
+        <div class="nav-controls">
+            <span class="slide-counter" id="slideCounter">1 / 12</span>
+            <button class="nav-btn" id="prevBtn" onclick="prevSlide()">‹</button>
+            <button class="nav-btn" id="nextBtn" onclick="nextSlide()">›</button>
+        </div>
+    </nav>
+
+    <!-- PROGRESS BAR -->
+    <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <!-- ============================== SLIDE 1: TITLE ============================== -->
+    <section class="slide active" id="slide-1">
+        <div class="slide-bg-pattern"></div>
+        <div class="title-slide-content">
+            <div class="badge animate-fade-up">🚀 Incubator Funding Pitch — February 2026</div>
+            <h1 class="hero-title animate-fade-up delay-1">
+                Pharma<span class="highlight">Assist</span>.AI
+            </h1>
+            <p class="hero-subtitle animate-fade-up delay-2">
+                Smart. Simple. Mobile-First.<br>
+                AI-Powered Pharmacy Management for Bharat's 8 Lakh Medical Shops
+            </p>
+            <div class="hero-stats animate-fade-up delay-3">
+                <div class="stat-pill"><span class="stat-num">40K+</span> Shops in Bihar Alone</div>
+                <div class="stat-pill"><span class="stat-num">95%</span> Still on Pen & Paper</div>
+                <div class="stat-pill"><span class="stat-num">₹50L</span> Funding Ask</div>
+            </div>
+            <div class="cta-row animate-fade-up delay-4">
+                <button class="cta-btn" onclick="nextSlide()">View Pitch →</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================== SLIDE 2: THE PROBLEM ============================== -->
+    <section class="slide" id="slide-2">
+        <div class="slide-inner">
+            <div class="section-tag">📌 The Problem</div>
+            <h2 class="slide-title">"Pharmacy Management is <span class="highlight-red">Stuck in the 90s</span>"</h2>
+            <p class="slide-desc">There are over <strong>8 Lakh medical shops</strong> in India. 95% run on
+                pen-and-paper or expensive, complicated desktop software they don't know how to use.</p>
+
+            <div class="pain-grid">
+                <div class="pain-card">
+                    <div class="pain-icon">💸</div>
+                    <h3>Expiry Losses</h3>
+                    <p>Shops lose <strong>₹50K–₹1L/year</strong> due to expired medicines they forgot to sell.</p>
+                </div>
+                <div class="pain-card">
+                    <div class="pain-icon">📦</div>
+                    <h3>Inventory Chaos</h3>
+                    <p>No real-time tracking. "Out of stock" means <strong>lost revenue</strong> and frustrated
+                        customers.</p>
+                </div>
+                <div class="pain-card">
+                    <div class="pain-icon">🖥️</div>
+                    <h3>Digital Divide</h3>
+                    <p>Existing software (Marg/Tally) is <strong>too complex</strong> for the average shop owner in
+                        rural Bihar.</p>
+                </div>
+                <div class="pain-card">
+                    <div class="pain-icon">🏥</div>
+                    <h3>No Chronic Care</h3>
+                    <p>No method to approach <strong>diabetes/heart/BP patients</strong> to resell the same medicine
+                        monthly.</p>
+                </div>
+                <div class="pain-card">
+                    <div class="pain-icon">🧾</div>
+                    <h3>Billing Nightmare</h3>
+                    <p>Lots of difficulty in billing, invoice generation, and <strong>GST compliance</strong>.</p>
+                </div>
+                <div class="pain-card">
+                    <div class="pain-icon">⚠️</div>
+                    <h3>Safety Blind Spots</h3>
+                    <p>No checks for <strong>drug interactions</strong>, banned medicines, or Schedule H1 compliance.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================== SLIDE 3: THE SOLUTION ============================== -->
+    <section class="slide" id="slide-3">
+        <div class="slide-inner">
+            <div class="section-tag">💡 The Solution</div>
+            <h2 class="slide-title">PharmaAssist.AI — <span class="highlight">Your AI Munim-ji</span></h2>
+            <p class="slide-desc">We built a solution that works <em>for</em> the shop owner, not against them. Smart.
+                Simple. Mobile-First.</p>
+
+            <div class="solution-grid">
+                <div class="solution-card card-gradient-1">
+                    <span class="solution-num">01</span>
+                    <h3>📱 Mobile-First</h3>
+                    <p>Runs on the phone they already own. No expensive computer setup needed.</p>
+                </div>
+                <div class="solution-card card-gradient-2">
+                    <span class="solution-num">02</span>
+                    <h3>🤖 AI-Powered Scanning</h3>
+                    <p>Don't type. Just scan a medicine strip, and our AI logs the name, batch, and expiry.</p>
+                </div>
+                <div class="solution-card card-gradient-3">
+                    <span class="solution-num">03</span>
+                    <h3>🔔 Smart Alerts</h3>
+                    <p>"Sell this medicine first, it expires next month." Proactive notifications that save money.</p>
+                </div>
+                <div class="solution-card card-gradient-4">
+                    <span class="solution-num">04</span>
+                    <h3>🗣️ Hinglish Voice AI</h3>
+                    <p>"Dolo do patta aur Pan-D ek strip de do" — Our AI understands natural pharmacy talk.</p>
+                </div>
+                <div class="solution-card card-gradient-5">
+                    <span class="solution-num">05</span>
+                    <h3>🧪 Lab Report Analysis</h3>
+                    <p>Scan a patient's lab report and get AI health insights in Hinglish — build trust & sell more.</p>
+                </div>
+                <div class="solution-card card-gradient-6">
+                    <span class="solution-num">06</span>
+                    <h3>🛡️ Safety & Compliance</h3>
+                    <p>Drug interaction checks, banned medicine alerts, Schedule H1 compliance — all automated.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================== SLIDE 4: ALL 10 FEATURES ============================== -->
+    <section class="slide" id="slide-4">
+        <div class="slide-inner">
+            <div class="section-tag">🎯 Complete Platform — 10 Core Features</div>
+            <h2 class="slide-title">Everything a Pharmacy Needs, <span class="highlight">In One App</span></h2>
+
+            <div class="features-table">
+                <div class="feature-row"><span class="feat-num">1</span><span class="feat-name">Mobile-First
+                        Dashboard</span><span class="feat-desc">Runs on any smartphone. No computer needed.</span></div>
+                <div class="feature-row"><span class="feat-num">2</span><span class="feat-name">AI-Powered
+                        Scanning</span><span class="feat-desc">Scan medicine strips — auto-log name, batch, expiry via
+                        camera.</span></div>
+                <div class="feature-row"><span class="feat-num">3</span><span class="feat-name">Smart Expiry
+                        Alerts</span><span class="feat-desc">Proactive "sell first" notifications for near-expiry
+                        stock.</span></div>
+                <div class="feature-row"><span class="feat-num">4</span><span class="feat-name">Lab Report
+                        Analyzer</span><span class="feat-desc">Upload lab report → Get Hinglish health summary, risks,
+                        diet tips.</span></div>
+                <div class="feature-row"><span class="feat-num">5</span><span class="feat-name">Digital Diary
+                        Scan</span><span class="feat-desc">Record daily sales, price, quantity into a digital
+                        khata.</span></div>
+                <div class="feature-row"><span class="feat-num">6</span><span class="feat-name">Guidance
+                        Compliance</span><span class="feat-desc">Alerts for banned medicines, GST compliance, Schedule
+                        H1 tracking.</span></div>
+                <div class="feature-row"><span class="feat-num">7</span><span class="feat-name">AI
+                        Forecasting</span><span class="feat-desc">Predict demand based on seasonality, flu/dengue
+                        trends, history.</span></div>
+                <div class="feature-row"><span class="feat-num">8</span><span class="feat-name">AI Insights
+                        (DDI)</span><span class="feat-desc">Check drug composition, dosage, alternatives, interaction
+                        safety.</span></div>
+                <div class="feature-row"><span class="feat-num">9</span><span class="feat-name">Voice Billing
+                        (LitePOS)</span><span class="feat-desc">Voice billing in Hinglish, WhatsApp invoice, instant
+                        checkout.</span></div>
+                <div class="feature-row"><span class="feat-num">10</span><span class="feat-name">B2B
+                        Marketplace</span><span class="feat-desc">Compare & order medicines wholesale at discounted
+                        distributor prices.</span></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================== SLIDE 5: CORE INNOVATION ============================== -->
+    <section class="slide" id="slide-5">
+        <div class="slide-inner">
+            <div class="section-tag">🧠 Core Innovation</div>
+            <h2 class="slide-title">Hinglish AI Persona — <span class="highlight">The Language of Trust</span></h2>
+            <p class="slide-desc">Trust in Tier-2 and Tier-3 India is built through language. PharmaAssist.AI
+                understands natural Hinglish pharmacy conversations.</p>
+
+            <div class="innovation-grid">
+                <div class="innovation-card">
+                    <div class="inn-icon">💬</div>
+                    <h4>Conversational Understanding</h4>
+                    <p>"Dolo hai kya?" — Understands casual queries like a local assistant.</p>
+                </div>
+                <div class="innovation-card">
+                    <div class="inn-icon">🎯</div>
+                    <h4>Intent Detection</h4>
+                    <p>Detects intent: inventory check, recommendation, or safety validation.</p>
+                </div>
+                <div class="innovation-card">
+                    <div class="inn-icon">🛡️</div>
+                    <h4>Clinical Safety Net</h4>
+                    <p>Cross-verifies patient conditions before suggesting medicines.</p>
+                </div>
+                <div class="innovation-card">
+                    <div class="inn-icon">🗣️</div>
+                    <h4>Local Language Response</h4>
+                    <p>Responds in simple, familiar local language — builds instant trust.</p>
+                </div>
+            </div>
+
+            <div class="tech-stack-bar">
+                <h4>Powered By</h4>
+                <div class="tech-pills">
+                    <span class="tech-pill">Gemini 2.0 Flash</span>
+                    <span class="tech-pill">Groq Llama 3</span>
+                    <span class="tech-pill">n8n Workflows</span>
+                    <span class="tech-pill">Supabase</span>
+                    <span class="tech-pill">React + Vite</span>
+                    <span class="tech-pill">Capacitor (Mobile)</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================== SLIDE 6: DEFENSIBILITY ============================== -->
+    <section class="slide" id="slide-6">
+        <div class="slide-inner">
+            <div class="section-tag">🏰 Why We Win</div>
+            <h2 class="slide-title">Defensibility & <span class="highlight">Moat</span></h2>
+
+            <div class="moat-grid">
+                <div class="moat-card">
+                    <div class="moat-icon">🤖</div>
+                    <h3>Localized AI Training</h3>
+                    <p>AI tailored for Bharat pharmacy workflows — not generic Western SaaS.</p>
+                </div>
+                <div class="moat-card">
+                    <div class="moat-icon">📊</div>
+                    <h3>Data Network Effects</h3>
+                    <p>Inventory & seasonal demand patterns create a compounding data advantage.</p>
+                </div>
+                <div class="moat-card">
+                    <div class="moat-icon">🔗</div>
+                    <h3>Deep Integration</h3>
+                    <p>Billing, compliance, and daily workflows — deeply embedded in operations.</p>
+                </div>
+                <div class="moat-card">
+                    <div class="moat-icon">🔒</div>
+                    <h3>High Switching Cost</h3>
+                    <p>Once inventory & ledger are digitized, moving away is painful.</p>
+                </div>
+                <div class="moat-card">
+                    <div class="moat-icon">🛡️</div>
+                    <h3>Clinical Safety Layer</h3>
+                    <p>DDI checks and safety validation differentiate from basic billing software.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================== SLIDE 7: MARKET OPPORTUNITY ============================== -->
+    <section class="slide" id="slide-7">
+        <div class="slide-inner">
+            <div class="section-tag">📈 Market Opportunity</div>
+            <h2 class="slide-title">A <span class="highlight">₹10,000 Crore</span> Opportunity</h2>
+            <p class="slide-desc">With 8 lakh pharmacies nationwide, even modest penetration represents a significant
+                SaaS opportunity.</p>
+
+            <div class="market-visual">
+                <div class="tam-circle">
+                    <div class="tam-inner">
+                        <span class="tam-label">TAM</span>
+                        <span class="tam-value">8 Lakh</span>
+                        <span class="tam-sub">Pharmacies in India</span>
+                    </div>
+                </div>
+                <div class="sam-circle">
+                    <div class="sam-inner">
+                        <span class="tam-label">SAM</span>
+                        <span class="tam-value">2 Lakh</span>
+                        <span class="tam-sub">Bihar, UP, Jharkhand</span>
+                    </div>
+                </div>
+                <div class="som-circle">
+                    <div class="som-inner">
+                        <span class="tam-label">SOM</span>
+                        <span class="tam-value">500</span>
+                        <span class="tam-sub">Year 1 Target (Patna)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="market-bullets">
+                <div class="market-point">🎯 Primary focus: Bihar, UP, Jharkhand — high density, low digitization</div>
+                <div class="market-point">📱 Tier-2 and Tier-3 cities with growing smartphone adoption</div>
+                <div class="market-point">🔄 Recurring SaaS subscription model ensures predictable revenue</div>
+                <div class="market-point">🚀 Future expansion into supply chain and telemedicine ecosystem</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================== SLIDE 8: REVENUE MODEL ============================== -->
+    <section class="slide" id="slide-8">
+        <div class="slide-inner">
+            <div class="section-tag">💰 The Earning Model</div>
+            <h2 class="slide-title">Scaling to <span class="highlight">Profitability</span></h2>
+            <p class="slide-desc">Two distinct revenue streams — SaaS recurring + B2B transaction margin.</p>
+
+            <div class="revenue-grid">
+                <div class="revenue-card primary-revenue">
+                    <div class="rev-badge">Primary</div>
+                    <h3>SaaS Subscription</h3>
+                    <p>Monthly fee for the "Munim-ji" dashboard — digital Khata, expiry tracking, AI insights, billing.
+                    </p>
+                    <div class="pricing-tiers">
+                        <div class="tier"><span class="tier-name">Basic Plan</span><span
+                                class="tier-price">₹499/mo</span><span class="tier-features">Inventory + Billing +
+                                Alerts</span></div>
+                        <div class="tier"><span class="tier-name">Pro Plan</span><span
+                                class="tier-price">₹999/mo</span><span class="tier-features">AI Insights + DDI +
+                                Forecasting</span></div>
+                    </div>
+                </div>
+                <div class="revenue-card secondary-revenue">
+                    <div class="rev-badge secondary">Secondary</div>
+                    <h3>B2B Supply Margin</h3>
+                    <p>The AI auto-orders stock from distributors. We capture a <strong>2–5% margin</strong> on the
+                        transaction between distributor and shopkeeper.</p>
+                    <div class="margin-visual">
+                        <div class="margin-flow">
+                            <span class="flow-node">Distributor</span>
+                            <span class="flow-arrow">→ <em>2-5%</em> →</span>
+                            <span class="flow-node highlight-node">PharmaAssist.AI</span>
+                            <span class="flow-arrow">→</span>
+                            <span class="flow-node">Shopkeeper</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="future-revenue">
+                <h4>Future Revenue Streams</h4>
+                <div class="future-pills">
+                    <span class="future-pill">Distributor Integrations</span>
+                    <span class="future-pill">Embedded Telemedicine</span>
+                    <span class="future-pill">Working Capital Finance</span>
+                    <span class="future-pill">Data Insights for Pharma Cos</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================== SLIDE 9: FUNDING ASK ============================== -->
+    <section class="slide" id="slide-9">
+        <div class="slide-inner">
+            <div class="section-tag">🎯 The Ask</div>
+            <h2 class="slide-title">Funding Request: <span class="highlight">₹50 Lakhs</span></h2>
+            <p class="slide-desc">Structured in two government-standard tiers for maximum impact.</p>
+
+            <div class="funding-grid">
+                <div class="funding-card tier1">
+                    <div class="funding-tier-badge">Tier 1</div>
+                    <h3>Validation Grant</h3>
+                    <div class="funding-amount">Up to ₹20 Lakhs</div>
+                    <div class="funding-purpose">
+                        <h4>Purpose</h4>
+                        <p>Building the prototype, technical hardening of the Hinglish AI, and conducting initial
+                            product trials.</p>
+                    </div>
+                    <div class="funding-focus">
+                        <h4>Focus Areas</h4>
+                        <ul>
+                            <li>Perfect the "PharmaAssist.AI" dashboard</li>
+                            <li>Harden the clinical safety net</li>
+                            <li>Conduct beta trials with 10-20 shops</li>
+                            <li>AI model fine-tuning for Bihar dialects</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="funding-card tier2">
+                    <div class="funding-tier-badge t2">Tier 2</div>
+                    <h3>Market Entry Investment</h3>
+                    <div class="funding-amount">Up to ₹30 Lakhs</div>
+                    <div class="funding-purpose">
+                        <h4>Purpose</h4>
+                        <p>Market launch in Patna, commercialization, and scaling.</p>
+                    </div>
+                    <div class="funding-focus">
+                        <h4>Focus Areas</h4>
+                        <ul>
+                            <li>Onboard 50–100 pharmacies in Patna</li>
+                            <li>Build supply chain bridge for B2B margin</li>
+                            <li>Hire on-ground sales team (2-3 people)</li>
+                            <li>Marketing & pharmacy outreach campaigns</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================== SLIDE 10: USE OF FUNDS ============================== -->
+    <section class="slide" id="slide-10">
+        <div class="slide-inner">
+            <div class="section-tag">📊 Use of Funds</div>
+            <h2 class="slide-title">Where Every <span class="highlight">Rupee</span> Goes</h2>
+
+            <div class="funds-chart">
+                <div class="fund-bar" style="--bar-width: 35%;">
+                    <div class="fund-bar-fill clr-1"></div>
+                    <div class="fund-bar-label"><span class="fund-pct">35%</span><span class="fund-name">Product
+                            Development</span><span class="fund-detail">AI models, feature dev, testing</span></div>
+                </div>
+                <div class="fund-bar" style="--bar-width: 25%;">
+                    <div class="fund-bar-fill clr-2"></div>
+                    <div class="fund-bar-label"><span class="fund-pct">25%</span><span class="fund-name">Sales &
+                            Marketing</span><span class="fund-detail">On-ground team, outreach, demos</span></div>
+                </div>
+                <div class="fund-bar" style="--bar-width: 20%;">
+                    <div class="fund-bar-fill clr-3"></div>
+                    <div class="fund-bar-label"><span class="fund-pct">20%</span><span
+                            class="fund-name">Infrastructure</span><span class="fund-detail">Cloud, APIs, Supabase, n8n
+                            hosting</span></div>
+                </div>
+                <div class="fund-bar" style="--bar-width: 12%;">
+                    <div class="fund-bar-fill clr-4"></div>
+                    <div class="fund-bar-label"><span class="fund-pct">12%</span><span
+                            class="fund-name">Operations</span><span class="fund-detail">Office, travel, support
+                            staff</span></div>
+                </div>
+                <div class="fund-bar" style="--bar-width: 8%;">
+                    <div class="fund-bar-fill clr-5"></div>
+                    <div class="fund-bar-label"><span class="fund-pct">8%</span><span
+                            class="fund-name">Contingency</span><span class="fund-detail">Buffer for unforeseen
+                            needs</span></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================== SLIDE 11: ROADMAP ============================== -->
+    <section class="slide" id="slide-11">
+        <div class="slide-inner">
+            <div class="section-tag">🗓️ Roadmap</div>
+            <h2 class="slide-title">The <span class="highlight">18-Month</span> Plan</h2>
+
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="tl-phase">Q1 2026</div>
+                    <div class="tl-content">
+                        <h4>🔬 Validation Phase</h4>
+                        <p>Beta launch with 20 pharmacies in Patna. Refine AI models based on real usage data.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="tl-phase">Q2 2026</div>
+                    <div class="tl-content">
+                        <h4>🚀 Market Entry</h4>
+                        <p>Launch paid plans. Onboard 50–100 shops. Begin B2B distributor partnerships.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="tl-phase">Q3 2026</div>
+                    <div class="tl-content">
+                        <h4>📈 Growth & Scale</h4>
+                        <p>Expand to 200+ shops. Launch marketplace. Add telemedicine integration.</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="tl-phase">Q4 2026</div>
+                    <div class="tl-content">
+                        <h4>🌍 Regional Expansion</h4>
+                        <p>Enter UP, Jharkhand, and other tier-2/3 markets. Target 500+ active shops.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================== SLIDE 12: CLOSING ============================== -->
+    <section class="slide" id="slide-12">
+        <div class="slide-bg-pattern"></div>
+        <div class="title-slide-content">
+            <div class="badge animate-fade-up">🙏 Thank You</div>
+            <h1 class="hero-title animate-fade-up delay-1">
+                Let's Digitize <span class="highlight">Bharat's</span> Pharmacies
+            </h1>
+            <p class="hero-subtitle animate-fade-up delay-2">
+                PharmaAssist.AI is ready to transform how 8 lakh medical shops operate.<br>
+                We're seeking <strong>₹50 Lakhs</strong> to make this vision a reality.
+            </p>
+            <div class="contact-card animate-fade-up delay-3">
+                <div class="contact-title">Get in Touch</div>
+                <div class="contact-info">
+                    <span>📧 vivek@pharmaassist.ai</span>
+                    <span>📱 Contact for Demo</span>
+                    <span>🌐 pharmaassist.ai</span>
+                </div>
+            </div>
+            <div class="closing-tagline animate-fade-up delay-4">
+                "Smart. Simple. Mobile-First."
+            </div>
+        </div>
+    </section>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

@@ -83,12 +83,14 @@ const Prescriptions = () => {
     };
 
     const handleShare = (p: Prescription) => {
-        // @ts-ignore
         const link = whatsappService.generatePrescriptionLink("", {
             doctor_name: p.doctor_name,
             customer_name: p.customer_name,
             visit_date: p.visit_date,
-            medicines: p.medicines
+            medicines: (p.medicines || []).map(m => ({
+                name: m.name,
+                dosage: m.dosage || "As directed"
+            }))
         });
         window.open(link, '_blank');
     };
@@ -134,8 +136,8 @@ const Prescriptions = () => {
         setCheckingSafe(true);
         setInteractions([]);
         try {
-            const warnings = await aiService.checkInteractions(meds);
-            if (warnings.length > 0) {
+            const { warnings } = await aiService.checkInteractions(meds);
+            if (warnings && warnings.length > 0) {
                 setInteractions(warnings);
                 toast.warning(`Found ${warnings.length} potential interactions!`);
             } else {

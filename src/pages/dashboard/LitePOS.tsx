@@ -256,6 +256,7 @@ const LitePOS = () => {
                             payment_mode: paymentMode,
                             status: paymentMode === 'credit' ? "pending" : "approved",
                             source: "LitePOS",
+                            refill_due_date: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
                             // FIX: Populate JSONB for Reporting RPC
                             order_items: cart.map(c => ({
                                 id: c.item.id,
@@ -263,6 +264,8 @@ const LitePOS = () => {
                                 qty: c.qty,
                                 price: c.item.unit_price,
                                 purchase_price: c.item.purchase_price || 0,
+                                batch_number: c.item.batch_number || null,
+                                expiry_date: c.item.expiry_date || null,
                                 schedule_h1: c.item.schedule_h1
                             }))
                         })
@@ -410,19 +413,35 @@ const LitePOS = () => {
         });
 
         // WhatsApp Invoice - Always show option
-        // WhatsApp Invoice - Always show option
+        const gstData = calculateTotals().gst;
+        const discountData = calculateTotals().discount;
+
+        const buildWaLink = (targetPhone: string) => whatsappService.generateInvoiceLink(targetPhone, {
+            invoice_number: invoiceId.slice(0, 8).toUpperCase(),
+            customer_name: name,
+            shop_name: currentShop?.name || "Medix Pharmacy",
+            shop_address: currentShop?.address || "",
+            shop_phone: currentShop?.phone || "",
+            shop_gstin: currentShop?.gst_no || "",
+            doctor_name: doctorName || undefined,
+            created_at: new Date().toISOString(),
+            total_amount: totalAmount,
+            payment_mode: paymentMode,
+            status: paymentMode === 'credit' ? 'pending' : 'paid',
+            items: cart.map(c => ({ name: c.item.medicine_name, qty: c.qty, price: c.item.unit_price })),
+            gst: gstData,
+            discount: discountData
+        });
+
         if (isOnline) {
             let finalPhone = phone;
 
             // Auto-Prompt if Phone is Missing
             if (!finalPhone) {
-                // Use a small timeout to let the toast appear first or just block immediately?
-                // Blocking immediately behaves like "Auto Open"
                 const inputPhone = prompt("Enter Customer Mobile Number for WhatsApp Invoice:");
                 if (inputPhone) {
                     finalPhone = inputPhone;
-                    // Update receipt details with new phone
-                    setLastOrderDetails(prev => ({
+                    setLastOrderDetails((prev: any) => ({
                         ...prev,
                         customer: { ...prev.customer, phone: finalPhone }
                     }));
@@ -430,69 +449,52 @@ const LitePOS = () => {
             }
 
             if (finalPhone) {
-                // Auto-open WhatsApp if enabled/possible
-                const waLink = whatsappService.generateInvoiceLink(finalPhone, {
-                    invoice_number: invoiceId.slice(0, 8).toUpperCase(),
-                    customer_name: name,
-                    shop_name: currentShop?.name || "Medix Pharmacy",
-                    created_at: new Date().toISOString(),
-                    total_amount: totalAmount,
-                    status: paymentMode === 'credit' ? 'pending' : 'paid',
-                    items: cart.map(c => ({ name: c.item.medicine_name, qty: c.qty, price: c.item.unit_price }))
-                });
-
-                // Try to open
+                const waLink = buildWaLink(finalPhone);
                 const newWindow = window.open(waLink, '_blank');
 
-                toast.success("Order Placed Success! 🎉", {
-                    description: newWindow ? "WhatsApp opened..." : "Pop-up blocked? Click below.",
+                toast.success("Order Placed! 🎉 Printing Invoice...", {
+                    description: newWindow ? "WhatsApp opened" : "Pop-up blocked? Click below.",
                     duration: 10000,
                     action: {
                         label: "Open WhatsApp",
                         onClick: () => window.open(waLink, '_blank')
                     },
                     cancel: {
-                        label: "🖨️ Print",
+                        label: "🖨️ Reprint",
                         onClick: () => setTimeout(() => window.print(), 100)
                     }
                 });
             } else {
-                toast.success("Order Placed Successfully! 🎉", {
-                    description: "No number provided. Print Receipt?",
+                toast.success("Order Placed! 🎉 Printing Invoice...", {
+                    description: "No number provided.",
                     duration: 8000,
                     action: {
-                        label: "🖨️ Print Bill",
-                        onClick: () => setTimeout(() => window.print(), 100)
-                    },
-                    cancel: {
                         label: "Send WhatsApp",
                         onClick: () => {
                             const phoneNumber = prompt("Enter customer WhatsApp number:");
                             if (phoneNumber) {
-                                const waLink = whatsappService.generateInvoiceLink(phoneNumber, {
-                                    invoice_number: invoiceId.slice(0, 8).toUpperCase(),
-                                    customer_name: name,
-                                    shop_name: currentShop?.name || "Medix Pharmacy",
-                                    created_at: new Date().toISOString(),
-                                    total_amount: totalAmount,
-                                    status: paymentMode === 'credit' ? 'pending' : 'paid',
-                                    items: cart.map(c => ({ name: c.item.medicine_name, qty: c.qty, price: c.item.unit_price }))
-                                });
-                                window.open(waLink, '_blank');
+                                window.open(buildWaLink(phoneNumber), '_blank');
                             }
                         }
+                    },
+                    cancel: {
+                        label: "🖨️ Reprint",
+                        onClick: () => setTimeout(() => window.print(), 100)
                     }
                 });
             }
         } else {
-            toast.success("Order Saved Offline! 💾", {
+            toast.success("Order Saved Offline! 💾 Printing...", {
                 duration: 5000,
                 action: {
-                    label: "🖨️ Print Bill",
+                    label: "🖨️ Reprint",
                     onClick: () => setTimeout(() => window.print(), 100)
                 }
             });
         }
+
+        // AUTO-PRINT: Trigger print dialog automatically after a short delay
+        setTimeout(() => window.print(), 600);
 
         setCart([]);
         setPaymentMode('cash');
@@ -729,9 +731,9 @@ const LitePOS = () => {
             interactionTimeoutRef.current = setTimeout(async () => {
                 const drugNames = [...new Set(cart.map(c => c.item.medicine_name))];
                 try {
-                    const warnings = await aiService.checkInteractions(drugNames);
-                    setInteractions(warnings); // Replace interactions with current set
-                    if (warnings.length > 0) {
+                    const { warnings } = await aiService.checkInteractions(drugNames);
+                    setInteractions(warnings || []); // Replace interactions with current set
+                    if (warnings && warnings.length > 0) {
                         toast.error("Interaction Detected!", { id: "interaction-toast" });
                     }
                 } catch (e) {
@@ -1532,10 +1534,10 @@ const LitePOS = () => {
                                                     // 1. Force Interaction Check
                                                     if (cart.length > 0) {
                                                         const drugNames = [...new Set(cart.map(c => c.item.medicine_name))];
-                                                        const warnings = await aiService.checkInteractions(drugNames);
-                                                        setInteractions(warnings);
+                                                        const { warnings } = await aiService.checkInteractions(drugNames);
+                                                        setInteractions(warnings || []);
 
-                                                        if (warnings.length > 0) {
+                                                        if (warnings && warnings.length > 0) {
                                                             // Update the loading toast to error
                                                             toast.error("Interaction Detected!", { id: toastId });
                                                             return; // Keep error visible

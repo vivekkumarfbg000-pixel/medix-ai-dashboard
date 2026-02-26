@@ -8,22 +8,33 @@ export const useSessionEnforcement = () => {
     const sessionCheckedRef = useRef(false);
 
     useEffect(() => {
-        const enforceSession = async () => {
-            // 1. Get current user
-            try {
-                const { data, error } = await supabase.auth.getUser();
-                if (error || !data?.user) return;
-                const user = data.user;
+        let channel: any = null;
 
-                // 2. Get or create local Device ID
+        const handleLogout = async () => {
+            await supabase.auth.signOut();
+            localStorage.removeItem('medix_device_id');
+            navigate('/auth');
+            toast.error("You have been logged out.", {
+                description: "New login detected on another device."
+            });
+        };
+
+        const enforceSession = async () => {
+            try {
+                // OPTIMIZATION: Use cached getSession instead of network getUser
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.user) return;
+                const user = session.user;
+
+                // Get or create local Device ID
                 let deviceId = localStorage.getItem('medix_device_id');
                 if (!deviceId) {
                     deviceId = crypto.randomUUID();
                     localStorage.setItem('medix_device_id', deviceId);
                 }
 
-                // 3. Register/Update session in DB
-                const { error: rpcError } = await supabase.rpc('register_session', {
+                // Register/Update session in DB
+                const { error: rpcError } = await supabase.rpc('register_session' as any, {
                     p_session_id: deviceId,
                     p_device_info: navigator.userAgent
                 });
@@ -32,8 +43,8 @@ export const useSessionEnforcement = () => {
                     console.warn("Session Registration Warning:", rpcError.message);
                 }
 
-                // 4. Subscribe to changes on active_sessions for this user
-                const channel = supabase
+                // Subscribe to changes on active_sessions for this user
+                channel = supabase
                     .channel(`session_guard_${user.id}`)
                     .on(
                         'postgres_changes',
@@ -43,32 +54,18 @@ export const useSessionEnforcement = () => {
                             table: 'active_sessions',
                             filter: `user_id=eq.${user.id}`
                         },
-                        (payload) => {
+                        (payload: any) => {
                             const remoteSessionId = payload.new.session_id;
                             if (remoteSessionId && remoteSessionId !== deviceId) {
-                                // Another device took over
                                 handleLogout();
                             }
                         }
                     )
                     .subscribe();
 
-                return () => {
-                    supabase.removeChannel(channel);
-                };
-
             } catch (err) {
                 console.error("Session Check Error:", err);
             }
-        };
-
-        const handleLogout = async () => {
-            await supabase.auth.signOut();
-            localStorage.removeItem('medix_device_id'); // Optional: clear device ID
-            navigate('/auth');
-            toast.error("You have been logged out.", {
-                description: "New login detected on another device." // "Single Device Login Enforced"
-            });
         };
 
         if (!sessionCheckedRef.current) {
@@ -76,5 +73,10 @@ export const useSessionEnforcement = () => {
             sessionCheckedRef.current = true;
         }
 
+        return () => {
+            if (channel) {
+                supabase.removeChannel(channel);
+            }
+        };
     }, [navigate]);
 };

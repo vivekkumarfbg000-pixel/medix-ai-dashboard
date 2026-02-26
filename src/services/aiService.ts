@@ -899,7 +899,7 @@ WARNING: Check if the requested medicine conflicts with this history.
     /**
      * Secure Clinical Document Upload & Analysis
      */
-    async analyzeDocument(file: File, type: 'prescription' | 'lab_report' | 'invoice' | 'inventory_list'): Promise<any> {
+    async analyzeDocument(file: File, type: 'prescription' | 'lab_report' | 'invoice' | 'inventory_list' | 'diary'): Promise<any> {
         // DEMO MODE CHECK
         const isDemoMode = typeof window !== 'undefined' && localStorage.getItem("DEMO_MODE") === "true";
         if (isDemoMode) {
@@ -1069,6 +1069,56 @@ WARNING: Check if the requested medicine conflicts with this history.
                     }
                   ]
                 }`;
+
+
+                // @ts-ignore: diary type is valid
+            } else if (type === 'diary') {
+                // Diary Sales Extraction Prompt — for handwritten shop diary pages
+                systemPrompt = `You are an expert OCR AI specializing in reading handwritten Indian pharmacy sales diaries (bahi khata / register).
+
+These diaries contain daily medicine sales notes written by shopkeepers — often messy, abbreviated, or in Hindi/Hinglish.
+
+### YOUR TASK:
+Extract ALL medicine sales entries from this diary page image.
+
+### WHAT TO LOOK FOR:
+- Medicine names (may be abbreviated: "Dolo", "Crocin", "Pan-D", "Azithro")
+- Quantities sold (number of strips, bottles, tablets, or packs)
+- Prices per unit or total price for that entry
+- Customer names (if mentioned, often just first name)
+- Any notes (e.g., "udhaar", "cash", "return")
+
+### HANDLING MESSY HANDWRITING:
+- Correct common misspellings (e.g., "Paracitamol" → "Paracetamol")
+- Recognize Hindi number systems and mixed Hindi-English
+- If a medicine name is unclear, provide your best guess with "(?)" suffix
+- Quantities may be in: strips, bottles, tablets, pcs, patti
+- Prices may use shortcuts: "30/2" means ₹30 for 2, "₹" or "Rs" prefix
+
+### OUTPUT FORMAT (STRICT JSON):
+{
+  "date": "Date if visible or null",
+  "entries": [
+    {
+      "medication_name": "Medicine Name",
+      "quantity": 2,
+      "unit": "strip",
+      "price": 30,
+      "total": 60,
+      "customer_name": "Name or null",
+      "notes": "cash/udhaar/return or null"
+    }
+  ],
+  "page_total": 450
+}
+
+### IMPORTANT:
+- Return ONLY valid JSON, no markdown formatting
+- Extract ALL visible entries, even partially readable ones
+- If price is per unit, calculate total = quantity × price
+- If only total is visible, set price = total / quantity
+- "page_total" = sum of all entry totals (estimate if not written)
+- entries array must have at least 1 item if diary page is readable`;
 
             } else if (type === 'prescription') {
                 // Comprehensive Prescription Analysis Prompt for Diary Scan
@@ -1263,7 +1313,22 @@ Provide 3-5 lifestyle measures:
                 );
             }
 
-            const parsed = safeJSONParse(geminiRes, { items: [], summary: "Analysis Failed" });
+            const parsed = safeJSONParse(geminiRes, null);
+            if (!parsed) {
+                throw new Error("Invalid format from Gemini Vision");
+            }
+
+            if (type === 'prescription') {
+                const hasArray = Array.isArray(parsed.medications) && parsed.medications.length > 0
+                    || Array.isArray(parsed.medicines) && parsed.medicines.length > 0
+                    || Array.isArray(parsed.items) && parsed.items.length > 0
+                    || Array.isArray(parsed.prescription) && parsed.prescription.length > 0;
+
+                if (!hasArray) {
+                    throw new Error("Gemini failed to extract any medicines");
+                }
+            }
+
             return { ...parsed, isMock: false };
 
         } catch (geminiViolate) {
@@ -1397,7 +1462,7 @@ Provide 3-5 lifestyle measures:
     },
 
     /**
-     * Interaction Checker (n8n / External API)
+     * Interaction Checker using Groq AI (Primary)
      */
     async checkInteractions(drugs: string[]): Promise<{ warnings: string[], isMock: boolean }> {
         if (drugs.length < 2) return { warnings: [], isMock: false };
@@ -1411,7 +1476,6 @@ Provide 3-5 lifestyle measures:
             const mockInteractions: string[] = [];
             const drugString = drugs.join(" ").toLowerCase();
 
-            // Simulation Logic
             if (drugString.includes("aspirin") && drugString.includes("warfarin")) {
                 mockInteractions.push("⚠️ Major: Aspirin + Warfarin: Increased risk of bleeding.");
             }
@@ -1422,7 +1486,6 @@ Provide 3-5 lifestyle measures:
                 mockInteractions.push("⚠️ Moderate: Avoid alcohol while taking Metronidazole.");
             }
 
-            // If random demo behavior is desired generally
             if (mockInteractions.length === 0 && Math.random() > 0.7) {
                 mockInteractions.push("⚠️ Moderate: Potential interaction detected. Monitor patient.");
             }
@@ -1431,96 +1494,53 @@ Provide 3-5 lifestyle measures:
         }
 
         try {
-            // UPDATED: Use Dedicated Interaction Webhook
-            const response = await fetch(ENDPOINTS.INTERACTIONS, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ drugs }),
-            });
+            logger.log("[Interaction] Using Groq AI Primary for interactions...");
+            const prompt = `
+Act as a Clinical Pharmacist. Check interactions for the following concurrent medications: ${drugs.join(', ')}.
+Return JSON only.
+Structure: {
+    "interactions": [
+        { "drug1": "A", "drug2": "B", "severity": "Major" | "Moderate", "description": "Short reason in Hinglish (max 15 words)" }
+    ]
+}
+If there are no interactions, return { "interactions": [] }.
 
-            if (!response.ok) {
-                logger.error(`Interaction Service Failed: ${response.status} ${response.statusText}`);
-                throw new Error("Interaction Service Failed");
-            }
+CRITICAL: You MUST return a JSON object. Do not return anything else. Keep descriptions brief.
+            `;
 
-            const result = await response.json();
+            const groqJson = await callGroqAI([
+                { role: "system", content: "You are a clinical interaction checker. Output valid JSON only." },
+                { role: "user", content: prompt }
+            ], "llama-3.3-70b-versatile", true); // Enable JSON mode
 
-            // Handle Structure: { interactions: [ { drug1, drug2, severity, description } ] }
-            if (result.interactions && Array.isArray(result.interactions)) {
-                // De-duplicate logic
-                const uniqueInteractions = new Map<string, any>();
+            const parsed = safeJSONParse(groqJson, { interactions: [] });
 
-                result.interactions.forEach((i: any) => {
-                    // Include Moderate interactions if crucial, for now sticking to Major/Severe
-                    if (i.severity === 'Major' || i.severity === 'Severe' || i.severity === 'Moderate') {
-                        // Create a unique key for the pair
-                        const key = [i.drug1, i.drug2].sort().join('|');
-                        if (!uniqueInteractions.has(key)) {
-                            uniqueInteractions.set(key, i);
-                        }
-                    }
-                });
+            // Map to frontend format
+            const warnings = (parsed.interactions || []).map((i: any) => `⚠️ ${i.severity}: ${i.drug1} + ${i.drug2}: ${i.description}`);
+            return { warnings, isMock: false };
 
-                return {
-                    warnings: Array.from(uniqueInteractions.values())
-                        .map((i: any) => `⚠️ ${i.severity}: ${i.drug1} + ${i.drug2}: ${i.description}`),
-                    isMock: false
-                };
-            }
-
-            // Fallback for simple array return
-            if (Array.isArray(result)) return { warnings: result, isMock: false };
-
-            return { warnings: [], isMock: false };
-        } catch (e) {
-            // 1. TRY GROQ FALLBACK (Real Intelligence)
-            try {
-                const prompt = `
-                Act as a Clinical Pharmacist. Check interactions for: ${drugs.join(', ')}.
-                Return JSON only.
-                Structure: {
-                    "interactions": [
-                        { "drug1": "A", "drug2": "B", "severity": "Major"|"Moderate", "description": "Short reason in Hinglish (max 15 words)" }
-                    ]
-                }
-                If no interactions, return { "interactions": [] }.
-                
-                CRITICAL: You MUST return a JSON object. Do not return anything else. Keep descriptions brief.
-                `;
-
-                const groqJson = await callGroqAI([
-                    { role: "system", content: "You are a clinical interaction checker. Output valid JSON only." },
-                    { role: "user", content: prompt }
-                ], "llama-3.3-70b-versatile", true); // Enable JSON mode
-
-                const parsed = safeJSONParse(groqJson, { interactions: [] });
-                // Map to frontend format
-                const warnings = parsed.interactions.map((i: any) => `⚠️ ${i.severity}: ${i.drug1} + ${i.drug2}: ${i.description}`);
-                return { warnings, isMock: false };
-
-            } catch (groqErr) {
-                logger.warn("Groq Interaction Check Failed, using offline basics", groqErr);
-                // Proceed to offline fallback...
-            }
-
-            // 2. FAST LOCAL FALLBACK (Offline Knowledge Base)
-            const offlineWarnings: string[] = [];
-            const d = drugs.map(x => x.toLowerCase());
-
-            // Common Indian Interactions
-            if (d.some(x => x.includes("aspirin")) && d.some(x => x.includes("warfarin")))
-                offlineWarnings.push("⚠️ Major: Aspirin + Warfarin -> Bleeding Risk");
-            if (d.some(x => x.includes("azithromycin")) && d.some(x => x.includes("ondansetron")))
-                offlineWarnings.push("⚠️ Moderate: QT Prolongation Risk");
-            if (d.some(x => x.includes("thyroxine")) && d.some(x => x.includes("calcium")))
-                offlineWarnings.push("⚠️ Moderate: Calcium reduces Thyroxine absorption");
-            if (d.some(x => x.includes("alcohol")) && d.some(x => x.includes("metronidazole")))
-                offlineWarnings.push("⚠️ Severe: Disulfiram-like reaction (Vomiting)");
-
-            if (offlineWarnings.length > 0) return { warnings: offlineWarnings, isMock: true };
-
-            return { warnings: [], isMock: false };
+        } catch (groqErr) {
+            logger.warn("Groq Interaction Check Failed, using offline basics", groqErr);
+            // Proceed to offline fallback...
         }
+
+        // 2. FAST LOCAL FALLBACK (Offline Knowledge Base)
+        const offlineWarnings: string[] = [];
+        const d = drugs.map(x => x.toLowerCase());
+
+        // Common Indian Interactions
+        if (d.some(x => x.includes("aspirin")) && d.some(x => x.includes("warfarin")))
+            offlineWarnings.push("⚠️ Major: Aspirin + Warfarin -> Bleeding Risk");
+        if (d.some(x => x.includes("azithromycin")) && d.some(x => x.includes("ondansetron")))
+            offlineWarnings.push("⚠️ Moderate: QT Prolongation Risk");
+        if (d.some(x => x.includes("thyroxine")) && d.some(x => x.includes("calcium")))
+            offlineWarnings.push("⚠️ Moderate: Calcium reduces Thyroxine absorption");
+        if (d.some(x => x.includes("alcohol")) && d.some(x => x.includes("metronidazole")))
+            offlineWarnings.push("⚠️ Severe: Disulfiram-like reaction (Vomiting)");
+
+        if (offlineWarnings.length > 0) return { warnings: offlineWarnings, isMock: true };
+
+        return { warnings: [], isMock: false };
     },
 
     /**
@@ -2112,6 +2132,87 @@ Provide 3-5 lifestyle measures:
             return response.reply;
         } catch (e) {
             return "System error detected. Please contact support or try again.";
+        }
+    },
+
+    /**
+     * Intelligent Inventory Architect
+     * Processes unstructured medicine data (images, voice-to-text, or messy manual notes)
+     */
+    async processUnstructuredInventory(input: string, image?: File): Promise<any> {
+        let extractedText = input;
+
+        // If an image is provided, extract its text using Gemini Vision first
+        if (image) {
+            try {
+                // Compress Image
+                const options = {
+                    maxSizeMB: 0.8,
+                    maxWidthOrHeight: 1920,
+                    useWebWorker: true,
+                    initialQuality: 0.8
+                };
+                const compressedFile = await imageCompression(image, options);
+                const reader = new FileReader();
+
+                const base64Image = await new Promise<string>((resolve, reject) => {
+                    reader.onload = () => {
+                        const b64 = reader.result as string;
+                        resolve(b64.includes(',') ? b64.split(',')[1] : b64);
+                    };
+                    reader.onerror = error => reject(error);
+                    reader.readAsDataURL(compressedFile);
+                });
+
+                const visionPrompt = "Extract all text from this image precisely. Focus on medicine brand names, composition/salt, packaging details, MRP, and expiry dates. Return the raw text extracted.";
+                const visionResult = await callGeminiVision(visionPrompt, base64Image);
+                extractedText += `\n[Image Extracted Text]: ${visionResult}`;
+            } catch (err: any) {
+                logger.error("[processUnstructuredInventory] OCR Failed:", err);
+                throw new Error("Failed to read image. Please try again or type manually.");
+            }
+        }
+
+        // Send to Groq for structured extraction
+        const prompt = `
+Role: You are the Intelligent Inventory Architect for MedixAI.
+Objective: Process unstructured medicine data (images, voice-to-text, or messy manual notes) and integrate it into the "AI Drafts" section of the Inventory Module.
+
+Input Data:
+${extractedText}
+
+Instructions:
+Data Extraction: Parse the input for: 
+Brand Name: (e.g., "Crocinn" -> "Crocin")
+Composition/Salt: (e.g., "Paracetamol 650mg")
+Packaging: (e.g., "Strip of 15", "Loose", "Bottle")
+MRP & Expiry: Extract if available; otherwise, flag as "Required".
+
+Standardization: Map the extracted Brand Name against standard medical terms if obvious. If no match is found, categorize it as a "New Unstructured Entry."
+AI Draft Integration:
+- Format the output as a JSON object compatible with the inventory_drafts table in Supabase. 
+- Set status to "Pending_Verification".
+- Generate a reorder_threshold based on a default of 20% of the initial stock entered (assuming qty=10 if not provided, thus threshold=2).
+- Conflict Resolution: If the salt composition matches an existing product but the brand is different, add a note: "Alternative brand for [Existing_Product_Name]".
+
+Output Format:
+Return ONLY a clean JSON object (or array of objects if multiple) including brand_name, salt, quantity, mrp, expiry, uom (Unit of Measure), and confidence_score. DO NOT wrap in markdown.
+        `;
+
+        try {
+            const groqResponse = await callGroqAI([
+                { role: "system", content: "You MUST return ONLY a raw JSON object or array. No markdown, no explanations." },
+                { role: "user", content: prompt }
+            ], "llama-3.3-70b-versatile", true);
+
+            const parsed = safeJSONParse(groqResponse);
+            if (!parsed) {
+                throw new Error("AI failed to extract structured data.");
+            }
+            return Array.isArray(parsed) ? parsed : [parsed];
+        } catch (e: any) {
+            logger.error("[processUnstructuredInventory] Groq Failed:", e);
+            throw new Error(`Failed to process unstructured inventory: ${e.message}`);
         }
     }
 };

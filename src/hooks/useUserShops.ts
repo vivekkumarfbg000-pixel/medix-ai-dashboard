@@ -27,11 +27,13 @@ export function useUserShops(): UserShopsState {
   useEffect(() => {
     async function fetchShops() {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        // OPTIMIZATION: getSession is cached locally, getUser always hits network
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
           setLoading(false);
           return;
         }
+        const user = session.user;
 
         // OPTIMIZATION: Single efficient query for shop details through the junction table
         const { data: userShops, error } = await supabase

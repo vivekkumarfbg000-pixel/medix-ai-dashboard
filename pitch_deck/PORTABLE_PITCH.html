@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>PharmaAssist.AI Pitch Deck</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Outfit:wght@800;900&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0f;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        .slide {
+            min-height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 60px;
+            position: relative;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+            scroll-snap-align: start;
+        }
+
+        .highlight {
+            color: #00d4aa;
+        }
+
+        h1 {
+            font-family: 'Outfit';
+            font-size: 80px;
+            font-weight: 900;
+            line-height: 1;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        p {
+            font-size: 24px;
+            color: rgba(255, 255, 255, 0.6);
+            text-align: center;
+            max-width: 800px;
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            width: 100%;
+            max-width: 1200px;
+            margin-top: 50px;
+        }
+
+        .card {
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .card h3 {
+            font-family: 'Outfit';
+            font-size: 28px;
+            color: #00d4aa;
+            margin-bottom: 15px;
+        }
+
+        .funding-tier {
+            font-size: 60px;
+            font-weight: 900;
+            color: #00d4aa;
+            margin: 40px 0;
+        }
+
+        .fixed-nav {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .nav-btn {
+            padding: 15px 30px;
+            border-radius: 12px;
+            background: #00d4aa;
+            color: #000;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 16px;
+        }
+
+        @media print {
+            .slide {
+                height: 100vh;
+                page-break-after: always;
+                border: none;
+            }
+
+            .fixed-nav {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="fixed-nav">
+        <a href="#" class="nav-btn" onclick="window.print(); return false;">Save as PDF (Ctrl+P)</a>
+    </div>
+
+    <!-- PAGE 1 -->
+    <div class="slide">
+        <h1>Pharma<span class="highlight">Assist</span>.AI</h1>
+        <p>Smart. Simple. Mobile-First.<br>AI-Powered Pharmacy Management for Bharat's 8 Lakh Medical Shops</p>
+        <div class="funding-tier">₹50 Lakhs Ask</div>
+    </div>
+
+    <!-- PAGE 2 -->
+    <div class="slide">
+        <h1 style="font-size: 50px;">The Problem</h1>
+        <div class="card-grid">
+            <div class="card">
+                <h3>Expiry Losses</h3>
+                <p>Shops lose ₹50K–₹1L/year due to expired medicines.</p>
+            </div>
+            <div class="card">
+                <h3>Inventory Chaos</h3>
+                <p>No real-time tracking leads to lost revenue.</p>
+            </div>
+            <div class="card">
+                <h3>Digital Divide</h3>
+                <p>Existing software is too complex for rural users.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE 3 -->
+    <div class="slide">
+        <h1 style="font-size: 50px;">The Solution</h1>
+        <div class="card-grid">
+            <div class="card">
+                <h3>Mobile-First</h3>
+                <p>Runs on any smartphone. No PC needed.</p>
+            </div>
+            <div class="card">
+                <h3>AI Scanning</h3>
+                <p>Scan strips to auto-log data instantly.</p>
+            </div>
+            <div class="card">
+                <h3>Hinglish UI</h3>
+                <p>Built for the local pharmacist's language.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE 4 -->
+    <div class="slide">
+        <h1 style="font-size: 50px;">Funding Ask</h1>
+        <div class="funding-tier">₹50 Lakhs</div>
+        <div class="card-grid">
+            <div class="card">
+                <h3>Tier 1: Validation (₹20L)</h3>
+                <p>Prototype & AI hardening.</p>
+            </div>
+            <div class="card">
+                <h3>Tier 2: Growth (₹30L)</h3>
+                <p>Market launch in Patna.</p>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>

@@ -23,9 +23,7 @@ import { AIChatbotWidget } from "./AIChatbotWidget";
 // Inner component that has access to SidebarContext
 function DashboardContent() {
   const navigate = useNavigate();
-  // [TEST-MODE] Auth Bypass
-  const MOCK_USER = { id: 'test-id', email: 'test@medix.shop', aud: 'authenticated', created_at: '', app_metadata: {}, user_metadata: {} } as any;
-  const [user, setUser] = useState<User | null>(MOCK_USER);
+  const [user, setUser] = useState<User | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [transcription, setTranscription] = useState("");
@@ -73,27 +71,29 @@ function DashboardContent() {
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // [TEST-MODE] Keep mock user if session is null
-      console.log("Auth Change:", event);
-      // setUser(session?.user ?? null);
-      // if (!session?.user) {
-      //   navigate("/auth");
-      // }
+    // Get session once (DashboardLayout already guards unauthenticated users)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
     });
 
-    // supabase.auth.getSession().then(({ data: { session } }) => {
-    //   setUser(session?.user ?? null);
-    //   if (!session?.user) {
-    //     navigate("/auth");
-    //   }
-    //   // setLoading(false);
-    // });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth Change:", event);
+      setUser(session?.user ?? null);
+      if (event === 'SIGNED_OUT') {
+        navigate("/auth");
+      }
+    });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
-
-  if (!user) return null;
+  // Show nothing briefly while user loads (DashboardLayout loading screen is the primary gate)
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -166,6 +166,7 @@ function DashboardContent() {
 
 export function DashboardLayout() {
   useSessionEnforcement(); // Enforce single device login
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
   // Use a separate effect for initial loading state
@@ -173,8 +174,8 @@ export function DashboardLayout() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        // Timeout Promise
-        const timeout = new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), 5000));
+        // Timeout Promise — 2s is enough for cached sessions
+        const timeout = new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), 2000));
 
         // Race actual session check vs timeout
         const result = await Promise.race([
@@ -183,22 +184,27 @@ export function DashboardLayout() {
         ]) as any;
 
         if (result?.timeout) {
-          console.warn("Session check timed out. Proceeding...");
+          console.warn("Session check timed out. Redirecting to auth...");
+          navigate('/auth');
+          return;
         } else {
           const { session } = result?.data || {};
           if (!session) {
-            // Let the Router/Page handle redirect, just stop loading
+            navigate('/auth');
+            return;
           }
         }
       } catch (err) {
         console.error("Session check failed", err);
+        navigate('/auth');
+        return;
       } finally {
         setLoading(false);
       }
     };
 
     checkSession();
-  }, []);
+  }, [navigate]);
 
   if (loading) {
     return (

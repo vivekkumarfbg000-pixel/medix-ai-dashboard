@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Plus, Trash2, Send, ShoppingCart, Loader2 } from "lucide-react";
+import { Plus, Trash2, Send, ShoppingCart, Loader2, AlertTriangle } from "lucide-react";
 import { useUserShops } from "@/hooks/useUserShops";
 import { safeFormat } from "@/utils/dateHelpers";
 
@@ -74,6 +74,65 @@ const Shortbook = () => {
         }
     };
 
+    const autoAddLowStock = async () => {
+        if (!currentShop?.id) return;
+        toast.loading("Scanning inventory for low stock...", { id: "auto-add" });
+
+        // Fetch all inventory items below reorder level
+        const { data: lowStockItems, error } = await supabase
+            .from('inventory')
+            .select('id, medicine_name, quantity, reorder_level')
+            .eq('shop_id', currentShop?.id)
+            .gt('reorder_level', 0);
+
+        if (error || !lowStockItems) {
+            toast.error("Failed to scan inventory", { id: "auto-add" });
+            return;
+        }
+
+        // Filter items that are below reorder level
+        const needRestock = lowStockItems.filter(item => item.quantity <= (item.reorder_level || 10));
+
+        if (needRestock.length === 0) {
+            toast.success("All stock levels healthy! Nothing to add.", { id: "auto-add" });
+            return;
+        }
+
+        // Check which are already in shortbook to avoid duplicates
+        const { data: existingItems } = await supabase
+            .from('shortbook')
+            .select('product_name')
+            .eq('shop_id', currentShop?.id)
+            .eq('status', 'pending');
+
+        const existingNames = new Set((existingItems || []).map(i => i.product_name?.toLowerCase()));
+
+        const toAdd = needRestock.filter(item => !existingNames.has(item.medicine_name?.toLowerCase()));
+
+        if (toAdd.length === 0) {
+            toast.info("All low-stock items already in Shortbook!", { id: "auto-add" });
+            return;
+        }
+
+        // Batch insert
+        const { error: insertError } = await supabase.from('shortbook').insert(
+            toAdd.map(item => ({
+                shop_id: currentShop?.id,
+                product_name: item.medicine_name,
+                quantity: Math.max((item.reorder_level || 10) - item.quantity, 1),
+                priority: item.quantity === 0 ? 'urgent' : 'high',
+                added_from: 'auto_low_stock'
+            }))
+        );
+
+        if (insertError) {
+            toast.error("Failed to add items", { id: "auto-add" });
+        } else {
+            toast.success(`Added ${toAdd.length} low-stock items to Shortbook!`, { id: "auto-add" });
+            fetchShortbook();
+        }
+    };
+
     const markOrdered = async (item: any) => {
         // Create B2B Order Record
         const { error } = await supabase.from('b2b_orders').insert({
@@ -130,6 +189,9 @@ const Shortbook = () => {
                     <p className="text-muted-foreground">Track out-of-stock items and send orders to distributors.</p>
                 </div>
                 <div className="flex gap-2">
+                    <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100" onClick={autoAddLowStock}>
+                        <AlertTriangle className="w-4 h-4" /> Auto-Add Low Stock
+                    </Button>
                     <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                         <DialogTrigger asChild>
                             <Button><Plus className="w-4 h-4 mr-2" /> Add Item</Button>
