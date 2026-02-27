@@ -57,6 +57,8 @@ export default defineConfig(({ mode }) => ({
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         clientsClaim: true,
+        // CRITICAL: Prevent the Service Worker from intercepting OAuth redirects via proxy
+        navigateFallbackDenylist: [/^\/supabase-proxy/],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
