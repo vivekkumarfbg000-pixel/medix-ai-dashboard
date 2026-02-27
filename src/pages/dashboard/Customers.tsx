@@ -194,7 +194,7 @@ const Customers = () => {
 
                 {/* ALL PATIENTS TAB */}
                 <TabsContent value="all" className="space-y-4">
-                    <div className="flex items-center gap-2 bg-white p-2 rounded-lg border max-w-sm">
+                    <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-lg border max-w-sm">
                         <Search className="w-4 h-4 text-muted-foreground" />
                         <Input
                             className="border-0 focus-visible:ring-0"
@@ -219,7 +219,7 @@ const Customers = () => {
                                     {filtered.length === 0 ? (
                                         <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No patients found</TableCell></TableRow>
                                     ) : filtered.map(c => (
-                                        <TableRow key={c.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setSelectedCustomerId(c.id)}>
+                                        <TableRow key={c.id} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50" onClick={() => setSelectedCustomerId(c.id)}>
                                             <TableCell className="font-medium flex items-center gap-2">
                                                 <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"><User className="w-4 h-4" /></div>
                                                 <div>

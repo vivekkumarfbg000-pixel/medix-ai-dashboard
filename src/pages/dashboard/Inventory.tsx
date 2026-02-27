@@ -920,7 +920,7 @@ const Inventory = () => {
                   {predictions.filter(p => p.avg_daily_sales === 0 && p.current_stock > 0).map((item, idx) => (
                     <div key={idx} className="flex flex-col md:flex-row justify-between items-center p-4 border rounded-lg bg-slate-50">
                       <div>
-                        <h4 className="font-bold text-slate-800">{item.medicine_name}</h4>
+                        <h4 className="font-bold text-slate-800 dark:text-slate-200">{item.medicine_name}</h4>
                         <p className="text-sm text-slate-500">Current Stock: <span className="font-mono font-bold text-slate-700">{item.current_stock} units</span></p>
                       </div>
                       <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200">

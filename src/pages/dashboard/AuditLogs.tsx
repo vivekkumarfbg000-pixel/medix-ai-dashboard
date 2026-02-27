@@ -361,11 +361,11 @@ export default function AuditLogs({ embedded = false }: { embedded?: boolean }) 
                               <div className="grid grid-cols-2 gap-4 text-sm bg-muted/40 p-3 rounded-lg border">
                                 <div>
                                   <span className="font-medium text-muted-foreground">Record ID:</span>
-                                  <p className="font-mono text-xs break-all mt-1 bg-white p-1 rounded border">{log.record_id}</p>
+                                  <p className="font-mono text-xs break-all mt-1 bg-white dark:bg-slate-800 p-1 rounded border">{log.record_id}</p>
                                 </div>
                                 <div>
                                   <span className="font-medium text-muted-foreground">User ID:</span>
-                                  <p className="font-mono text-xs break-all mt-1 bg-white p-1 rounded border">
+                                  <p className="font-mono text-xs break-all mt-1 bg-white dark:bg-slate-800 p-1 rounded border">
                                     {log.user_id || "System"}
                                   </p>
                                 </div>

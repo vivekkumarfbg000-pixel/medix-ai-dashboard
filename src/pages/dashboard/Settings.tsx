@@ -367,7 +367,7 @@ const Settings = () => {
           {/* Shop Details Card */}
           <Card className="border-slate-200 shadow-sm overflow-hidden">
             <CardHeader className="bg-slate-50 border-b border-slate-100 pb-4">
-              <CardTitle className="flex items-center gap-2 text-slate-800">
+              <CardTitle className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
                 <Store className="w-5 h-5 text-indigo-600" />
                 Pharmacy Profile
               </CardTitle>
@@ -417,7 +417,7 @@ const Settings = () => {
           {/* Notifications Card */}
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="border-b border-slate-100 pb-4">
-              <CardTitle className="flex items-center gap-2 text-slate-800">
+              <CardTitle className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
                 <Bell className="w-5 h-5 text-amber-500" />
                 Alert Preferences
               </CardTitle>
@@ -435,7 +435,7 @@ const Settings = () => {
                       <Bell className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="font-semibold text-slate-800">{item.label}</p>
+                      <p className="font-semibold text-slate-800 dark:text-slate-200">{item.label}</p>
                       <p className="text-sm text-slate-500">{item.desc}</p>
                     </div>
                   </div>
@@ -451,7 +451,7 @@ const Settings = () => {
           {/* Invoice Customization */}
           <Card className="border-slate-200 shadow-sm overflow-hidden">
             <CardHeader className="bg-slate-50 border-b border-slate-100 pb-4">
-              <CardTitle className="flex items-center gap-2 text-slate-800">
+              <CardTitle className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
                 <FileText className="w-5 h-5 text-indigo-600" />
                 Invoice Customization
               </CardTitle>
@@ -498,7 +498,7 @@ const Settings = () => {
           {/* Data Management */}
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="bg-slate-50 border-b border-slate-100 pb-4">
-              <CardTitle className="flex items-center gap-2 text-slate-800">
+              <CardTitle className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
                 <Database className="w-5 h-5 text-indigo-600" />
                 Data Management
               </CardTitle>
@@ -516,7 +516,7 @@ const Settings = () => {
         <div className="space-y-6">
           <Card className="border-slate-200 shadow-sm h-fit">
             <CardHeader className="bg-slate-50 border-b border-slate-100">
-              <CardTitle className="flex items-center gap-2 text-slate-800">
+              <CardTitle className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
                 <Shield className="w-5 h-5 text-emerald-600" />
                 Security & Session
               </CardTitle>

@@ -232,7 +232,7 @@ const Prescriptions = () => {
                         <div className="bg-slate-50 p-6 rounded-full mb-4">
                             <FileText className="w-12 h-12 text-slate-300" />
                         </div>
-                        <h3 className="text-xl font-semibold text-slate-900">No prescriptions found</h3>
+                        <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">No prescriptions found</h3>
                         <p className="text-slate-500 max-w-sm mt-2">Upload a new prescription using the Scan button above.</p>
                     </div>
                 ) : (
@@ -245,7 +245,7 @@ const Prescriptions = () => {
                                             <User className="w-5 h-5" />
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-slate-800 line-clamp-1" title={p.customer_name}>{p.customer_name || 'Unknown Patient'}</h3>
+                                            <h3 className="font-bold text-slate-800 dark:text-slate-200 line-clamp-1" title={p.customer_name}>{p.customer_name || 'Unknown Patient'}</h3>
                                             <p className="text-xs text-slate-500 flex items-center gap-1">
                                                 <Calendar className="w-3 h-3" />
                                                 {p.visit_date ? format(new Date(p.visit_date), 'PP') : 'No Date'}
@@ -336,7 +336,7 @@ const Prescriptions = () => {
                                                         {editingMedicines.map((med, index) => (
                                                             <TableRow key={index}>
                                                                 <TableCell className="font-medium text-slate-500">{index + 1}</TableCell>
-                                                                <TableCell className="font-semibold text-slate-800">{med.name}</TableCell>
+                                                                <TableCell className="font-semibold text-slate-800 dark:text-slate-200">{med.name}</TableCell>
                                                                 <TableCell>
                                                                     <div className="flex flex-col">
                                                                         <span className="text-sm font-medium">{med.strength || '-'}</span>
