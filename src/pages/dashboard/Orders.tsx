@@ -197,7 +197,7 @@ const Orders = () => {
   };
 
   const handleWhatsAppShare = (order: Order) => {
-    let phone = order.customer_phone;
+    const phone = order.customer_phone;
 
     // If no phone, use the edit dialog instead of prompt
     if (!phone) {

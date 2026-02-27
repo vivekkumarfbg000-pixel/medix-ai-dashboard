@@ -62,7 +62,7 @@ const parseTranscription = (text: string): ParsedItem[] => {
     } else if (part.length > 0) {
       // No quantity specified — default to 1
       // Remove filler words
-      let cleaned = part.replace(/\b(add|dedo|de|do|give|bhai|bhaiya|please|mujhe|chahiye)\b/gi, '').trim();
+      const cleaned = part.replace(/\b(add|dedo|de|do|give|bhai|bhaiya|please|mujhe|chahiye)\b/gi, '').trim();
       if (cleaned.length > 1) {
         items.push({
           name: cleaned,

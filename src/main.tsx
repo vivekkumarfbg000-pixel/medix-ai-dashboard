@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 // [DEV-BYPASS] Aggressively clear Service Workers and Caches to remove Auth guard
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(function (registrations) {
-        for (let registration of registrations) {
+        for (const registration of registrations) {
             registration.unregister();
             console.log('Unregistered service worker', registration);
         }
