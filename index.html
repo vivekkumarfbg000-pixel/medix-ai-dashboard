@@ -64,6 +64,17 @@
       }
     });
     </script>
+    <script>
+        // CRITICAL PWA BYPASS: Kill corrupted Service Workers before module scripts load
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                for (let registration of registrations) {
+                    registration.unregister();
+                    console.log('[HTML Bootstrap] Unregistered rogue Service Worker.');
+                }
+            });
+        }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
 </body>
 
