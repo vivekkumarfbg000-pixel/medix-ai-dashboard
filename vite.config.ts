@@ -9,6 +9,16 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 5173,
+    proxy: {
+      // Reverse proxy to bypass ISP blocks on *.supabase.co (Jio/Airtel India)
+      // Browser hits localhost:5173/supabase-proxy/* → Vite forwards server-side to supabase.co
+      '/supabase-proxy': {
+        target: 'https://ykrqpxbbyfipjqhpaszf.supabase.co',
+        changeOrigin: true,
+        rewrite: (path: string) => path.replace(/^\/supabase-proxy/, ''),
+        secure: true,
+      },
+    },
   },
   plugins: [
     react(),
@@ -101,7 +111,6 @@ export default defineConfig(({ mode }) => ({
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true, // remove console logs in production
         drop_debugger: true,
       },
     },

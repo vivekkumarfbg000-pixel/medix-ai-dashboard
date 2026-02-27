@@ -10,20 +10,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Pill, ShieldCheck, TrendingUp, Users } from "lucide-react";
 
-// Robust Frontend Validation & Error Handling
-const validatePassword = (pwd: string) => {
-  // Min 8 chars, 1 letter, 1 number, 1 special character
-  const regex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
-  return regex.test(pwd);
-};
-
 const getAuthErrorMessage = (error: any) => {
   const msg = error?.message?.toLowerCase() || "";
+  if (msg.includes('unexpected token') || msg.includes('is not valid json')) return "Server Configuration Error: Reach out to support. The Supabase proxy is misconfigured causing HTML to be returned instead of JSON.";
   if (msg.includes('invalid login credentials')) return "Incorrect email or password.";
-  if (msg.includes('rate limit')) return "Too many attempts. Please try again later.";
-  if (msg.includes('already registered')) return "An account with this email already exists.";
-  if (msg.includes('fetch') || msg.includes('network')) return "Network error. Please check your connection.";
-  return "An unexpected error occurred. Please contact support if this continues.";
+  if (msg.includes('email not confirmed')) return "Please verify your email before signing in. Check your inbox.";
+  if (msg.includes('rate limit')) return "Too many attempts. Please wait a few minutes and try again.";
+  if (msg.includes('already registered')) return "An account with this email already exists. Please sign in.";
+  return error?.message || "An unexpected error occurred. Please try again.";
 };
 
 const Auth = () => {
@@ -33,21 +27,42 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [shopName, setShopName] = useState("");
-  const [rememberMe, setRememberMe] = useState(false); // Default to false for shared devices
+  const [rememberMe, setRememberMe] = useState(false);
+
+  // ─── Helper: Extract OAuth/email-verification tokens from URL ───────────────
+  // With HashRouter the full URL after a callback looks like:
+  //   https://medixai.shop/#/auth#access_token=xxx&refresh_token=yyy&...
+  // window.location.hash gives us:  #/auth#access_token=xxx&...
+  // We need the part AFTER the second '#'.
+  const extractTokensFromHash = (): URLSearchParams | null => {
+    const fullHash = window.location.hash; // e.g. "#/auth#access_token=..."
+    if (!fullHash) return null;
+
+    // Find the second '#' (the one Supabase appended)
+    const secondHash = fullHash.indexOf('#', 1);
+    if (secondHash === -1) return null;
+
+    const tokenString = fullHash.substring(secondHash + 1); // "access_token=xxx&..."
+    if (!tokenString) return null;
+
+    return new URLSearchParams(tokenString);
+  };
 
   useEffect(() => {
-    // Check if already logged in (with timeout to avoid hanging on blocked ISP)
     const checkExistingSession = async () => {
+      console.log('[Auth] checkExistingSession starting... hash:', window.location.hash);
       try {
-        // [CRITICAL FIX]: Since we disabled `detectSessionInUrl` globally (to prevent
-        // ISP-blocked hanging on import), we must manually catch email verification links here.
-        const hash = window.location.hash;
-        if (hash) {
-          const params = new URLSearchParams(hash.substring(1)); // remove the #
+        // [CRITICAL FIX]: detectSessionInUrl is disabled in client.ts to prevent
+        // race conditions. We manually parse tokens from the URL hash here.
+        const params = extractTokensFromHash();
+        console.log('[Auth] Extracted tokens from hash:', params ? 'found' : 'none');
 
+        if (params) {
+          // Handle error responses from Supabase (e.g. expired verification link)
           if (params.has('error')) {
             toast.error(params.get('error_description')?.replace(/\+/g, ' ') || 'Verification failed');
-            window.history.replaceState(null, '', window.location.pathname);
+            // Clean the URL — keep only the HashRouter route part
+            window.history.replaceState(null, '', window.location.pathname + '#/auth');
             return;
           }
 
@@ -56,18 +71,17 @@ const Auth = () => {
 
           if (accessToken && refreshToken) {
             setIsLoading(true);
-            toast.info("Verifying email link...");
+            toast.info("Verifying login...");
 
-            // Restore session manually using the tokens from the URL
             const { error: sessionError } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             });
 
             if (!sessionError) {
-              // Clean the URL hash
-              window.history.replaceState(null, '', window.location.pathname);
-              toast.success("Email verified successfully!");
+              // Clean the URL hash — remove tokens, keep HashRouter route
+              window.history.replaceState(null, '', window.location.pathname + '#/auth');
+              toast.success("Login verified successfully!");
 
               if (!rememberMe) sessionStorage.setItem('temporary_session', 'true');
 
@@ -75,14 +89,20 @@ const Auth = () => {
               return;
             } else {
               toast.error(getAuthErrorMessage(sessionError));
+              // Clean URL even on error
+              window.history.replaceState(null, '', window.location.pathname + '#/auth');
             }
           }
         }
 
+        // No tokens in URL — check for existing session (with timeout for blocked ISP)
+        console.log('[Auth] Checking existing session...');
         const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
         const sessionCheck = supabase.auth.getSession().then(({ data }) => data.session);
         const session = await Promise.race([sessionCheck, timeout]);
+        console.log('[Auth] Session check result:', session ? 'has session' : 'no session');
         if (session?.user) {
+          console.log('[Auth] Existing session found, navigating to /dashboard');
           navigate("/dashboard");
         }
       } catch {
@@ -93,8 +113,10 @@ const Auth = () => {
     };
     checkExistingSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('[Auth] onAuthStateChange:', _event, session ? 'has session' : 'no session');
       if (session?.user) {
+        console.log('[Auth] Auth state changed to signed in, navigating to /dashboard');
         navigate("/dashboard");
       }
     });
@@ -102,84 +124,105 @@ const Auth = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  // ─── Google OAuth Handler (async with full error handling) ──────────────────
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          // CRITICAL: Supabase strips hash fragments from redirectTo.
+          // Point to root, and let App.tsx's global interceptor catch the tokens and forward to /auth
+          redirectTo: `${window.location.origin}/`,
+        },
+      });
+
+      if (error) {
+        toast.error(getAuthErrorMessage(error));
+        setIsLoading(false);
+      }
+      // If successful, browser navigates away to Google — no need to reset isLoading
+    } catch (err: any) {
+      toast.error(err.message || "Google login failed. Please check your connection.");
+      setIsLoading(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('[Auth] handleLogin called for:', email.trim());
+    if (!email.trim() || !password) {
+      toast.error("Please enter your email and password.");
+      return;
+    }
     setIsLoading(true);
 
     try {
-      // Race the login against a 5-second timeout
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Connection timed out. Your ISP may be blocking Supabase. Try using a VPN or changing DNS to 8.8.8.8")), 5000)
-      );
-
-      const loginAttempt = supabase.auth.signInWithPassword({
+      console.log('[Auth] Calling signInWithPassword...');
+      const { error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
-
-      const { error } = await Promise.race([loginAttempt, timeout]);
+      console.log('[Auth] signInWithPassword result:', error ? `error: ${error.message}` : 'success');
 
       if (error) {
         toast.error(getAuthErrorMessage(error));
       } else {
         toast.success("Welcome back!");
-
-        // Flag for the global layout to wipe on departure if not remembered
         if (!rememberMe) {
           sessionStorage.setItem('temporary_session', 'true');
         } else {
           sessionStorage.removeItem('temporary_session');
         }
-
-        navigate("/dashboard");
+        // onAuthStateChange handles navigation
       }
     } catch (err: any) {
-      toast.error(err.message || "Login failed. Check your network connection.");
+      toast.error(err.message || "Login failed. Please check your connection.");
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Frontend Security Validation
-    if (!validatePassword(password)) {
-      toast.error("Password must be at least 8 characters and include a number and special character.");
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters.");
       return;
     }
-
     setIsLoading(true);
 
-    const redirectUrl = `${window.location.origin}/dashboard`;
-
-    const { error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          full_name: fullName,
-          shop_name: shopName || "My Medical Shop",
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          // CRITICAL: Point to root, let App.tsx interceptor forward to /auth
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            full_name: fullName,
+            shop_name: shopName || "My Medical Shop",
+          },
         },
-      },
-    });
+      });
 
-    if (error) {
-      toast.error(getAuthErrorMessage(error));
-    } else {
-      toast.success("Account created successfully!");
-
-      if (!rememberMe) {
-        sessionStorage.setItem('temporary_session', 'true');
-      } else {
-        sessionStorage.removeItem('temporary_session');
+      if (error) {
+        toast.error(getAuthErrorMessage(error));
+      } else if (data?.user?.identities?.length === 0) {
+        toast.error("An account with this email already exists. Please sign in.");
+      } else if (data?.user && !data.session) {
+        toast.success("Account created! Check your email to verify before signing in.", {
+          duration: 8000,
+        });
+      } else if (data?.session) {
+        toast.success("Account created successfully!");
+        if (!rememberMe) sessionStorage.setItem('temporary_session', 'true');
+        navigate("/dashboard");
       }
-
-      navigate("/dashboard");
+    } catch (err: any) {
+      toast.error(err.message || "Sign up failed. Please check your connection.");
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   const features = [
@@ -260,21 +303,13 @@ const Auth = () => {
                     <Button
                       variant="outline"
                       className="w-full h-11 font-medium border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
-                      onClick={() => {
-                        setIsLoading(true);
-                        supabase.auth.signInWithOAuth({
-                          provider: 'google',
-                          options: {
-                            redirectTo: "https://medixai.shop/dashboard"
-                          }
-                        });
-                      }}
+                      onClick={handleGoogleLogin}
                       disabled={isLoading}
                     >
                       <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
                         <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
                       </svg>
-                      Sign within Google (Save Costs)
+                      Sign in with Google
                     </Button>
 
                     <div className="relative">

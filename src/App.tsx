@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner, toast } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, HashRouter } from "react-router-dom";
 import { DashboardLayout } from "./components/dashboard/DashboardLayout";
 import { Activity } from "lucide-react";
 
@@ -133,15 +133,31 @@ const AppRoutes = () => {
 
 const App = () => {
   console.log("🚀 App Component Rendering...");
+
+  // [CRITICAL FIX]: Supabase strips URL fragments from `redirectTo`.
+  // So a callback lands on `http://localhost:5173/#access_token=...`
+  // HashRouter sees `#access_token` and shows a 404 Not Found.
+  // We must intercept this globally and rewrite it to `/#/auth#access_token=...`
+  // so HashRouter loads the Auth page, and Auth page can parse the tokens.
+  if (typeof window !== 'undefined') {
+    const hash = window.location.hash;
+    // If hash contains tokens but does not start with Router's standard #/
+    if (hash && !hash.startsWith('#/') && (hash.includes('access_token=') || hash.includes('error='))) {
+      const tokens = hash.substring(1); // remove the first #
+      window.history.replaceState(null, '', window.location.pathname + '#/auth#' + tokens);
+      console.log('🔄 [App] Intercepted Supabase tokens, rewritten for HashRouter:', window.location.hash);
+    }
+  }
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <HashRouter>
             <AppRoutes />
-          </BrowserRouter>
+          </HashRouter>
         </TooltipProvider>
       </QueryClientProvider>
     </ErrorBoundary>

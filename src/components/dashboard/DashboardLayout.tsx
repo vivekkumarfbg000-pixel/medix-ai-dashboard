@@ -24,13 +24,14 @@ import { AIChatbotWidget } from "./AIChatbotWidget";
 function DashboardContent() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [transcription, setTranscription] = useState("");
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
   const { currentShop } = useUserShops();
   const { role } = useUserRole(currentShop?.id);
-  const { state, openMobile } = useSidebar(); // Access sidebar state
+  const { state, openMobile } = useSidebar();
   const lastBackPressRef = useRef(0);
 
   // Handle Back Navigation Logic
@@ -62,7 +63,7 @@ function DashboardContent() {
       if (sessionStorage.getItem('temporary_session') === 'true') {
         // We do a sync localStorage wipe for maximum safety on unload
         // since async supabase.auth.signOut() can be cancelled by browser close
-        localStorage.removeItem('sb-kivnclaxovxomrmexrtx-auth-token');
+        localStorage.removeItem('sb-ykrqpxbbyfipjqhpaszf-auth-token');
       }
     };
     window.addEventListener('beforeunload', handleUnload);
@@ -85,22 +86,32 @@ function DashboardContent() {
   };
 
   useEffect(() => {
-    // Get session once (with timeout protection against ISP blocking)
-    const sessionTimeout = setTimeout(() => {
-      // If Supabase hasn't responded in 3s, set user to null (will show loading spinner)
-      // but DON'T redirect — let the user stay on dashboard if they got here
-    }, 3000);
+    // Safety timeout to prevent infinite spinner if network/Supabase hangs
+    const timeoutId = setTimeout(() => {
+      setSessionLoaded(true);
+      if (!user) {
+        toast.error("Session check timeout. Redirecting to login...");
+        navigate('/auth');
+      }
+    }, 4000);
 
+    // Get session once — resolve user state before rendering children
     supabase.auth.getSession().then(({ data: { session } }) => {
-      clearTimeout(sessionTimeout);
+      clearTimeout(timeoutId);
       setUser(session?.user ?? null);
+      setSessionLoaded(true);
+      if (!session?.user) {
+        navigate('/auth');
+      }
     }).catch(() => {
-      clearTimeout(sessionTimeout);
+      clearTimeout(timeoutId);
+      setSessionLoaded(true);
+      navigate('/auth');
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("Auth Change:", event);
       setUser(session?.user ?? null);
+      setSessionLoaded(true);
       if (event === 'SIGNED_OUT') {
         localStorage.removeItem('currentShopId');
         navigate("/auth");
@@ -108,18 +119,21 @@ function DashboardContent() {
     });
 
     return () => {
-      clearTimeout(sessionTimeout);
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, [navigate]);
-  // Show nothing briefly while user loads (DashboardLayout loading screen is the primary gate)
-  if (!user) {
+  // Show spinner only while we are still waiting for session check
+  if (!sessionLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
       </div>
     );
   }
+
+  // Session loaded but no user — redirect handled in effect, show nothing
+  if (!user) return null;
 
   return (
     <>
@@ -200,21 +214,17 @@ export function DashboardLayout() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        // Timeout Promise — 3s is enough for cached sessions
-        const timeout = new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), 3000));
+        // Let getSession complete normally without artificially timing it out.
+        // It uses local storage mostly so it should be fast, but can take a few seconds
+        // on cold start or network refresh.
+        const { data, error } = await supabase.auth.getSession();
 
-        // Race actual session check vs timeout
-        const result = await Promise.race([
-          supabase.auth.getSession(),
-          timeout
-        ]) as any;
-
-        if (result?.timeout) {
-          console.warn("Session check timed out (ISP may be blocking Supabase). Redirecting to auth...");
+        if (error) {
+          console.error("Session check failed", error);
           navigate('/auth');
           return;
         } else {
-          const { session } = result?.data || {};
+          const { session } = data;
           if (!session) {
             navigate('/auth');
             return;

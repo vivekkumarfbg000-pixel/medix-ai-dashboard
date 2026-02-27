@@ -7,6 +7,17 @@ export interface OfflineInventory {
     unit_price: number;
     batch_number?: string;
     expiry_date?: string;
+    rack_number?: string;
+    shelf_number?: string;
+    gst_rate?: number;
+    hsn_code?: string;
+    description?: string;
+    generic_name?: string; // For smart substitution
+    composition?: string; // For accurate matching
+    purchase_price?: number; // For margin calculation
+    shop_id?: string; // Critical for isolation
+    schedule_h1?: boolean;
+    manufacturer?: string;
     is_synced: number; // 1 = Synced, 0 = Pending Upload
 }
 
@@ -45,27 +56,6 @@ class MedixDatabase extends Dexie {
             orders: '++id, shop_id, created_at, is_synced'
         });
     }
-}
-
-export interface OfflineInventory {
-    id: string; // Supabase UUID
-    medicine_name: string;
-    quantity: number;
-    unit_price: number;
-    batch_number?: string;
-    expiry_date?: string;
-    rack_number?: string;
-    shelf_number?: string;
-    gst_rate?: number;
-    hsn_code?: string;
-    description?: string;
-    generic_name?: string; // For smart substitution
-    composition?: string; // For accurate matching
-    purchase_price?: number; // For margin calculation
-    shop_id?: string; // Critical for isolation
-    schedule_h1?: boolean;
-    manufacturer?: string;
-    is_synced: number; // 1 = Synced, 0 = Pending Upload
 }
 
 export const db = new MedixDatabase();

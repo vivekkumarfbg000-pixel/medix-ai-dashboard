@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { supabase, isSupabaseReachable } from '@/integrations/supabase/client';
+import { supabase, connectivityReady } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -8,12 +8,6 @@ export const useSessionEnforcement = () => {
     const sessionCheckedRef = useRef(false);
 
     useEffect(() => {
-        // Skip enforcement entirely if Supabase is unreachable (ISP block)
-        if (!isSupabaseReachable) {
-            console.warn("Session enforcement skipped — Supabase unreachable");
-            return;
-        }
-
         let channel: any = null;
 
         const handleLogout = async () => {
@@ -27,6 +21,13 @@ export const useSessionEnforcement = () => {
 
         const enforceSession = async () => {
             try {
+                // Await the connectivity check instead of reading a stale sync flag
+                const isReachable = await connectivityReady;
+                if (!isReachable) {
+                    console.warn("Session enforcement skipped — Supabase unreachable");
+                    return;
+                }
+
                 const { data: { session } } = await supabase.auth.getSession();
                 if (!session?.user) return;
                 const user = session.user;
