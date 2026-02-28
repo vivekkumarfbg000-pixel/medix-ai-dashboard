@@ -19,7 +19,6 @@ import {
   BookOpen
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Sidebar,
@@ -68,14 +67,8 @@ export function AppSidebar() {
     }
   };
 
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast.error("Error signing out");
-    } else {
-      toast.success("Signed out successfully");
-      navigate("/auth");
-    }
+  const handleLogout = () => {
+    navigate("/logout");
   };
 
   const isActive = (path: string) => {

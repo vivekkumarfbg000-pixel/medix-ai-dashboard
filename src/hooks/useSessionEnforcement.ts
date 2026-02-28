@@ -13,7 +13,7 @@ export const useSessionEnforcement = () => {
         const handleLogout = async () => {
             await supabase.auth.signOut();
             localStorage.removeItem('medix_device_id');
-            navigate('/auth');
+            navigate('/login');
             toast.error("You have been logged out.", {
                 description: "New login detected on another device."
             });

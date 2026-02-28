@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,6 @@ import {
   Smartphone,
   Mail,
   Building,
-  MapPin,
   MapPin,
   Phone,
   FileText,
@@ -50,6 +50,7 @@ interface ShopSettingsData {
 }
 
 const Settings = () => {
+  const navigate = useNavigate();
   const { currentShop } = useUserShops();
   const [shop, setShop] = useState<ShopData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -582,10 +583,7 @@ const Settings = () => {
               <Button
                 variant="destructive"
                 className="w-full bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 shadow-none"
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  window.location.href = "/auth";
-                }}
+                onClick={() => navigate("/logout")}
               >
                 <LogOut className="w-4 h-4 mr-2" /> Log Out
               </Button>

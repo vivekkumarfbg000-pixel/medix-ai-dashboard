@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner, toast } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, HashRouter } from "react-router-dom";
+import { Routes, Route, Navigate, HashRouter } from "react-router-dom";
 import { DashboardLayout } from "./components/dashboard/DashboardLayout";
 import { Activity } from "lucide-react";
 
@@ -13,8 +13,16 @@ import "@/services/syncService"; // Initialize Sync Service
 // Note: importing solely for side-effects (constructor listener)
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
-// Initial Load
-import Auth from "./pages/Auth";
+// ─── Auth Module ────────────────────────────────────────────────────────────
+import { AuthProvider, AuthGuard } from "@/auth";
+
+// Auth pages (eagerly loaded — small and needed immediately)
+import LoginPage from "@/auth/LoginPage";
+import SignupPage from "@/auth/SignupPage";
+import LogoutHandler from "@/auth/LogoutHandler";
+import GoogleCallback from "@/auth/GoogleCallback";
+
+// NotFound
 import NotFound from "./pages/NotFound";
 
 // Lazy Load Dashboard Pages for Performance
@@ -81,42 +89,50 @@ const AppRoutes = () => {
   return (
     <Suspense fallback={<div className="flex items-center justify-center h-screen"><Activity className="h-8 w-8 animate-spin text-primary" /></div>}>
       <Routes>
-        <Route path="/auth" element={<Auth />} />
+        {/* ── Public Auth Routes ───────────────────────────────────────── */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/logout" element={<LogoutHandler />} />
+        <Route path="/auth/google" element={<GoogleCallback />} />
+
+        {/* Legacy /auth route — redirect to /login for backwards compat */}
+        <Route path="/auth" element={<Navigate to="/login" replace />} />
 
         {/* Redirect root to /dashboard */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-        {/* Dashboard Layout wraps all authenticated features */}
-        <Route path="/dashboard" element={<DashboardLayout />}>
-          <Route index element={<Overview />} />
-          <Route path="inventory" element={<ErrorBoundary><Inventory /></ErrorBoundary>} />
-          <Route path="diary-scan" element={<ErrorBoundary><DiaryScan /></ErrorBoundary>} />
-          <Route path="lab-analyzer" element={<ErrorBoundary><LabAnalyzer /></ErrorBoundary>} />
-          <Route path="orders" element={<ErrorBoundary><Orders /></ErrorBoundary>} />
-          <Route path="compliance" element={<ErrorBoundary><Compliance /></ErrorBoundary>} />
-          <Route path="ai-insights" element={<ErrorBoundary><AIInsights /></ErrorBoundary>} />
-          <Route path="forecasting" element={<ErrorBoundary><Forecasting /></ErrorBoundary>} />
-          <Route path="alerts" element={<ErrorBoundary><Alerts /></ErrorBoundary>} />
-          <Route path="settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
-          <Route path="sales/pos" element={<ErrorBoundary><LitePOS /></ErrorBoundary>} />
-          <Route path="marketplace" element={<ErrorBoundary><Marketplace /></ErrorBoundary>} />
-          <Route path="prescriptions" element={<ErrorBoundary><Prescriptions /></ErrorBoundary>} />
-          <Route path="analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
-          <Route path="audit-logs" element={<ErrorBoundary><AuditLogs /></ErrorBoundary>} />
-          <Route path="customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
-          <Route path="shortbook" element={<ErrorBoundary><Shortbook /></ErrorBoundary>} />
-          <Route path="distributors" element={<ErrorBoundary><Distributors /></ErrorBoundary>} />
-          <Route path="reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
-          <Route path="suppliers" element={<ErrorBoundary><Suppliers /></ErrorBoundary>} />
-          <Route path="purchases" element={<ErrorBoundary><Purchases /></ErrorBoundary>} />
-          <Route path="schedule-h1" element={<ErrorBoundary><ScheduleH1 /></ErrorBoundary>} />
-          {import.meta.env.DEV && (
-            <>
-              <Route path="env-debug" element={<ErrorBoundary><EnvDebug /></ErrorBoundary>} />
-              <Route path="ai-debug" element={<ErrorBoundary><AiDebug /></ErrorBoundary>} />
-            </>
-          )}
-
+        {/* ── Protected Routes — AuthGuard checks session ─────────────── */}
+        <Route element={<AuthGuard />}>
+          <Route path="/dashboard" element={<DashboardLayout />}>
+            <Route index element={<Overview />} />
+            <Route path="inventory" element={<ErrorBoundary><Inventory /></ErrorBoundary>} />
+            <Route path="diary-scan" element={<ErrorBoundary><DiaryScan /></ErrorBoundary>} />
+            <Route path="lab-analyzer" element={<ErrorBoundary><LabAnalyzer /></ErrorBoundary>} />
+            <Route path="orders" element={<ErrorBoundary><Orders /></ErrorBoundary>} />
+            <Route path="compliance" element={<ErrorBoundary><Compliance /></ErrorBoundary>} />
+            <Route path="ai-insights" element={<ErrorBoundary><AIInsights /></ErrorBoundary>} />
+            <Route path="forecasting" element={<ErrorBoundary><Forecasting /></ErrorBoundary>} />
+            <Route path="alerts" element={<ErrorBoundary><Alerts /></ErrorBoundary>} />
+            <Route path="settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
+            <Route path="sales/pos" element={<ErrorBoundary><LitePOS /></ErrorBoundary>} />
+            <Route path="marketplace" element={<ErrorBoundary><Marketplace /></ErrorBoundary>} />
+            <Route path="prescriptions" element={<ErrorBoundary><Prescriptions /></ErrorBoundary>} />
+            <Route path="analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
+            <Route path="audit-logs" element={<ErrorBoundary><AuditLogs /></ErrorBoundary>} />
+            <Route path="customers" element={<ErrorBoundary><Customers /></ErrorBoundary>} />
+            <Route path="shortbook" element={<ErrorBoundary><Shortbook /></ErrorBoundary>} />
+            <Route path="distributors" element={<ErrorBoundary><Distributors /></ErrorBoundary>} />
+            <Route path="reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
+            <Route path="suppliers" element={<ErrorBoundary><Suppliers /></ErrorBoundary>} />
+            <Route path="purchases" element={<ErrorBoundary><Purchases /></ErrorBoundary>} />
+            <Route path="schedule-h1" element={<ErrorBoundary><ScheduleH1 /></ErrorBoundary>} />
+            {import.meta.env.DEV && (
+              <>
+                <Route path="env-debug" element={<ErrorBoundary><EnvDebug /></ErrorBoundary>} />
+                <Route path="ai-debug" element={<ErrorBoundary><AiDebug /></ErrorBoundary>} />
+              </>
+            )}
+          </Route>
         </Route>
 
         {import.meta.env.DEV && (
@@ -137,14 +153,14 @@ const App = () => {
   // [CRITICAL FIX]: Supabase strips URL fragments from `redirectTo`.
   // So a callback lands on `http://localhost:5173/#access_token=...`
   // HashRouter sees `#access_token` and shows a 404 Not Found.
-  // We must intercept this globally and rewrite it to `/#/auth#access_token=...`
-  // so HashRouter loads the Auth page, and Auth page can parse the tokens.
+  // We must intercept this globally and rewrite it to `/#/auth/google#access_token=...`
+  // so HashRouter loads the GoogleCallback page, which can parse the tokens.
   if (typeof window !== 'undefined') {
     const hash = window.location.hash;
     // If hash contains tokens but does not start with Router's standard #/
     if (hash && !hash.startsWith('#/') && (hash.includes('access_token=') || hash.includes('error='))) {
       const tokens = hash.substring(1); // remove the first #
-      window.history.replaceState(null, '', window.location.pathname + '#/auth#' + tokens);
+      window.history.replaceState(null, '', window.location.pathname + '#/auth/google#' + tokens);
       console.log('🔄 [App] Intercepted Supabase tokens, rewritten for HashRouter:', window.location.hash);
     }
   }
@@ -156,7 +172,9 @@ const App = () => {
           <Toaster />
           <Sonner />
           <HashRouter>
-            <AppRoutes />
+            <AuthProvider>
+              <AppRoutes />
+            </AuthProvider>
           </HashRouter>
         </TooltipProvider>
       </QueryClientProvider>

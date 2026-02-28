@@ -9,13 +9,13 @@ import { CommandPalette } from "./CommandPalette";
 import { VoiceCommandBar, type ParsedItem } from "./VoiceCommandBar";
 import { ReviewInvoiceModal } from "./ReviewInvoiceModal";
 import { toast } from "sonner";
-import { User } from "@supabase/supabase-js";
 import { Bell, Search, Command } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useUserShops } from "@/hooks/useUserShops";
 import { useUserRole } from "@/hooks/useUserRole";
-import { useSessionEnforcement } from "@/hooks/useSessionEnforcement"; // [NEW]
+import { useSessionEnforcement } from "@/hooks/useSessionEnforcement";
+import { useAuth } from "@/auth/useAuth";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { SyncStatus } from "../common/SyncStatus";
 import { AIChatbotWidget } from "./AIChatbotWidget";
@@ -23,8 +23,7 @@ import { AIChatbotWidget } from "./AIChatbotWidget";
 // Inner component that has access to SidebarContext
 function DashboardContent() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
-  const [sessionLoaded, setSessionLoaded] = useState(false);
+  const { user } = useAuth();
   const [commandOpen, setCommandOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [transcription, setTranscription] = useState("");
@@ -39,9 +38,7 @@ function DashboardContent() {
     const handlePopState = () => {
       const now = Date.now();
 
-      // Condition 1: If Sidebar is currently open (mobile sheet or desktop expanded)
-      // Note: On mobile, 'openMobile' is the key. On desktop, 'state' might be 'expanded'.
-      // The user specifically asked about "side bar option is open", implying the mobile sheet.
+      // Condition 1: If Sidebar is currently open (mobile sheet)
       if (openMobile) {
         navigate("/dashboard");
         toast.info("Welcome to Command Center 🏠");
@@ -61,8 +58,7 @@ function DashboardContent() {
     // Privacy protection for shared medical shop computers
     const handleUnload = () => {
       if (sessionStorage.getItem('temporary_session') === 'true') {
-        // We do a sync localStorage wipe for maximum safety on unload
-        // since async supabase.auth.signOut() can be cancelled by browser close
+        // Sync localStorage wipe for maximum safety on unload
         localStorage.removeItem('sb-ykrqpxbbyfipjqhpaszf-auth-token');
       }
     };
@@ -75,7 +71,6 @@ function DashboardContent() {
   }, [navigate, openMobile]);
 
   const handleTranscriptionComplete = (text: string, items: ParsedItem[]) => {
-    // Instead of opening modal, redirect to POS with data
     navigate("/dashboard/sales/pos", {
       state: {
         voiceTranscription: text,
@@ -85,54 +80,7 @@ function DashboardContent() {
     toast.success("Redirecting to Billing Hub...");
   };
 
-  useEffect(() => {
-    // Safety timeout to prevent infinite spinner if network/Supabase hangs
-    const timeoutId = setTimeout(() => {
-      setSessionLoaded(true);
-      if (!user) {
-        toast.error("Session check timeout. Redirecting to login...");
-        navigate('/auth');
-      }
-    }, 4000);
-
-    // Get session once — resolve user state before rendering children
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      clearTimeout(timeoutId);
-      setUser(session?.user ?? null);
-      setSessionLoaded(true);
-      if (!session?.user) {
-        navigate('/auth');
-      }
-    }).catch(() => {
-      clearTimeout(timeoutId);
-      setSessionLoaded(true);
-      navigate('/auth');
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      setSessionLoaded(true);
-      if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('currentShopId');
-        navigate("/auth");
-      }
-    });
-
-    return () => {
-      clearTimeout(timeoutId);
-      subscription.unsubscribe();
-    };
-  }, [navigate]);
-  // Show spinner only while we are still waiting for session check
-  if (!sessionLoaded) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  // Session loaded but no user — redirect handled in effect, show nothing
+  // AuthGuard guarantees user is non-null at this point
   if (!user) return null;
 
   return (
@@ -209,55 +157,33 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
-  // Use a separate effect for initial loading state
-  // OPTIMIZATION: Faster initial load check
+  // Pre-fetch shop ID for immediate availability to all children
   useEffect(() => {
-    const checkSession = async () => {
+    const prefetchShop = async () => {
       try {
-        // Let getSession complete normally without artificially timing it out.
-        // It uses local storage mostly so it should be fast, but can take a few seconds
-        // on cold start or network refresh.
-        const { data, error } = await supabase.auth.getSession();
+        if (!localStorage.getItem('currentShopId')) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            const { data } = await supabase
+              .from('user_shops')
+              .select('shop_id')
+              .eq('user_id', session.user.id)
+              .limit(1)
+              .single();
 
-        if (error) {
-          console.error("Session check failed", error);
-          navigate('/auth');
-          return;
-        } else {
-          const { session } = data;
-          if (!session) {
-            navigate('/auth');
-            return;
-          }
-
-          // Guarantee Shop ID is present instantly for all children
-          if (!localStorage.getItem('currentShopId')) {
-            try {
-              const { data, error } = await supabase
-                .from('user_shops')
-                .select('shop_id')
-                .eq('user_id', session.user.id)
-                .limit(1)
-                .single();
-
-              if (data?.shop_id) {
-                localStorage.setItem('currentShopId', data.shop_id);
-              }
-            } catch (e) {
-              console.error("Failed to pre-fetch initial shop", e);
+            if (data?.shop_id) {
+              localStorage.setItem('currentShopId', data.shop_id);
             }
           }
         }
-      } catch (err) {
-        console.error("Session check failed", err);
-        navigate('/auth');
-        return;
+      } catch (e) {
+        console.error("Failed to pre-fetch initial shop", e);
       } finally {
         setLoading(false);
       }
     };
 
-    checkSession();
+    prefetchShop();
   }, [navigate]);
 
   if (loading) {
