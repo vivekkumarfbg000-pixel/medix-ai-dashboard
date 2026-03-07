@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import {
     ShoppingCart, Mic, Trash2, ArrowLeft,
     Zap, X, TrendingUp, Search, User, IndianRupee, Sparkles,
-    Plus, BookmarkPlus, ChevronRight, PauseCircle, PlayCircle, History, Printer, Eye, ShieldAlert
+    Plus, BookmarkPlus, ChevronRight, PauseCircle, PlayCircle, History, Printer, Eye, ShieldAlert, CheckCircle, MessageSquare
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -58,6 +58,8 @@ const LitePOS = () => {
 
     const [lastOrderDetails, setLastOrderDetails] = useState<any>(null);
     const [showProfitMode, setShowProfitMode] = useState(false); // F8 Toggle
+    const [receiptMethod, setReceiptMethod] = useState<'whatsapp' | 'print'>('print');
+    const [showCheckoutOptions, setShowCheckoutOptions] = useState(false);
     const receiptRef = useRef<HTMLDivElement>(null);
 
     const location = useLocation(); // Hook to get navigation state
@@ -174,16 +176,8 @@ const LitePOS = () => {
     const handleCheckout = async () => {
         if (!currentShop?.id || cart.length === 0) return;
 
-        // If no customer selected, prompt for Guest Details (for WhatsApp)
-        // Only if not already paying by Credit (which requires a real customer)
-        if (!selectedCustomer && paymentMode !== 'credit' && !showGuestDialog) {
-            // Check if we want to prompt? Yes, for WhatsApp value
-            setShowGuestDialog(true);
-            return;
-        }
-
-        // If dialog is open, we proceed to confirmCheckout
-        await confirmCheckout();
+        // Open checkout options dialog
+        setShowCheckoutOptions(true);
     };
 
     const confirmCheckout = async () => {
@@ -433,68 +427,37 @@ const LitePOS = () => {
             discount: discountData
         });
 
-        if (isOnline) {
-            let finalPhone = phone;
-
-            // Auto-Prompt if Phone is Missing
-            if (!finalPhone) {
-                const inputPhone = prompt("Enter Customer Mobile Number for WhatsApp Invoice:");
-                if (inputPhone) {
-                    finalPhone = inputPhone;
-                    setLastOrderDetails((prev: any) => ({
-                        ...prev,
-                        customer: { ...prev.customer, phone: finalPhone }
-                    }));
+        if (receiptMethod === 'whatsapp') {
+            if (isOnline) {
+                let finalPhone = phone;
+                if (!finalPhone) {
+                    const inputPhone = prompt("Enter Customer Mobile Number for WhatsApp Invoice:");
+                    if (inputPhone) {
+                        finalPhone = inputPhone;
+                        setLastOrderDetails((prev: any) => ({ ...prev, customer: { ...prev.customer, phone: finalPhone } }));
+                    }
                 }
-            }
-
-            if (finalPhone) {
-                const waLink = buildWaLink(finalPhone);
-                const newWindow = window.open(waLink, '_blank');
-
-                toast.success("Order Placed! 🎉 Printing Invoice...", {
-                    description: newWindow ? "WhatsApp opened" : "Pop-up blocked? Click below.",
-                    duration: 10000,
-                    action: {
-                        label: "Open WhatsApp",
-                        onClick: () => window.open(waLink, '_blank')
-                    },
-                    cancel: {
-                        label: "🖨️ Reprint",
-                        onClick: () => setTimeout(() => window.print(), 100)
-                    }
-                });
+                if (finalPhone) {
+                    const waLink = buildWaLink(finalPhone);
+                    const newWindow = window.open(waLink, '_blank');
+                    toast.success("Order Placed! 🎉 WhatsApp Opened", {
+                        description: newWindow ? "Invoice sent via WhatsApp" : "Pop-up blocked? Click below.",
+                        action: { label: "Open WhatsApp", onClick: () => window.open(waLink, '_blank') }
+                    });
+                } else {
+                    toast.success("Order Placed! 🎉", { description: "No mobile number for WhatsApp." });
+                }
             } else {
-                toast.success("Order Placed! 🎉 Printing Invoice...", {
-                    description: "No number provided.",
-                    duration: 8000,
-                    action: {
-                        label: "Send WhatsApp",
-                        onClick: () => {
-                            const phoneNumber = prompt("Enter customer WhatsApp number:");
-                            if (phoneNumber) {
-                                window.open(buildWaLink(phoneNumber), '_blank');
-                            }
-                        }
-                    },
-                    cancel: {
-                        label: "🖨️ Reprint",
-                        onClick: () => setTimeout(() => window.print(), 100)
-                    }
-                });
+                toast.success("Order Saved Offline! 💾 Cannot send WhatsApp while offline.");
             }
         } else {
-            toast.success("Order Saved Offline! 💾 Printing...", {
+            // Default to Print
+            toast.success(isOnline ? "Order Placed! 🎉 Printing Invoice..." : "Order Saved Offline! 💾 Printing...", {
                 duration: 5000,
-                action: {
-                    label: "🖨️ Reprint",
-                    onClick: () => setTimeout(() => window.print(), 100)
-                }
+                cancel: { label: "🖨️ Reprint", onClick: () => setTimeout(() => window.print(), 100) }
             });
+            setTimeout(() => window.print(), 600);
         }
-
-        // AUTO-PRINT: Trigger print dialog automatically after a short delay
-        setTimeout(() => window.print(), 600);
 
         setCart([]);
         setPaymentMode('cash');
@@ -1564,6 +1527,52 @@ const LitePOS = () => {
                                         </button>
                                     </div>
                                 </div>
+
+                                {/* CHECKOUT OPTIONS DIALOG */}
+                                <Dialog open={showCheckoutOptions} onOpenChange={setShowCheckoutOptions}>
+                                    <DialogContent className="bg-slate-950 border-slate-800 text-slate-100 max-w-sm">
+                                        <DialogHeader>
+                                            <DialogTitle className="flex items-center gap-2">
+                                                <CheckCircle className="w-5 h-5 text-emerald-400" /> Complete Order
+                                            </DialogTitle>
+                                        </DialogHeader>
+                                        <div className="space-y-4 py-4">
+                                            <p className="text-sm text-slate-400 text-center">How would you like to issue the receipt?</p>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <Button
+                                                    className="h-24 flex flex-col items-center justify-center gap-2 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-emerald-950/30"
+                                                    onClick={() => {
+                                                        setReceiptMethod('whatsapp');
+                                                        setShowCheckoutOptions(false);
+                                                        if (!selectedCustomer && paymentMode !== 'credit' && !guestDetails.name) {
+                                                            setShowGuestDialog(true);
+                                                        } else {
+                                                            confirmCheckout();
+                                                        }
+                                                    }}
+                                                >
+                                                    <MessageSquare className="w-8 h-8 text-emerald-500" />
+                                                    <span>WhatsApp</span>
+                                                </Button>
+                                                <Button
+                                                    className="h-24 flex flex-col items-center justify-center gap-2 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-blue-950/30"
+                                                    onClick={() => {
+                                                        setReceiptMethod('print');
+                                                        setShowCheckoutOptions(false);
+                                                        if (!selectedCustomer && paymentMode !== 'credit' && !guestDetails.name) {
+                                                            setShowGuestDialog(true);
+                                                        } else {
+                                                            confirmCheckout();
+                                                        }
+                                                    }}
+                                                >
+                                                    <Printer className="w-8 h-8 text-blue-500" />
+                                                    <span>Print</span>
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
 
                                 {/* MANUAL GUEST DETAILS (Hidden state, shown via Dialog) */}
                                 <Dialog open={showGuestDialog} onOpenChange={setShowGuestDialog}>
