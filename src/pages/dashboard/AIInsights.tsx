@@ -25,7 +25,8 @@ import {
   AlertOctagon,
   Volume2, // Icons for TTS
   VolumeX, // Icons for TTS
-  StopCircle // Icons for TTS
+  StopCircle, // Icons for TTS
+  ShieldAlert
 } from "lucide-react";
 import { drugService, ClinicalDrugInfo, InteractionResult } from "@/services/drugService";
 import { aiService } from "@/services/aiService";
