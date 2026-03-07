@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
+import { Capacitor } from '@capacitor/core';
 import type { Database } from './types';
 
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrcnFweGJieWZpcGpxaHBhc3pmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1MTEwNjEsImV4cCI6MjA4MjA4NzA2MX0.rWuk98xZ1wpJwK9agtZCeie3C9xQDb43UZK8FutCGss';
+export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrcnFweGJieWZpcGpxaHBhc3pmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1MTEwNjEsImV4cCI6MjA4MjA4NzA2MX0.rWuk98xZ1wpJwK9agtZCeie3C9xQDb43UZK8FutCGss';
 
 // ─── ISP Bypass Proxy Setup ───────────────────────────────────────────────────
 // Indian ISPs (Jio/Airtel) block direct connections to *.supabase.co.
@@ -16,16 +17,26 @@ function getSupabaseUrl(): string {
     // SSR / build time — use real URL
     return 'https://ykrqpxbbyfipjqhpaszf.supabase.co';
   }
+
+  // App running as a Native Mobile App on device (usually resolves to http://localhost)
+  if (Capacitor.isNativePlatform()) {
+    return 'https://medixai.shop/supabase-proxy';
+  }
+
   const { hostname, protocol, host } = window.location;
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     // Dev: Vite proxies /supabase-proxy → supabase.co (configured in vite.config.ts)
     return `${protocol}//${host}/supabase-proxy`;
   }
-  // Production: PHP proxy at same origin
+  // Production Web: PHP proxy at same origin
+  // Requires .htaccess to rewrite /supabase-proxy/* -> /supabase-proxy/index.php
   return `${window.location.origin}/supabase-proxy`;
 }
 
 const SUPABASE_URL = getSupabaseUrl();
+
+/** Exposed so the connectivity checker can ping the right base URL. */
+export const getSupabaseBaseUrl = () => SUPABASE_URL;
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -35,7 +46,9 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, 
     detectSessionInUrl: false,
   },
   db: { schema: 'public' },
-  global: { headers: { 'x-application-name': 'medix-ai-dashboard' } },
+  global: {
+    headers: { 'x-application-name': 'medix-ai-dashboard' }
+  },
 });
 
 // Legacy compatibility exports used by useSessionEnforcement

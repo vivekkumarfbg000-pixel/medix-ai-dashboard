@@ -8,10 +8,55 @@ import { Routes, Route, Navigate, HashRouter } from "react-router-dom";
 import { DashboardLayout } from "./components/dashboard/DashboardLayout";
 import { Activity } from "lucide-react";
 
+// ─── CRITICAL PWA GOOGLE LOGIN FIX ─────────────────────────────────────────
+// Intercept OAuth redirects synchronously BEFORE React Router boots up.
+// When running as a Chrome PWA (Add to Homescreen), Supabase redirects back
+// to `https://medixai.shop/?code=...`. If we wait for the `<App />` component
+// to render, React Router's `<Route path="/" element={<Navigate to="/dashboard" replace />} />`
+// immediately wipes out the query parameters!
+// We must parse the `?code=` or `#access_token=` right here, right now, and
+// rewrite the hash artificially so HashRouter picks it up when it finally loads.
+if (typeof window !== "undefined") {
+  const hash = window.location.hash;
+  const search = window.location.search;
+
+  // Prioritize PKCE flow querying (?code=...)
+  if (search && (search.includes("code=") || search.includes("error="))) {
+    // Clear the search string from the real URL and append it to our hash route
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + "#/auth/google" + search,
+    );
+    console.log(
+      "⚡ [Init] Intercepted Supabase PKCE query tokens synchronously:",
+      window.location.hash,
+    );
+  }
+  // Fallback for Implicit Flow hash tokens (#access_token=...)
+  else if (
+    hash &&
+    !hash.startsWith("#/") &&
+    (hash.includes("access_token=") || hash.includes("error="))
+  ) {
+    const tokens = hash.substring(1); // remove the first #
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + "#/auth/google#" + tokens,
+    );
+    console.log(
+      "⚡ [Init] Intercepted Supabase hash tokens synchronously:",
+      window.location.hash,
+    );
+  }
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 // Services
 import "@/services/syncService"; // Initialize Sync Service
-// Note: importing solely for side-effects (constructor listener)
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { App as CapacitorApp } from "@capacitor/app";
 
 // ─── Auth Module ────────────────────────────────────────────────────────────
 import { AuthProvider, AuthGuard } from "@/auth";
@@ -149,21 +194,6 @@ const AppRoutes = () => {
 
 const App = () => {
   console.log("🚀 App Component Rendering...");
-
-  // [CRITICAL FIX]: Supabase strips URL fragments from `redirectTo`.
-  // So a callback lands on `http://localhost:5173/#access_token=...`
-  // HashRouter sees `#access_token` and shows a 404 Not Found.
-  // We must intercept this globally and rewrite it to `/#/auth/google#access_token=...`
-  // so HashRouter loads the GoogleCallback page, which can parse the tokens.
-  if (typeof window !== 'undefined') {
-    const hash = window.location.hash;
-    // If hash contains tokens but does not start with Router's standard #/
-    if (hash && !hash.startsWith('#/') && (hash.includes('access_token=') || hash.includes('error='))) {
-      const tokens = hash.substring(1); // remove the first #
-      window.history.replaceState(null, '', window.location.pathname + '#/auth/google#' + tokens);
-      console.log('🔄 [App] Intercepted Supabase tokens, rewritten for HashRouter:', window.location.hash);
-    }
-  }
 
   return (
     <ErrorBoundary>

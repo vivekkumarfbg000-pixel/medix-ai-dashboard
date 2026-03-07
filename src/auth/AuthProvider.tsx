@@ -18,6 +18,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { getAuthErrorMessage } from "./authHelpers";
 import type { User, Session } from "@supabase/supabase-js";
+import { Capacitor } from "@capacitor/core";
 
 // ─── Context shape ──────────────────────────────────────────────────────────
 export interface AuthContextValue {
@@ -165,13 +166,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // ─── Google OAuth ───────────────────────────────────────────────────────
     const signInWithGoogle = useCallback(async (): Promise<string | null> => {
+        const isNative = Capacitor.isNativePlatform();
+        const callbackUrl = isNative
+            ? "com.pharmaassist.app://callback" // Native Deep Link
+            : `${window.location.origin}/`; // Web/PWA Root
+
         const { error } = await supabase.auth.signInWithOAuth({
             provider: "google",
             options: {
                 // Supabase strips hash fragments from redirectTo.
-                // Point to root — App.tsx global interceptor rewrites the hash
-                // into /#/auth/google#access_token=... so GoogleCallback can parse it.
-                redirectTo: `${window.location.origin}/`,
+                // Point to appropriate callback so App.tsx global interceptor
+                // or Native App Plugin can parse the tokens.
+                redirectTo: callbackUrl,
             },
         });
 

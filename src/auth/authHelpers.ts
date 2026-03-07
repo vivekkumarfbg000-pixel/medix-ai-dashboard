@@ -4,15 +4,30 @@
  * - getAuthErrorMessage: maps Supabase error objects to friendly strings.
  * - extractTokensFromHash: parses OAuth/email-verification tokens from the
  *   URL hash when running under HashRouter.
+ * - checkSupabaseConnectivity: pings the Supabase health endpoint.
  */
 
 // ─── User-friendly error messages ───────────────────────────────────────────
 export const getAuthErrorMessage = (error: unknown): string => {
     const msg =
         (error as { message?: string })?.message?.toLowerCase() ?? "";
+    const status = (error as { status?: number })?.status;
 
-    if (msg.includes("unexpected token") || msg.includes("is not valid json"))
-        return "Server Configuration Error: Reach out to support. The Supabase proxy is misconfigured.";
+    // ── Proxy / network failures ────────────────────────────────────────
+    if (msg.includes("unexpected end of json") || msg.includes("unexpected token"))
+        return "Connection Error: Cannot reach authentication server. Your ISP may be blocking the service. Try using a VPN or a different network.";
+    if (msg.includes("is not valid json"))
+        return "Server Configuration Error: The Supabase proxy returned an invalid response. Please contact support.";
+    if (msg.includes("failed to fetch") || msg.includes("networkerror") || msg.includes("network error"))
+        return "Network Error: Unable to connect. Please check your internet connection or try a VPN.";
+    if (msg.includes("load failed"))
+        return "Connection Failed: The authentication server is unreachable. Your ISP may be blocking it — try a VPN or mobile hotspot.";
+    if (status === 500 || msg.includes("500") || msg.includes("internal server error"))
+        return "Server Error: The authentication proxy returned an error. Please try again or use a VPN.";
+    if (msg.includes("timeout") || msg.includes("timed out") || msg.includes("aborted"))
+        return "Connection Timeout: The server took too long to respond. Your ISP may be blocking the service.";
+
+    // ── Standard Supabase auth errors ───────────────────────────────────
     if (msg.includes("invalid login credentials"))
         return "Incorrect email or password.";
     if (msg.includes("email not confirmed"))
@@ -41,4 +56,55 @@ export const extractTokensFromHash = (): URLSearchParams | null => {
     if (!tokenString) return null;
 
     return new URLSearchParams(tokenString);
+};
+
+// ─── Connectivity check ─────────────────────────────────────────────────────
+// Pings the Supabase proxy health endpoint to determine if the backend is
+// reachable.  Returns { reachable, latencyMs, error }.
+export interface ConnectivityResult {
+    reachable: boolean;
+    latencyMs: number;
+    error?: string;
+}
+
+export const checkSupabaseConnectivity = async (
+    baseUrl: string,
+    apiKey?: string,
+): Promise<ConnectivityResult> => {
+    const start = Date.now();
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+
+        const headers: Record<string, string> = { Accept: "application/json" };
+        if (apiKey) headers["apikey"] = apiKey;
+
+        const res = await fetch(`${baseUrl}/auth/v1/health`, {
+            method: "GET",
+            signal: controller.signal,
+            headers,
+        });
+        clearTimeout(timeout);
+
+        const latencyMs = Date.now() - start;
+        // 2xx = healthy, 401/403 = proxy works but auth endpoint needs auth
+        // Either way, the server IS reachable
+        if (res.ok || res.status === 401 || res.status === 403) {
+            return { reachable: true, latencyMs };
+        }
+        return {
+            reachable: false,
+            latencyMs,
+            error: `Server returned ${res.status}`,
+        };
+    } catch (err) {
+        return {
+            reachable: false,
+            latencyMs: Date.now() - start,
+            error:
+                err instanceof DOMException && err.name === "AbortError"
+                    ? "Connection timed out (ISP may be blocking Supabase)"
+                    : (err as Error).message || "Network error",
+        };
+    }
 };

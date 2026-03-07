@@ -12,13 +12,14 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { extractTokensFromHash } from "./authHelpers";
 import { toast } from "sonner";
 
 export default function GoogleCallback() {
     const navigate = useNavigate();
+    const location = useLocation();
     const processed = useRef(false);
     const [status, setStatus] = useState("Verifying login...");
 
@@ -28,29 +29,58 @@ export default function GoogleCallback() {
 
         const handleCallback = async () => {
             try {
-                const params = extractTokensFromHash();
+                // 1. Check for PKCE flow tokens (query parameters like ?code=)
+                const queryParams = new URLSearchParams(location.search);
+                const pkceCode = queryParams.get("code");
+                const pkceError = queryParams.get("error");
 
-                if (params) {
-                    // Handle Supabase error responses (e.g. expired verification link)
-                    if (params.has("error")) {
-                        const desc =
-                            params.get("error_description")?.replace(/\+/g, " ") ||
-                            "Verification failed";
-                        toast.error(desc);
-                        window.history.replaceState(
-                            null,
-                            "",
-                            window.location.pathname + "#/login",
-                        );
-                        navigate("/login", { replace: true });
+                // 2. Fallback to Implicit flow tokens (hash fragments like #access_token=)
+                const hashParams = extractTokensFromHash();
+                const hashError = hashParams?.get("error");
+
+                const hasError = pkceError || hashError;
+
+                if (hasError) {
+                    const desc =
+                        queryParams.get("error_description")?.replace(/\+/g, " ") ||
+                        hashParams?.get("error_description")?.replace(/\+/g, " ") ||
+                        "Verification failed";
+                    toast.error(desc);
+                    window.history.replaceState(
+                        null,
+                        "",
+                        window.location.pathname + "#/login",
+                    );
+                    navigate("/login", { replace: true });
+                    return;
+                }
+
+                if (pkceCode) {
+                    // PKCE Flow logic
+                    setStatus("Setting up session via secure code...");
+
+                    const { error } = await supabase.auth.exchangeCodeForSession(pkceCode);
+
+                    window.history.replaceState(
+                        null,
+                        "",
+                        window.location.pathname + "#/dashboard",
+                    );
+
+                    if (!error) {
+                        toast.success("Login verified successfully!");
+                        navigate("/dashboard", { replace: true });
                         return;
+                    } else {
+                        toast.error(error.message || "Session verification failed.");
                     }
-
-                    const accessToken = params.get("access_token");
-                    const refreshToken = params.get("refresh_token");
+                } else if (hashParams) {
+                    // Implicit Flow logic
+                    const accessToken = hashParams.get("access_token");
+                    const refreshToken = hashParams.get("refresh_token");
 
                     if (accessToken && refreshToken) {
-                        setStatus("Setting up session...");
+                        setStatus("Setting up legacy session...");
 
                         const { error } = await supabase.auth.setSession({
                             access_token: accessToken,
@@ -93,7 +123,7 @@ export default function GoogleCallback() {
         };
 
         handleCallback();
-    }, [navigate]);
+    }, [navigate, location.search]);
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-medical-canvas space-y-4">

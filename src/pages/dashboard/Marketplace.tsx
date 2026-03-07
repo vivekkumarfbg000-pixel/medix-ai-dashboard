@@ -233,7 +233,7 @@ const Marketplace = () => {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
                                 placeholder="Search medicines, brands, or distributors..."
-                                className="pl-10 h-11 bg-card shadow-sm border-gray-200"
+                                className="pl-10 h-11 bg-card shadow-sm border-gray-200 dark:border-slate-700"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                             />
@@ -243,10 +243,10 @@ const Marketplace = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {filteredItems.map(item => (
-                            <Card key={item.id} className="group hover:shadow-xl transition-all duration-300 border-gray-100 overflow-hidden">
+                            <Card key={item.id} className="group hover:shadow-xl transition-all duration-300 border-gray-100 dark:border-slate-800 overflow-hidden bg-card">
                                 <CardHeader className="pb-3 bg-muted/20">
                                     <div className="flex justify-between items-start">
-                                        <Badge variant="secondary" className="bg-white shadow-sm font-normal text-xs">{item.distributor.name}</Badge>
+                                        <Badge variant="secondary" className="bg-white dark:bg-slate-800 dark:text-slate-200 shadow-sm font-normal text-xs">{item.distributor.name}</Badge>
                                         {item.in_stock ? (
                                             <span className="flex h-2 w-2 rounded-full bg-green-500" title="In Stock" />
                                         ) : (
@@ -267,10 +267,10 @@ const Marketplace = () => {
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
-                                        <Button className="flex-1 bg-slate-900 hover:bg-slate-800 text-white shadow-md active:scale-95 transition-transform" onClick={() => addToCart(item)} disabled={!item.in_stock}>
+                                        <Button className="flex-1 bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-slate-200 dark:text-slate-900 shadow-md active:scale-95 transition-transform" onClick={() => addToCart(item)} disabled={!item.in_stock}>
                                             <ShoppingCart className="w-4 h-4 mr-2" /> {item.in_stock ? 'Add to Cart' : 'Notify Me'}
                                         </Button>
-                                        <Button variant="outline" className="flex-1 border-slate-200 hover:bg-slate-50" onClick={() => setQuoteModal({ open: true, product: item.brand, distributor: item.distributor.name })}>
+                                        <Button variant="outline" className="flex-1 border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800" onClick={() => setQuoteModal({ open: true, product: item.brand, distributor: item.distributor.name })}>
                                             Request Quote
                                         </Button>
                                     </div>

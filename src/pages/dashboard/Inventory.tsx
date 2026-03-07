@@ -934,12 +934,6 @@ const Inventory = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="drafts" className="space-y-4">
-          <InventoryDrafts
-            shopId={currentShop?.id || ""}
-            onRefreshRequest={fetchInventory}
-          />
-        </TabsContent>
       </Tabs>
 
       {/* Stock Adjustment Dialog */}

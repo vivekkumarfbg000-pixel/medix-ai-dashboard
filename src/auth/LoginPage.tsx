@@ -3,11 +3,15 @@
  *
  * Route: /login
  * Preserves the existing split-layout design (branding panel + form).
+ * Includes a connectivity check that warns users when the auth server
+ * is unreachable (e.g. ISP blocking Supabase).
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "./useAuth";
+import { checkSupabaseConnectivity, type ConnectivityResult } from "./authHelpers";
+import { getSupabaseBaseUrl, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -20,7 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Pill, ShieldCheck, TrendingUp, Users } from "lucide-react";
+import { Pill, ShieldCheck, TrendingUp, Users, WifiOff, RefreshCw, Wifi } from "lucide-react";
 
 // Feature bullets for the branding panel
 const features = [
@@ -39,6 +43,36 @@ export default function LoginPage() {
     const [rememberMe, setRememberMe] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
+    // ─── Connectivity state ─────────────────────────────────────────────
+    const [connectivity, setConnectivity] = useState<ConnectivityResult | null>(null);
+    const [isCheckingConnection, setIsCheckingConnection] = useState(true);
+
+    useEffect(() => {
+        let cancelled = false;
+        const check = async () => {
+            setIsCheckingConnection(true);
+            const result = await checkSupabaseConnectivity(getSupabaseBaseUrl(), SUPABASE_ANON_KEY);
+            if (!cancelled) {
+                setConnectivity(result);
+                setIsCheckingConnection(false);
+            }
+        };
+        check();
+        return () => { cancelled = true; };
+    }, []);
+
+    const retryConnection = async () => {
+        setIsCheckingConnection(true);
+        const result = await checkSupabaseConnectivity(getSupabaseBaseUrl(), SUPABASE_ANON_KEY);
+        setConnectivity(result);
+        setIsCheckingConnection(false);
+        if (result.reachable) {
+            toast.success("Connected to authentication server!");
+        } else {
+            toast.error("Still unable to connect. Try using a VPN.");
+        }
+    };
+
     // If already authenticated, redirect to dashboard
     if (user) {
         navigate("/dashboard", { replace: true });
@@ -50,6 +84,10 @@ export default function LoginPage() {
         e.preventDefault();
         if (!email.trim() || !password) {
             toast.error("Please enter your email and password.");
+            return;
+        }
+        if (connectivity && !connectivity.reachable) {
+            toast.error("Cannot sign in — authentication server is unreachable. Try a VPN or different network.");
             return;
         }
         setIsLoading(true);
@@ -72,6 +110,10 @@ export default function LoginPage() {
 
     // ─── Google OAuth ───────────────────────────────────────────────────────
     const handleGoogleLogin = async () => {
+        if (connectivity && !connectivity.reachable) {
+            toast.error("Cannot sign in — authentication server is unreachable. Try a VPN or different network.");
+            return;
+        }
         setIsLoading(true);
         try {
             const err = await signInWithGoogle();
@@ -87,6 +129,8 @@ export default function LoginPage() {
             setIsLoading(false);
         }
     };
+
+    const isOffline = connectivity !== null && !connectivity.reachable;
 
     return (
         <div className="min-h-screen flex">
@@ -158,6 +202,42 @@ export default function LoginPage() {
                         </h1>
                     </div>
 
+                    {/* ── Connectivity Banner ─────────────────────────────────── */}
+                    {isCheckingConnection && (
+                        <div className="mb-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/40 px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
+                            <RefreshCw className="h-4 w-4 animate-spin flex-shrink-0" />
+                            <span>Checking server connectivity…</span>
+                        </div>
+                    )}
+                    {isOffline && !isCheckingConnection && (
+                        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+                            <div className="flex items-center gap-2 mb-2">
+                                <WifiOff className="h-4 w-4 flex-shrink-0" />
+                                <span className="font-semibold">Cannot reach authentication server</span>
+                            </div>
+                            <p className="mb-2 text-xs leading-relaxed">
+                                {connectivity?.error || "The server is unreachable."}{" "}
+                                Your ISP may be blocking the service. Try using a <strong>VPN</strong> or
+                                switching to a <strong>mobile hotspot</strong>.
+                            </p>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs border-red-300 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/40"
+                                onClick={retryConnection}
+                            >
+                                <RefreshCw className="h-3 w-3 mr-1" />
+                                Retry Connection
+                            </Button>
+                        </div>
+                    )}
+                    {connectivity?.reachable && !isCheckingConnection && (
+                        <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/40 px-4 py-3 text-sm text-green-700 dark:text-green-300">
+                            <Wifi className="h-4 w-4 flex-shrink-0" />
+                            <span>Connected to server ({connectivity.latencyMs}ms)</span>
+                        </div>
+                    )}
+
                     <Card className="border-0 shadow-lg">
                         <CardHeader className="space-y-1 pb-4">
                             <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
@@ -172,7 +252,7 @@ export default function LoginPage() {
                                     variant="outline"
                                     className="w-full h-11 font-medium border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
                                     onClick={handleGoogleLogin}
-                                    disabled={isLoading}
+                                    disabled={isLoading || isOffline}
                                 >
                                     <svg
                                         className="mr-2 h-4 w-4"
@@ -244,9 +324,9 @@ export default function LoginPage() {
                                     <Button
                                         type="submit"
                                         className="w-full h-11 font-medium"
-                                        disabled={isLoading}
+                                        disabled={isLoading || isOffline}
                                     >
-                                        {isLoading ? "Signing in..." : "Sign In"}
+                                        {isLoading ? "Signing in..." : isOffline ? "Server Unreachable" : "Sign In"}
                                     </Button>
                                 </form>
 
