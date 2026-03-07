@@ -428,27 +428,23 @@ const LitePOS = () => {
         });
 
         if (receiptMethod === 'whatsapp') {
-            if (isOnline) {
-                let finalPhone = phone;
-                if (!finalPhone) {
-                    const inputPhone = prompt("Enter Customer Mobile Number for WhatsApp Invoice:");
-                    if (inputPhone) {
-                        finalPhone = inputPhone;
-                        setLastOrderDetails((prev: any) => ({ ...prev, customer: { ...prev.customer, phone: finalPhone } }));
-                    }
+            let finalPhone = phone;
+            if (!finalPhone) {
+                const inputPhone = prompt("Enter Customer Mobile Number for WhatsApp Invoice:");
+                if (inputPhone) {
+                    finalPhone = inputPhone;
+                    setLastOrderDetails((prev: any) => ({ ...prev, customer: { ...prev.customer, phone: finalPhone } }));
                 }
-                if (finalPhone) {
-                    const waLink = buildWaLink(finalPhone);
-                    const newWindow = window.open(waLink, '_blank');
-                    toast.success("Order Placed! 🎉 WhatsApp Opened", {
-                        description: newWindow ? "Invoice sent via WhatsApp" : "Pop-up blocked? Click below.",
-                        action: { label: "Open WhatsApp", onClick: () => window.open(waLink, '_blank') }
-                    });
-                } else {
-                    toast.success("Order Placed! 🎉", { description: "No mobile number for WhatsApp." });
-                }
+            }
+            if (finalPhone) {
+                const waLink = buildWaLink(finalPhone);
+                const newWindow = window.open(waLink, '_blank');
+                toast.success(isOnline ? "Order Placed! 🎉 WhatsApp Opened" : "Offline Order Saved! 💾 WhatsApp Opened", {
+                    description: newWindow ? "Invoice sent via WhatsApp" : "Pop-up blocked? Click below.",
+                    action: { label: "Open WhatsApp", onClick: () => window.open(waLink, '_blank') }
+                });
             } else {
-                toast.success("Order Saved Offline! 💾 Cannot send WhatsApp while offline.");
+                toast.success(isOnline ? "Order Placed! 🎉" : "Order Saved Offline! 💾", { description: "No mobile number for WhatsApp." });
             }
         } else {
             // Default to Print
