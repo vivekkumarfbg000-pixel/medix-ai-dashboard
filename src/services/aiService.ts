@@ -2157,7 +2157,6 @@ CRITICAL: You MUST return a JSON object. Do not return anything else. Keep descr
                 });
 
                 const visionPrompt = "Extract all text from this image precisely. Focus on medicine brand names, composition/salt, packaging details, MRP, and expiry dates. Return the raw text extracted.";
-                const visionPrompt = "Extract all text from this image precisely. Focus on medicine brand names, composition/salt, packaging details, MRP, and expiry dates. Return the raw text extracted.";
                 const visionResult = await callGeminiVision(visionPrompt, base64Image);
                 extractedText += `\n[Image Extracted Text]: ${visionResult}`;
             } catch (err: any) {
