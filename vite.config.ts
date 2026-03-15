@@ -22,8 +22,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    // mode === "development" && componentTagger(),
-    mode !== "development" && VitePWA({
+    VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'placeholder.svg'],
       manifest: {
@@ -107,7 +106,8 @@ export default defineConfig(({ mode }) => ({
           }
         ]
       }
-    })
+    }),
+    mode === "development" && componentTagger(),
   ].filter(Boolean),
   build: {
     minify: 'terser',
