@@ -1,12 +1,16 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { MessageCircle, X, Send, Bot, Sparkles, Loader2, Minimize2 } from "lucide-react";
 import { aiService } from "@/services/aiService";
+import { logger } from "@/utils/logger";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import VoiceInput from "@/components/common/VoiceInput";
+import { speak } from "@/utils/textToSpeech";
+import { Volume2, VolumeX } from "lucide-react";
 
 interface Message {
     id: string;
@@ -16,8 +20,19 @@ interface Message {
 }
 
 export function AIChatbotWidget() {
+    const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
+    const [isMuted, setIsMuted] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem("MEDIX_AI_VOICE_ENABLED") === "false";
+        }
+        return false;
+    });
+
+    useEffect(() => {
+        localStorage.setItem("MEDIX_AI_VOICE_ENABLED", (!isMuted).toString());
+    }, [isMuted]);
     const [messages, setMessages] = useState<Message[]>([
         {
             id: 'welcome',
@@ -70,7 +85,22 @@ export function AIChatbotWidget() {
                 timestamp: new Date()
             };
 
+
             setMessages(prev => [...prev, aiMsg]);
+
+            // 🎙️ Voice Feedback
+            if (!isMuted) {
+                speak(response.reply);
+            }
+
+            // 🚀 NAVIGATION LOGIC
+            if (response.navigationPath) {
+                logger.log("[AI Chat] Navigating to:", response.navigationPath);
+                setTimeout(() => {
+                    navigate(response.navigationPath!);
+                    setIsOpen(false); // Close widget after navigation for better UX
+                }, 1500); // Small delay so user reads the "Ok, opening section" reply
+            }
         } catch (error) {
             console.error("Chat Error:", error);
             toast.error("AI is temporarily unavailable.");
@@ -123,9 +153,20 @@ export function AIChatbotWidget() {
                                 </p>
                             </div>
                         </div>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 text-white hover:bg-white/20 rounded-full" onClick={() => setIsOpen(false)}>
-                            <Minimize2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-6 w-6 text-white hover:bg-white/20 rounded-full" 
+                                onClick={() => setIsMuted(!isMuted)}
+                                title={isMuted ? "Unmute" : "Mute"}
+                            >
+                                {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-white hover:bg-white/20 rounded-full" onClick={() => setIsOpen(false)}>
+                                <Minimize2 className="w-4 h-4" />
+                            </Button>
+                        </div>
                     </div>
 
                     {/* Messages Area */}

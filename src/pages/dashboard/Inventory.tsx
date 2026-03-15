@@ -394,28 +394,32 @@ const Inventory = () => {
 
   // ... inside Inventory component
 
-  // Feature: Barcode Scanning
-  const [barcodeBuffer, setBarcodeBuffer] = useState("");
+  // Feature: Barcode Scanning (HANDHELD Scanners)
+  const barcodeRef = useRef("");
   useEffect(() => {
-    // Hidden global listener for handheld scanners
     const handleKeyPress = (e: KeyboardEvent) => {
-      // Most scanners act as keyboards sending text + Enter
-      if (e.target instanceof HTMLInputElement) return; // Ignore if typing in an input
+      // Ignore if user is typing in ANY input-like field
+      const isInput = e.target instanceof HTMLInputElement || 
+                      e.target instanceof HTMLTextAreaElement || 
+                      (e.target as HTMLElement).isContentEditable;
+      if (isInput) return;
 
       if (e.key === 'Enter') {
-        if (barcodeBuffer.length > 3) {
-          // console.log("Scanned:", barcodeBuffer);
-          setSearchQuery(barcodeBuffer); // Simple search for now
-          toast.info(`Scanned Code: ${barcodeBuffer}`);
+        const barcode = barcodeRef.current;
+        if (barcode.length > 3) {
+          setSearchQuery(barcode); 
+          toast.info(`🛒 Scanned: ${barcode}`);
         }
-        setBarcodeBuffer("");
+        barcodeRef.current = "";
       } else {
-        setBarcodeBuffer(prev => prev + e.key);
+        // Prevent buffer from growing indefinitely if noisy
+        if (barcodeRef.current.length > 50) barcodeRef.current = "";
+        barcodeRef.current += e.key;
       }
     };
     window.addEventListener('keypress', handleKeyPress);
     return () => window.removeEventListener('keypress', handleKeyPress);
-  }, [barcodeBuffer]);
+  }, []); // Run once, using ref for buffer
 
   // Feature: Bulk CSV Upload with Papaparse
   const handleBulkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

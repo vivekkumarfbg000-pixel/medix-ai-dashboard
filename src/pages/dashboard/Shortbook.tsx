@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Plus, Trash2, Send, ShoppingCart, Loader2, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Send, ShoppingCart, Loader2, AlertTriangle, TrendingUp } from "lucide-react";
 import { useUserShops } from "@/hooks/useUserShops";
 import { safeFormat } from "@/utils/dateHelpers";
+import { aiService } from "@/services/aiService";
 
 const Shortbook = () => {
     const { currentShop } = useUserShops();
@@ -20,6 +21,8 @@ const Shortbook = () => {
     const [loading, setLoading] = useState(false);
     const [newItem, setNewItem] = useState({ product_name: "", quantity: 1, priority: "medium", distributor_id: "any" });
     const [isAddOpen, setIsAddOpen] = useState(false);
+    const [aiInsight, setAiInsight] = useState<{ insight: string; action: string } | null>(null);
+    const [analyzingPulse, setAnalyzingPulse] = useState(false);
 
     useEffect(() => {
         if (currentShop?.id) {
@@ -179,8 +182,55 @@ const Shortbook = () => {
         }
     };
 
+    const runSmartPulse = async () => {
+        if (!currentShop?.id) return;
+        setAnalyzingPulse(true);
+        try {
+            // Fetch last 30 days of sales for analysis
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            const { data: sales } = await supabase
+                .from('orders')
+                .select('order_items, created_at')
+                .eq('shop_id', currentShop.id)
+                .gte('created_at', thirtyDaysAgo.toISOString());
+
+            if (!sales || sales.length === 0) {
+                toast.info("Not enough sales data for AI Pulse analysis yet.");
+                setAnalyzingPulse(false);
+                return;
+            }
+
+            const result = await aiService.analyzeSalesPulse(sales);
+            setAiInsight(result);
+        } catch (e) {
+            console.error(e);
+            toast.error("Smart Pulse analysis failed.");
+        } finally {
+            setAnalyzingPulse(false);
+        }
+    };
+
     return (
-        <div className="space-y-6 animate-fade-in p-2 md:p-0">
+        <div className="space-y-6 animate-fade-in p-4 md:p-0">
+            {/* AI Smart Pulse Banner */}
+            {aiInsight && (
+                <Card className="bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-blue-500/10 border-indigo-200/50 glass-card ai-glow ai-thinking">
+                    <CardContent className="p-4 flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-white shrink-0">
+                            <TrendingUp className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="font-bold text-indigo-900 dark:text-indigo-200">Smart Pulse Recommendation</h4>
+                            <p className="text-sm text-slate-700 dark:text-slate-300">
+                                <span className="font-semibold">{aiInsight.insight}</span> — {aiInsight.action}
+                            </p>
+                        </div>
+                        <Button size="sm" variant="ghost" className="text-indigo-600 font-bold" onClick={() => setAiInsight(null)}>Dismiss</Button>
+                    </CardContent>
+                </Card>
+            )}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold flex items-center gap-2">
@@ -189,7 +239,16 @@ const Shortbook = () => {
                     <p className="text-muted-foreground">Track out-of-stock items and send orders to distributors.</p>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100" onClick={autoAddLowStock}>
+                    <Button 
+                        variant="outline" 
+                        className="gap-2 border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 glass-card" 
+                        onClick={runSmartPulse}
+                        disabled={analyzingPulse}
+                    >
+                        {analyzingPulse ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4" />}
+                        AI Smart Pulse
+                    </Button>
+                    <Button variant="outline" className="gap-2 border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 glass-card" onClick={autoAddLowStock}>
                         <AlertTriangle className="w-4 h-4" /> Auto-Add Low Stock
                     </Button>
                     <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>

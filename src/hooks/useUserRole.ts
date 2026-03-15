@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AppRole = "admin" | "pharmacist" | "staff";
+export type AppRole = "owner" | "admin" | "pharmacist" | "staff";
 
 interface UserRoleState {
   role: AppRole | null;
@@ -22,37 +22,33 @@ export function useUserRole(shopId?: string | null): UserRoleState {
       }
 
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
           setLoading(false);
           return;
         }
 
-        // 1. Check direct role assignment
-        const { data: roleData } = await supabase
-          .from("user_roles")
+        // Unified Role Fetching: Check user_shops junction table
+        const { data: mapping, error } = await supabase
+          .from("user_shops")
           .select("role")
-          .eq("user_id", user.id)
+          .eq("user_id", session.user.id)
           .eq("shop_id", shopId)
           .maybeSingle();
 
-        if (roleData) {
-          setRole(roleData.role as AppRole);
-        } else {
-          // 2. Fallback: Check if they are the OWNER via Profiles
-          const { data: profileData } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("user_id", user.id)
-            .eq("shop_id", shopId)
-            .maybeSingle();
+        if (error) throw error;
 
-          if (profileData?.role) {
-            setRole(profileData.role as AppRole);
-          }
+        // Use any-casting because Supabase types might be out of sync with migrations
+        const mappedRole = mapping ? (mapping as any).role : null;
+        
+        if (mappedRole) {
+          setRole(mappedRole as AppRole);
+        } else {
+          setRole(null);
         }
       } catch (err) {
-        console.error("Error:", err);
+        console.error("Error fetching role from user_shops:", err);
+        setRole(null);
       } finally {
         setLoading(false);
       }

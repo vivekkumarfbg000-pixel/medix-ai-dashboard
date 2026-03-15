@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -176,8 +176,10 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
-    background: linear-gradient(180deg, hsl(210 50% 98%) 0%, hsl(210 40% 96%) 100%);
+    font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+    background: radial-gradient(circle at top left, hsl(210 100% 98%), transparent),
+                radial-gradient(circle at bottom right, hsl(199 89% 48% / 0.05), transparent),
+                hsl(210 50% 98%);
 
     /* Native App Fixes */
     height: 100%;
@@ -192,9 +194,10 @@
   }
 
   .dark body {
-    background: linear-gradient(180deg, hsl(215 28% 9%) 0%, hsl(215 28% 7%) 100%);
+    background: radial-gradient(circle at top left, hsl(215 28% 12%), transparent),
+                radial-gradient(circle at bottom right, hsl(199 89% 55% / 0.1), transparent),
+                hsl(215 28% 9%);
     color: hsl(var(--foreground));
-    /* Force White Text */
   }
 
   h1,
@@ -374,6 +377,34 @@
   .glass-blur {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+  }
+
+  .ai-glow {
+    position: relative;
+  }
+
+  .ai-glow::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6, #3b82f6);
+    background-size: 200% auto;
+    border-radius: inherit;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    filter: blur(8px);
+    animation: rotate-gradient 3s linear infinite;
+  }
+
+  .ai-thinking.ai-glow::after {
+    opacity: 0.6;
+  }
+
+  @keyframes rotate-gradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
   }
 }
 

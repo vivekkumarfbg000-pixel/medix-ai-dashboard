@@ -2,7 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import { Capacitor } from '@capacitor/core';
 import type { Database } from './types';
 
-export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrcnFweGJieWZpcGpxaHBhc3pmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1MTEwNjEsImV4cCI6MjA4MjA4NzA2MX0.rWuk98xZ1wpJwK9agtZCeie3C9xQDb43UZK8FutCGss';
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
+export const SUPABASE_URL_RAW = import.meta.env.VITE_SUPABASE_URL || 'https://ykrqpxbbyfipjqhpaszf.supabase.co';
 
 // ─── ISP Bypass Proxy Setup ───────────────────────────────────────────────────
 // Indian ISPs (Jio/Airtel) block direct connections to *.supabase.co.
@@ -15,7 +16,7 @@ export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 function getSupabaseUrl(): string {
   if (typeof window === 'undefined') {
     // SSR / build time — use real URL
-    return 'https://ykrqpxbbyfipjqhpaszf.supabase.co';
+    return SUPABASE_URL_RAW;
   }
 
   // App running as a Native Mobile App on device (usually resolves to http://localhost)

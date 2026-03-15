@@ -21,66 +21,68 @@ class SyncService {
 
     private handleOnline = () => {
         toast.info("Back Online", { description: "Syncing offline data..." });
-        this.syncOrders();
+        this.syncAll();
     };
 
-    public async syncOrders() {
+    public async syncAll() {
         if (this.isSyncing) return;
         this.isSyncing = true;
-
         try {
-            // 1. Get Pending Orders
-            const pendingOrders = await db.orders.where('is_synced').equals(0).toArray();
+            await this.syncOrders();
+            await this.syncInventory();
+        } finally {
+            this.isSyncing = false;
+        }
+    }
 
-            if (pendingOrders.length === 0) {
-                this.isSyncing = false;
-                return;
-            }
+    public async syncOrders() {
+        // ... (existing logic remains similar but we'll wrap it better)
+        try {
+            const pendingOrders = await db.orders.where('is_synced').equals(0).toArray();
+            if (pendingOrders.length === 0) return;
 
             logger.log(`Syncing ${pendingOrders.length} offline orders...`);
             let syncedCount = 0;
 
             for (const order of pendingOrders) {
-                try {
-                    // Remove local ID and sync flag before push
-                    const { id, is_synced, items, ...rest } = order;
+                const { id, is_synced, items, ...rest } = order;
+                const { error } = await supabase.from('orders').insert({
+                    ...rest,
+                    order_items: items,
+                    status: 'approved'
+                } as any);
 
-                    // Map to Supabase Order Insert
-                    const orderPayload = {
-                        ...rest,
-                        order_items: items, // 'items' in local DB maps to 'order_items' in Supabase
-                        status: 'approved'
-                    };
-
-                    // Push to Supabase
-                    const { error } = await supabase.from('orders').insert(orderPayload as any);
-
-                    if (error) {
-                        console.error("Sync Failed for Order", id, error);
-                        // If persistent error (e.g. schema violation), maybe mark as error-ed locally?
-                        // For now we just skip and retry later.
-                    } else {
-                        // Mark as Synced (or delete if you want to keep DB clean)
-                        // We'll update is_synced to 1 to keep history
-                        if (id) {
-                            await db.orders.update(id, { is_synced: 1 });
-                            syncedCount++;
-                        }
-                    }
-                } catch (e) {
-                    console.error("Sync Exception", e);
+                if (!error && id) {
+                    await db.orders.update(id, { is_synced: 1 });
+                    syncedCount++;
                 }
             }
+            if (syncedCount > 0) toast.success(`Synced ${syncedCount} orders!`);
+        } catch (e) { console.error("Order sync fail", e); }
+    }
 
-            if (syncedCount > 0) {
-                toast.success(`Synced ${syncedCount} offline orders!`);
+    public async syncInventory() {
+        try {
+            const pendingInv = await db.inventory.where('is_synced').equals(0).toArray();
+            if (pendingInv.length === 0) return;
+
+            logger.log(`Syncing ${pendingInv.length} inventory changes...`);
+            let syncedCount = 0;
+
+            for (const item of pendingInv) {
+                // Use the secure RPC for adding inventory if it's a new item or adjustment
+                // Or use standard upsert if the ID exists in Supabase
+                const { is_synced, ...payload } = item;
+                
+                const { error } = await supabase.from('inventory').upsert(payload as any);
+
+                if (!error) {
+                    await db.inventory.update(item.id, { is_synced: 1 });
+                    syncedCount++;
+                }
             }
-
-        } catch (e) {
-            console.error("SyncService Error", e);
-        } finally {
-            this.isSyncing = false;
-        }
+            if (syncedCount > 0) toast.success(`Synced ${syncedCount} inventory items!`);
+        } catch (e) { console.error("Inventory sync fail", e); }
     }
 }
 

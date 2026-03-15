@@ -69,7 +69,8 @@ const Settings = () => {
     expiryAlerts: true,
     lowStockAlerts: true,
     orderNotifications: true,
-    refillReminders: true
+    refillReminders: true,
+    aiVoice: typeof window !== 'undefined' ? localStorage.getItem("MEDIX_AI_VOICE_ENABLED") !== "false" : true
   });
 
   const [shopSettings, setShopSettings] = useState<ShopSettingsData>({
@@ -442,10 +443,34 @@ const Settings = () => {
                   </div>
                   <Switch
                     checked={(notifications as any)[item.id]}
-                    onCheckedChange={(c) => setNotifications(prev => ({ ...prev, [item.id]: c }))}
+                    onCheckedChange={(c) => {
+                      setNotifications(prev => ({ ...prev, [item.id]: c }));
+                      if (item.id === 'aiVoice') {
+                        localStorage.setItem("MEDIX_AI_VOICE_ENABLED", c.toString());
+                      }
+                    }}
                   />
                 </div>
               ))}
+              {/* Additional Setting: AI Voice (if not already in the list above) */}
+              <div className="flex items-center justify-between p-6 hover:bg-slate-50/50 transition-colors">
+                <div className="flex gap-4">
+                  <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">AI Voice Assistant</p>
+                    <p className="text-sm text-slate-500">Hear the AI speak in Indian accent (Hinglish)</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={notifications.aiVoice}
+                  onCheckedChange={(c) => {
+                    setNotifications(prev => ({ ...prev, aiVoice: c }));
+                    localStorage.setItem("MEDIX_AI_VOICE_ENABLED", c.toString());
+                  }}
+                />
+              </div>
             </CardContent>
           </Card>
 

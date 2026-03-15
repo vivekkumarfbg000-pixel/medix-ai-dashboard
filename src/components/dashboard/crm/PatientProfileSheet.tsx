@@ -10,6 +10,7 @@ import { User, Phone, ShoppingBag, Tag, Plus, X, MessageCircle } from "lucide-re
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { ClinicalCommandCenter } from "./ClinicalCommandCenter";
 
 interface Customer {
     id: string;
@@ -61,6 +62,7 @@ export const PatientProfileSheet = ({ customer, open, onOpenChange, onUpdate }: 
 
     const saveCRM = async () => {
         if (!customer) return;
+        // @ts-ignore - Supabase types may be out of sync with actual DB columns
         const { error } = await supabase
             .from('customers')
             .update({ notes, tags })
@@ -134,11 +136,15 @@ export const PatientProfileSheet = ({ customer, open, onOpenChange, onUpdate }: 
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col mt-4">
                     <TabsList className="w-full">
+                        <TabsTrigger value="clinical" className="flex-1">Pulse</TabsTrigger>
                         <TabsTrigger value="history" className="flex-1">Sales</TabsTrigger>
                         <TabsTrigger value="khata" className="flex-1">Khata</TabsTrigger>
-                        <TabsTrigger value="reports" className="flex-1">Lab</TabsTrigger>
                         <TabsTrigger value="notes" className="flex-1">Notes</TabsTrigger>
                     </TabsList>
+
+                    <TabsContent value="clinical" className="flex-1 overflow-hidden relative">
+                        <ClinicalCommandCenter customerId={customer.id} customerName={customer.name} />
+                    </TabsContent>
 
                     <TabsContent value="history" className="flex-1 overflow-hidden relative">
                         <ScrollArea className="h-full pr-4">

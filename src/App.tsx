@@ -111,18 +111,31 @@ const queryClient = new QueryClient({
     }
   },
   queryCache: new QueryCache({
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Global Query Error:", error);
-      // Only show toast for 5xx errors or network issues, avoid spamming for 404/400 handled locally
+      
+      // Handle Unauthorized/Forbidden
+      if (error?.status === 401 || error?.status === 403 || error?.message?.includes("401") || error?.message?.includes("403")) {
+        toast.error("Session Expired or Access Denied. Logging out...");
+        window.location.hash = "#/logout";
+        return;
+      }
+
       if (error instanceof Error && (error.message.includes('Network') || error.message.includes('500'))) {
-        toast.error(`Connnection Issue: ${error.message}`);
+        toast.error(`Connection Issue: ${error.message}`);
       }
     },
   }),
   mutationCache: new MutationCache({
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Global Mutation Error:", error);
-      // Mutations usually require user feedback on failure
+
+      if (error?.status === 401 || error?.status === 403) {
+        toast.error("Permission Denied. Please log in again.");
+        window.location.hash = "#/logout";
+        return;
+      }
+
       toast.error(`Action Failed: ${error.message}`);
     },
   }),

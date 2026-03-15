@@ -21,44 +21,36 @@ export const speak = (text: string, options: TTSOptions = {}) => {
     window.speechSynthesis.cancel();
 
     // 1. Text Normalization for Natural Speech
-    // Replace "Rs." or "₹" with "Rupees"
     let cleanText = text
-        .replace(/₹/g, "Rupees ")
-        .replace(/^Rs\.\s$/gi, "Rupees ")
-        .replace(/\//g, " per "); // "500/strip" -> "500 per strip"
-
-    // Example: "120" -> "one hundred twenty" (Standard engines do this automatically)
-    // However, if the text is like "5-10" it might say "five dash ten", we might prefer "five to ten".
-    cleanText = cleanText.replace(/(\d+)-(\d+)/g, "$1 to $2");
+        .replace(/₹/g, " Rupees ")
+        .replace(/Rs\./gi, " Rupees ")
+        .replace(/\//g, " per ")
+        .replace(/(\d+)-(\d+)/g, "$1 to $2");
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
 
-    // 2. Defaults
-    utterance.rate = options.rate || 0.95; // Slightly slower for clarity
-    utterance.pitch = options.pitch || 1.0;
+    // 2. Defaults - Optimized for Indian context
+    utterance.rate = options.rate || 0.9; // Slightly slower makes Hinglish much clearer
+    utterance.pitch = options.pitch || 1.1; // Slightly higher pitch for a friendly assistant tone
     utterance.volume = options.volume || 1.0;
 
     // 3. Language & Voice Selection Strategy
-    // Default to Indian English or Hindi
-    utterance.lang = options.lang || 'en-IN';
-
     const voices = window.speechSynthesis.getVoices();
+    
+    // Priority: 1. Hindi India (hi-IN), 2. English India (en-IN), 3. Female UK (often sounds better than default US)
+    const preferredVoice = voices.find(v => v.lang === 'hi-IN') || 
+                          voices.find(v => v.lang === 'en-IN') ||
+                          voices.find(v => v.lang.includes('en-GB') && v.name.includes('Female'));
 
-    // Prefer Indian English voices (Google or Microsoft)
-    // Prioritize "Google UK English Female" or "Microsoft Heera" if available as they handle mixed Hinglish reasonably well
-    // But strict Indian English is 'en-IN'.
-    const indianVoice = voices.find(v =>
-        (v.lang === 'en-IN' || v.lang === 'hi-IN') &&
-        !v.name.includes("Male") // Typically prefer female voice for assistant, or just first match
-    );
-
-    // Fallback if no specific Indian voice found but en-IN is supported
-    if (indianVoice) {
-        utterance.voice = indianVoice;
+    if (preferredVoice) {
+        utterance.voice = preferredVoice;
+        utterance.lang = preferredVoice.lang;
+    } else {
+        utterance.lang = 'en-IN'; // Fallback lang
     }
 
     // 4. Logging & Execution
-    utterance.onstart = () => logger.log("[TTS] Speaking:", cleanText.substring(0, 30));
+    utterance.onstart = () => logger.log("[TTS] Speaking:", cleanText.substring(0, 40) + "...");
     utterance.onerror = (e) => logger.error("[TTS] Error:", e);
 
     window.speechSynthesis.speak(utterance);
