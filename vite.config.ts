@@ -6,7 +6,7 @@ import { VitePWA } from "vite-plugin-pwa";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "::",
+    host: "0.0.0.0",
     port: 5173,
     proxy: {
       // Reverse proxy to bypass ISP blocks on *.supabase.co (Jio/Airtel India)
@@ -106,7 +106,7 @@ export default defineConfig(({ mode }) => ({
         ]
       }
     }),
-  ].filter(Boolean),
+  ],
   build: {
     minify: 'terser',
     terserOptions: {

@@ -1,5 +1,2 @@
-# Proxy Supabase to bypass ISP blocks (Jio/Airtel)
 /supabase-proxy/* https://ykrqpxbbyfipjqhpaszf.supabase.co/:splat 200
-
-# Handle SPA routing (in case you switch from HashRouter to BrowserRouter later)
 /* /index.html 200
