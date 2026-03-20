@@ -2,8 +2,8 @@ interface Env {
   ASSETS: {
     fetch: typeof fetch;
   };
-  GROQ_API_KEY: string;
-  GEMINI_API_KEY: string;
+  GROQ_SK: string;
+  GEMINI_SK: string;
 }
 
 export default {
@@ -30,39 +30,21 @@ export default {
 
     // 2. Handle Groq Proxy
     if (url.pathname.startsWith('/groq-proxy')) {
-      if (!env.GROQ_API_KEY) {
-        return new Response(JSON.stringify({ error: "Configuration Error", message: "GROQ_API_KEY is missing." }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      if (!env.GROQ_SK) {
+        return new Response(JSON.stringify({ error: "Configuration Error", message: "GROQ_SK is missing in Cloudflare Dashboard Secrets." }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
       }
-      const key = env.GROQ_API_KEY.trim();
       return handleProxy(request, 'https://api.groq.com', '/groq-proxy', {
-        'Authorization': `Bearer ${key}`
-      }).then(res => {
-        if (res.status === 401) {
-          return new Response(JSON.stringify({ 
-            error: "Auth Failed", 
-            message: `Groq rejected key (Len: ${key.length}, Mask: ${key.substring(0,3)}...${key.substring(key.length-3)})` 
-          }), { status: 401, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
-        }
-        return res;
+        'Authorization': `Bearer ${env.GROQ_SK.trim()}`
       });
     }
 
     // 3. Handle Gemini Proxy
     if (url.pathname.startsWith('/gemini-proxy')) {
-      if (!env.GEMINI_API_KEY) {
-        return new Response(JSON.stringify({ error: "Configuration Error", message: "GEMINI_API_KEY is missing." }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      if (!env.GEMINI_SK) {
+        return new Response(JSON.stringify({ error: "Configuration Error", message: "GEMINI_SK is missing in Cloudflare Dashboard Secrets." }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
       }
-      const key = env.GEMINI_API_KEY.trim();
       return handleProxy(request, 'https://generativelanguage.googleapis.com', '/gemini-proxy', {
-        'x-goog-api-key': key
-      }).then(res => {
-        if (res.status === 400 || res.status === 401) {
-          return new Response(JSON.stringify({ 
-            error: "Auth Failed", 
-            message: `Gemini rejected key (Len: ${key.length}, Mask: ${key.substring(0,3)}...${key.substring(key.length-3)})` 
-          }), { status: res.status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
-        }
-        return res;
+        'x-goog-api-key': env.GEMINI_SK.trim()
       });
     }
 
