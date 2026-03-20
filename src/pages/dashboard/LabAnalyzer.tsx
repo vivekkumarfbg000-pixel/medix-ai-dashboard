@@ -71,6 +71,10 @@ const LabAnalyzer = () => {
         try {
             const result = await labService.analyzeReport(uploadedFile);
             setReport(result);
+            // Auto-populate Hinglish summary if the AI returned one
+            if (result.hinglishSummary) {
+                setHinglishSummary(result.hinglishSummary);
+            }
             setProgress(100);
             toast.success("Analysis Complete! AI Insights Generated.");
         } catch (error) {
@@ -140,6 +144,7 @@ const LabAnalyzer = () => {
             }
 
             // 2. Insert Report
+            // @ts-ignore: lab_reports table exists in DB but not yet in generated types
             const { error } = await supabase.from('lab_reports').insert({
                 shop_id: currentShopId,
                 patient_id: patientId,
@@ -324,25 +329,35 @@ const LabAnalyzer = () => {
                                 <CardDescription>Extracted values correlated with standard clinical ranges</CardDescription>
                             </CardHeader>
                             <div className="bg-background">
-                                {report.results.map((res, i) => (
-                                    <div key={i} className={`flex items-center justify-between p-4 border-b last:border-0 hover:bg-muted/30 transition-colors ${res.status !== 'Normal' ? 'bg-red-50/10' : ''}`}>
-                                        <div className="flex-1">
-                                            <p className="font-semibold text-base">{res.parameter}</p>
-                                            <p className="text-xs text-muted-foreground mt-0.5">Reference: {res.normalRange} {res.unit}</p>
-                                        </div>
-                                        <div className="text-right flex items-center gap-6">
-                                            <div>
-                                                <p className={`font-bold text-lg ${res.status === 'Normal' ? 'text-foreground' : 'text-red-600'}`}>
-                                                    {res.value}
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">{res.unit}</p>
+                                {report.results && report.results.length > 0 ? (
+                                    report.results.map((res, i) => (
+                                        <div key={i} className={`flex items-center justify-between p-4 border-b last:border-0 hover:bg-muted/30 transition-colors ${res.status !== 'Normal' ? 'bg-red-50/10' : ''}`}>
+                                            <div className="flex-1">
+                                                <p className="font-semibold text-base">{res.parameter}</p>
+                                                <p className="text-xs text-muted-foreground mt-0.5">Reference: {res.normalRange} {res.unit}</p>
                                             </div>
-                                            <Badge variant={res.status === "Normal" ? "outline" : "destructive"} className={res.status === "Normal" ? "border-green-500/50 text-green-600 bg-green-500/5" : ""}>
-                                                {res.status}
-                                            </Badge>
+                                            <div className="text-right flex items-center gap-6">
+                                                <div>
+                                                    <p className={`font-bold text-lg ${res.status === 'Normal' ? 'text-foreground' : 'text-red-600'}`}>
+                                                        {res.value}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">{res.unit}</p>
+                                                </div>
+                                                <Badge variant={res.status === "Normal" ? "outline" : "destructive"} className={res.status === "Normal" ? "border-green-500/50 text-green-600 bg-green-500/5" : ""}>
+                                                    {res.status}
+                                                </Badge>
+                                            </div>
                                         </div>
+                                    ))
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-12 text-center px-6">
+                                        <Microscope className="w-10 h-10 text-muted-foreground/40 mb-3" />
+                                        <p className="font-semibold text-muted-foreground">No Biomarkers Extracted</p>
+                                        <p className="text-sm text-muted-foreground/70 mt-1 max-w-xs">
+                                            The AI could not extract specific test values. Please check the summary above for the analysis results, or upload a clearer image.
+                                        </p>
                                     </div>
-                                ))}
+                                )}
                             </div>
                         </Card>
 

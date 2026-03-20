@@ -326,10 +326,9 @@ export const DiaryScan = () => {
 
       for (const item of salesItems) {
         // Fuzzy match medicine in inventory
-        // @ts-ignore: purchase_price exists at runtime
         const { data: inventoryResults } = await supabase
           .from('inventory')
-          .select('id, medicine_name, quantity, purchase_price, unit_price')
+          .select('id, medicine_name, quantity, unit_price, cost_price')
           .eq('shop_id', currentShop?.id)
           .ilike('medicine_name', `%${item.medication_name.replace(/[^a-zA-Z0-9]/g, '%')}%`)
           .limit(1);
@@ -359,7 +358,7 @@ export const DiaryScan = () => {
           name: item.medication_name,
           qty: item.quantity || 1,
           price: item.price || inventoryItem.unit_price || 0,
-          cost_price: inventoryItem.purchase_price || 0
+          cost_price: inventoryItem.cost_price || 0
         });
 
         inventoryUpdates.push({
