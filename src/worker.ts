@@ -30,15 +30,21 @@ export default {
 
     // 2. Handle Groq Proxy
     if (url.pathname.startsWith('/groq-proxy')) {
+      if (!env.GROQ_API_KEY) {
+        return new Response(JSON.stringify({ error: "Configuration Error", message: "GROQ_API_KEY is missing in Cloudflare Worker secrets." }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      }
       return handleProxy(request, 'https://api.groq.com', '/groq-proxy', {
-        'Authorization': `Bearer ${env.GROQ_API_KEY || ''}`
+        'Authorization': `Bearer ${env.GROQ_API_KEY}`
       });
     }
 
     // 3. Handle Gemini Proxy
     if (url.pathname.startsWith('/gemini-proxy')) {
+      if (!env.GEMINI_API_KEY) {
+        return new Response(JSON.stringify({ error: "Configuration Error", message: "GEMINI_API_KEY is missing in Cloudflare Worker secrets." }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      }
       return handleProxy(request, 'https://generativelanguage.googleapis.com', '/gemini-proxy', {
-        'x-goog-api-key': env.GEMINI_API_KEY || ''
+        'x-goog-api-key': env.GEMINI_API_KEY
       });
     }
 

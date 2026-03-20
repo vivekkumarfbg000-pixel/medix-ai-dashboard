@@ -12,5 +12,9 @@
   },
   "compatibility_flags": [
     "nodejs_compat"
-  ]
+  ],
+  "vars": {
+    "GROQ_API_KEY": "SET_IN_CLOUDFLARE_DASHBOARD_SECRETS",
+    "GEMINI_API_KEY": "SET_IN_CLOUDFLARE_DASHBOARD_SECRETS"
+  }
 }

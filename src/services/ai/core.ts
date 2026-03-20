@@ -82,8 +82,15 @@ export async function callGeminiVision(prompt: string, base64Image: string, mime
         );
 
         if (!response.ok) {
-            const err = await response.text();
-            throw new Error(`Gemini API Failed (${response.status}): ${err.substring(0, 100)}`);
+            const errText = await response.text();
+            let errorMessage = errText;
+            try {
+                const errJson = JSON.parse(errText);
+                errorMessage = errJson.message || errJson.error || errText;
+            } catch (e) {
+                // Not JSON
+            }
+            throw new Error(`Vision API Failed (${response.status}): ${errorMessage.substring(0, 150)}`);
         }
 
         const data = await response.json();
@@ -119,8 +126,15 @@ export async function callGroqAI(messages: any[], model: string = "llama-3.3-70b
         );
 
         if (!response.ok) {
-            const err = await response.text();
-            throw new Error(`Groq API Failed: ${response.status} - ${err}`);
+            const errText = await response.text();
+            let errorMessage = errText;
+            try {
+                const errJson = JSON.parse(errText);
+                errorMessage = errJson.message || errJson.error || errText;
+            } catch (e) {
+                // Not JSON
+            }
+            throw new Error(`AI API Failed (${response.status}): ${errorMessage.substring(0, 150)}`);
         }
 
         const data = await response.json();
