@@ -49,31 +49,44 @@ class LabService {
             }
 
             // Map response to Frontend Model
-            // Gemini Lab Report API returns: test_results, health_insights, recommendations
-            const testResults = data.test_results || rawAnalysis.test_results || data.results || rawAnalysis.results || [];
-            const healthInsights = data.health_insights || rawAnalysis.health_insights || {};
-            const recommendations = data.recommendations || rawAnalysis.recommendations || {};
+            // [HARDENING]: Check multiple common AI response patterns
+            const testResults = Array.isArray(data) ? data : 
+                               (data.test_results || data.results || data.biomarkers || rawAnalysis.test_results || rawAnalysis.results || []);
+            
+            const healthInsights = data.health_insights || rawAnalysis.health_insights || data || {};
+            const recommendations = data.recommendations || rawAnalysis.recommendations || data || {};
+            const diet = Array.isArray(recommendations.diet) ? recommendations.diet : 
+                        (Array.isArray(recommendations.dietary) ? recommendations.dietary : (Array.isArray(data.diet) ? data.diet : []));
+            const medical = Array.isArray(recommendations.medical) ? recommendations.medical : 
+                           (Array.isArray(recommendations.nextSteps) ? recommendations.nextSteps : (Array.isArray(data.next_steps) ? data.next_steps : []));
+            const prevention = Array.isArray(recommendations.prevention) ? recommendations.prevention : 
+                              (Array.isArray(recommendations.lifestyle) ? recommendations.lifestyle : (Array.isArray(data.prevention) ? data.prevention : []));
 
-            return {
-                patientName: data.patient_name || rawAnalysis.patient_name,
-                reportDate: data.report_date || rawAnalysis.report_date,
-                summary: data.summary || data.result || "Analysis Complete",
-                hinglishSummary: data.hinglish_summary || rawAnalysis.hinglish_summary,
-                diseasePossibility: healthInsights.disease_risks || data.disease_possibility || [],
-                potentialRisks: data.potential_risks || rawAnalysis.potential_risks || [],
-                results: testResults.map((test: any) => ({
-                    parameter: test.test_name || test.parameter || "Unknown",
-                    value: test.value || "",
+            const finalReport: LabAnalysisReport = {
+                patientName: data.patient_name || rawAnalysis.patient_name || null,
+                reportDate: data.report_date || rawAnalysis.report_date || null,
+                summary: data.summary || data.result || "Lab analysis completed successfully. See details below.",
+                hinglishSummary: data.hinglish_summary || rawAnalysis.hinglish_summary || null,
+                diseasePossibility: Array.isArray(data.disease_possibility) ? data.disease_possibility : 
+                                  (Array.isArray(healthInsights.disease_risks) ? healthInsights.disease_risks : []),
+                potentialRisks: Array.isArray(data.potential_risks) ? data.potential_risks : 
+                               (Array.isArray(rawAnalysis.potential_risks) ? rawAnalysis.potential_risks : []),
+                results: Array.isArray(testResults) ? testResults.map((test: any) => ({
+                    parameter: test.test_name || test.parameter || test.test || "Unknown Marker",
+                    value: test.value !== undefined ? String(test.value) : "N/A",
                     unit: test.unit || "",
-                    normalRange: test.normal_range || test.normalRange || "",
-                    status: test.status || "Normal"
-                })),
+                    normalRange: test.normal_range || test.normalRange || test.reference || "N/A",
+                    status: (test.status && ["Normal", "Low", "High", "Abnormal"].includes(test.status)) ? test.status : "Normal"
+                })) : [],
                 recommendations: {
-                    diet: recommendations.dietary || recommendations.diet || data.diet || [],
-                    nextSteps: recommendations.medical || recommendations.nextSteps || data.next_steps || [],
-                    prevention: recommendations.lifestyle || recommendations.prevention || data.prevention || []
+                    diet: diet,
+                    nextSteps: medical,
+                    prevention: prevention
                 }
             };
+
+            logger.log("[LabService] Normalized Report:", finalReport);
+            return finalReport;
 
         } catch (error: any) {
             logger.error("Lab Analysis Failed:", error);

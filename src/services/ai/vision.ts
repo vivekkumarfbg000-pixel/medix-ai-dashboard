@@ -91,7 +91,15 @@ export const analyzeDocument = async (file: File, type: 'prescription' | 'lab_re
         const parsed = safeJSONParse(geminiRes, null);
         if (!parsed) throw new Error("Invalid Gemini Response");
 
-        return { ...parsed, isMock: false };
+        // [HARDENING]: Ensure result is an object, wrap arrays if found
+        let normalized = parsed;
+        if (Array.isArray(parsed)) {
+            if (type === 'lab_report') normalized = { test_results: parsed };
+            else if (type === 'diary') normalized = { entries: parsed };
+            else normalized = { items: parsed };
+        }
+
+        return { ...normalized, isMock: false };
 
     } catch (error) {
         logger.error("[AI Vision] Gemini failed, attempting N8N fallback...", error);

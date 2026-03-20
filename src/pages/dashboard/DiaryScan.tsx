@@ -150,20 +150,28 @@ export const DiaryScan = () => {
         }
 
         if (entries && entries.length > 0) {
-          const mappedItems: ExtractedItem[] = entries.map((item: any, index: number) => ({
-            id: index + 1,
-            sequence: index + 1,
-            medication_name: item.medication_name || item.medicine_name || item.name || item.drug_name || "Unknown",
-            strength: item.strength || "",
-            dosage_frequency: item.dosage_frequency || "",
-            duration: item.duration || "",
-            notes: item.notes || "",
-            quantity: Number(item.quantity || item.qty || 1),
-            unit: item.unit || "strip",
-            price: Number(item.price || item.unit_price || 0),
-            total: Number(item.total || item.amount || (Number(item.quantity || 1) * Number(item.price || 0))),
-            customer_name: item.customer_name || null
-          }));
+          const mappedItems: ExtractedItem[] = entries.map((item: any, index: number) => {
+            const rawQty = item.quantity || item.qty || 1;
+            const rawPrice = item.price || item.unit_price || 0;
+            // Defensive number parsing for OCR strings
+            const qty = typeof rawQty === 'number' ? rawQty : (parseFloat(String(rawQty).replace(/[^0-9.]/g, '')) || 1);
+            const price = typeof rawPrice === 'number' ? rawPrice : (parseFloat(String(rawPrice).replace(/[^0-9.]/g, '')) || 0);
+
+            return {
+              id: index + 1,
+              sequence: index + 1,
+              medication_name: item.medication_name || item.medicine_name || item.name || item.drug_name || "Unknown Item",
+              strength: item.strength || "",
+              dosage_frequency: item.dosage_frequency || "",
+              duration: item.duration || "",
+              notes: item.notes || "",
+              quantity: qty,
+              unit: item.unit || "strip",
+              price: price,
+              total: item.total || item.amount || (qty * price),
+              customer_name: item.customer_name || null
+            };
+          });
           setExtractedItems(mappedItems);
           toast.success(`Extracted ${mappedItems.length} sales entries from diary!`);
         } else {
