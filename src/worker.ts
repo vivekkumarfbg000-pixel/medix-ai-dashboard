@@ -34,7 +34,7 @@ export default {
         return new Response(JSON.stringify({ error: "Configuration Error", message: "GROQ_API_KEY is missing in Cloudflare Worker secrets." }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
       }
       return handleProxy(request, 'https://api.groq.com', '/groq-proxy', {
-        'Authorization': `Bearer ${env.GROQ_API_KEY}`
+        'Authorization': `Bearer ${env.GROQ_API_KEY.trim()}`
       });
     }
 
@@ -44,7 +44,7 @@ export default {
         return new Response(JSON.stringify({ error: "Configuration Error", message: "GEMINI_API_KEY is missing in Cloudflare Worker secrets." }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
       }
       return handleProxy(request, 'https://generativelanguage.googleapis.com', '/gemini-proxy', {
-        'x-goog-api-key': env.GEMINI_API_KEY
+        'x-goog-api-key': env.GEMINI_API_KEY.trim()
       });
     }
 
