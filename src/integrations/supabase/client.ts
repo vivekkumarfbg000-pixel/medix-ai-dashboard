@@ -53,6 +53,6 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, 
 });
 
 // Legacy compatibility exports used by useSessionEnforcement
-export let isSupabaseReachable = true;
+export const isSupabaseReachable = true;
 export const connectivityReady: Promise<boolean> = Promise.resolve(true);
 export const checkConnection = async (): Promise<boolean> => true;

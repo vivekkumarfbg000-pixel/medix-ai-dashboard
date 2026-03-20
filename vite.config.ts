@@ -1,14 +1,17 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  server: {
-    host: "0.0.0.0",
-    port: 5173,
-    proxy: {
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  
+  return {
+    server: {
+      host: "0.0.0.0",
+      port: 5173,
+      proxy: {
       // Reverse proxy to bypass ISP blocks on *.supabase.co (Jio/Airtel India)
       // Browser hits localhost:5173/supabase-proxy/* → Vite forwards server-side to supabase.co
       '/supabase-proxy': {
@@ -16,6 +19,34 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         rewrite: (path: string) => path.replace(/^\/supabase-proxy/, ''),
         secure: true,
+      },
+      // Reverse proxy to bypass CORS for Groq API (Chatbot)
+      '/groq-proxy': {
+        target: 'https://api.groq.com',
+        changeOrigin: true,
+        rewrite: (path: string) => path.replace(/^\/groq-proxy/, ''),
+        secure: true,
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            if (env.GROQ_API_KEY) {
+              proxyReq.setHeader('Authorization', `Bearer ${env.GROQ_API_KEY}`);
+            }
+          });
+        }
+      },
+      // Reverse proxy for Gemini API (Vision processing securely)
+      '/gemini-proxy': {
+        target: 'https://generativelanguage.googleapis.com',
+        changeOrigin: true,
+        rewrite: (path: string) => path.replace(/^\/gemini-proxy/, ''),
+        secure: true,
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            if (env.GEMINI_API_KEY) {
+              proxyReq.setHeader('x-goog-api-key', env.GEMINI_API_KEY);
+            }
+          });
+        }
       },
     },
   },
@@ -142,5 +173,6 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-  },
-}));
+  }
+  };
+});

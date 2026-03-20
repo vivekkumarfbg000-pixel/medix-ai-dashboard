@@ -21,7 +21,7 @@ export const speak = (text: string, options: TTSOptions = {}) => {
     window.speechSynthesis.cancel();
 
     // 1. Text Normalization for Natural Speech
-    let cleanText = text
+    const cleanText = text
         .replace(/₹/g, " Rupees ")
         .replace(/Rs\./gi, " Rupees ")
         .replace(/\//g, " per ")

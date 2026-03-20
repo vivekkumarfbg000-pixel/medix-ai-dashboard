@@ -33,6 +33,13 @@ export const analyzeDocument = async (file: File, type: 'prescription' | 'lab_re
 
     // 2. Upload to Supabase (Background)
     const fileExt = fileToUpload.name.split('.').pop() || 'jpg';
+    let mimeType = fileToUpload.type;
+    if (!mimeType) {
+        if (fileExt.toLowerCase() === 'png') mimeType = 'image/png';
+        else if (fileExt.toLowerCase() === 'webp') mimeType = 'image/webp';
+        else mimeType = 'image/jpeg';
+    }
+
     const fileName = `${type}_${Date.now()}.${fileExt}`;
     supabase.auth.getUser().then(({ data: { user } }) => {
         if (user) {
@@ -57,7 +64,8 @@ export const analyzeDocument = async (file: File, type: 'prescription' | 'lab_re
         const systemPrompt = getVisionPrompt(type);
         const geminiRes = await callGeminiVision(
             systemPrompt + "\n\nIMPORTANT: Return ONLY raw JSON. No markdown formatting.",
-            base64Data
+            base64Data,
+            mimeType
         );
 
         const parsed = safeJSONParse(geminiRes, null);

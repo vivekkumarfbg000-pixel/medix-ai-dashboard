@@ -6,6 +6,7 @@ import {
     checkRateLimit, 
     callGroqAI, 
     callGeminiVision, 
+    callGroqWhisper,
     safeJSONParse, 
     ENDPOINTS 
 } from "./ai/core";
@@ -114,6 +115,43 @@ export const aiService = {
     /**
      * Specialized AI Tasks
      */
+    async processVoiceBill(audioBlob: Blob): Promise<{ transcription: string, items: any[] }> {
+        logger.log("[Voice] Transcribing audio via Groq Whisper...");
+        const transcription = await callGroqWhisper(audioBlob);
+        logger.log("[Voice] Transcription success:", transcription);
+        const result = await this.parseOrderFromText(transcription);
+        return { transcription, items: result?.items || [] };
+    },
+
+    async parseOrderFromText(text: string): Promise<{ items: any[] }> {
+        const prompt = [
+            { 
+                role: "system", 
+                content: `You are an AI that extracts medicine orders from transcribed voice or text.
+Return ONLY a strictly formatted JSON object with an "items" array. No markdown, no conversational text.
+Format requirements:
+{
+  "items": [
+    {
+      "name": "Medicine Name (Cleaned)",
+      "quantity": 1, // Number, default to 1 if unspecified
+      "intent": "add" // Use "search" if user is only asking if it's available or checking price. Use "add" or "order" if they want to bill it.
+    }
+  ]
+}` 
+            },
+            { role: "user", content: text }
+        ];
+        
+        try {
+            const res = await callGroqAI(prompt, "llama-3.1-8b-instant", true);
+            return safeJSONParse(res, { items: [] });
+        } catch (error) {
+            logger.error("[Voice] parseOrderFromText AI parsing failed:", error);
+            return { items: [] };
+        }
+    },
+
     async analyzeDocument(file: File, type: any) {
         return analyzeDocImpl(file, type);
     },

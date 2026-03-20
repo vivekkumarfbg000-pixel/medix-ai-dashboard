@@ -6,8 +6,6 @@ const RATE_LIMIT_MS = 1000;
 
 // Configuration from Environment
 export const N8N_BASE = (import.meta.env.VITE_N8N_WEBHOOK_URL || "https://n8n.medixai.shop/webhook").trim();
-export const GROQ_API_KEY = (import.meta.env.VITE_GROQ_API_KEY || "").trim();
-export const GEMINI_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY || "").trim();
 
 export const ENDPOINTS = {
     CHAT: `${N8N_BASE}/medix-chat-v2`,
@@ -61,17 +59,13 @@ export function checkRateLimit(endpoint: string): boolean {
     return true;
 }
 
-export async function callGeminiVision(prompt: string, base64Image: string): Promise<string> {
+export async function callGeminiVision(prompt: string, base64Image: string, mimeType: string = "image/jpeg"): Promise<string> {
     try {
         checkConnectivity();
 
-        if (!GEMINI_API_KEY || GEMINI_API_KEY.length < 20) {
-            logger.error("[Gemini Vision] API key missing or invalid!");
-            throw new Error("Gemini API key is not configured.");
-        }
-
+        const baseUrl = typeof window !== 'undefined' ? '/gemini-proxy' : 'https://generativelanguage.googleapis.com';
         const response = await fetchWithTimeout(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+            `${baseUrl}/v1beta/models/gemini-2.0-flash:generateContent`,
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -79,7 +73,7 @@ export async function callGeminiVision(prompt: string, base64Image: string): Pro
                     contents: [{
                         parts: [
                             { text: prompt },
-                            { inline_data: { mime_type: "image/jpeg", data: base64Image } }
+                            { inline_data: { mime_type: mimeType, data: base64Image } }
                         ]
                     }]
                 })
@@ -105,12 +99,12 @@ export async function callGroqAI(messages: any[], model: string = "llama-3.3-70b
     const makeRequest = async (currentModel: string) => {
         checkConnectivity();
 
+        const baseUrl = typeof window !== 'undefined' ? '/groq-proxy' : 'https://api.groq.com';
         const response = await fetchWithTimeout(
-            "https://api.groq.com/openai/v1/chat/completions",
+            `${baseUrl}/openai/v1/chat/completions`,
             {
                 method: "POST",
                 headers: {
-                    "Authorization": `Bearer ${GROQ_API_KEY}`,
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
@@ -136,12 +130,37 @@ export async function callGroqAI(messages: any[], model: string = "llama-3.3-70b
     try {
         return await makeRequest(model);
     } catch (e) {
-        try {
-            return await makeRequest("llama-3.1-8b-instant");
-        } catch (fallbackError) {
-            throw fallbackError;
-        }
+        return await makeRequest("llama-3.1-8b-instant");
     }
+}
+
+export async function callGroqWhisper(audioBlob: Blob): Promise<string> {
+    checkConnectivity();
+
+    const formData = new FormData();
+    // Groq requires a filename with an audio extension
+    formData.append("file", audioBlob, "audio.webm");
+    // Standard Whisper v3 model
+    formData.append("model", "whisper-large-v3-turbo");
+    formData.append("response_format", "json");
+
+    const baseUrl = typeof window !== 'undefined' ? '/groq-proxy' : 'https://api.groq.com';
+    const response = await fetchWithTimeout(
+        `${baseUrl}/openai/v1/audio/transcriptions`,
+        {
+            method: "POST",
+            body: formData
+        },
+        30000
+    );
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`Whisper API Failed: ${response.status} - ${err}`);
+    }
+
+    const data = await response.json();
+    return data.text || "";
 }
 
 export const safeJSONParse = (text: string, fallback: any = null): any => {
