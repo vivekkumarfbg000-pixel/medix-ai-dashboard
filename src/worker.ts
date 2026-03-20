@@ -10,6 +10,19 @@ export default {
   async fetch(request: Request, env: Env, ctx: any): Promise<Response> {
     const url = new URL(request.url);
 
+    // 0. Handle CORS Preflight for all proxy routes
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': '*',
+          'Access-Control-Max-Age': '86400',
+        },
+      });
+    }
+
     // 1. Handle Supabase Proxy
     if (url.pathname.startsWith('/supabase-proxy')) {
       return handleProxy(request, 'https://ykrqpxbbyfipjqhpaszf.supabase.co', '/supabase-proxy');

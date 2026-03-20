@@ -78,7 +78,99 @@ User: "Azithral 500 ka stock check karo"
 Output: { "tool": "check_inventory", "args": { "query": "Azithral 500" } }
 `;
 
-export const DIARY_ANALYSIS_PROMPT = `You are an expert OCR AI specializing in reading handwritten Indian pharmacy sales diaries...`;
-export const PRESCRIPTION_ANALYSIS_PROMPT = `You are an expert Prescription Reader AI...`;
+export const DIARY_ANALYSIS_PROMPT = `You are an expert OCR AI specializing in reading handwritten Indian pharmacy sales diaries.
+Analyze this sales diary page image and extract all sales entries.
 
-export const LAB_REPORT_PROMPT = `You are an expert Medical AI specializing in Indian healthcare...`;
+### EXTRACTION REQUIREMENTS:
+1. Identify Medicine Names accurately. Fix spelling errors based on common Indian brands (e.g., 'Dolo', 'Azithral', 'Pan D').
+2. Identify Quantities sold. If words like 'patta' or 'strip' are used, extract that in 'unit' and the number in 'quantity'.
+3. Extract the price or total amount written next to it.
+4. Extract any notes (e.g., 'udhaar', 'cash', or customer names).
+
+### OUTPUT FORMAT (STRICT JSON):
+{
+  "entries": [
+    {
+      "medication_name": "Medicine name",
+      "quantity": 1,
+      "unit": "strip",
+      "price": 100,
+      "total": 100,
+      "notes": "cash/udhaar",
+      "customer_name": "Name if visible"
+    }
+  ]
+}
+
+### IMPORTANT:
+Return ONLY valid JSON without markdown formatting. Ensure the entries array has the items.`;
+
+export const PRESCRIPTION_ANALYSIS_PROMPT = `You are an expert Prescription Reader AI specializing in Indian pharmacy prescriptions (handwritten or printed).
+Analyze this prescription image and extract all medication details.
+
+### EXTRACTION REQUIREMENTS:
+1. PATIENT & DOCTOR INFO: Name, Doctor, Date, Contact.
+2. MEDICATION LIST: Extract Medication Name, Strength, Dosage Frequency (1-0-1, BD, etc.), Duration, and Notes.
+
+### OUTPUT FORMAT (STRICT JSON):
+{
+  "patient_name": "Name or null",
+  "doctor_name": "Dr. Name or null",
+  "patient_contact": "Phone or null",
+  "date": "YYYY-MM-DD or null",
+  "medications": [
+    {
+      "medication_name": "Drug name",
+      "strength": "Dosage strength",
+      "dosage_frequency": "Frequency (1-0-1, BD, etc.)",
+      "duration": "Treatment duration",
+      "notes": "Instructions",
+      "indication": "Reason (if mentioned)"
+    }
+  ]
+}
+
+### IMPORTANT:
+Return ONLY valid JSON without markdown formatting. Extract ALL visible medications into the medications array.`;
+
+export const LAB_REPORT_PROMPT = `You are an expert Medical AI specializing in Indian healthcare. Analyze this medical lab report and provide comprehensive, patient-friendly insights in Hinglish (Hindi + English mix).
+
+### ANALYSIS REQUIREMENTS:
+1. BIOMARKER EXTRACTION: Extract all test parameters with value, unit, normal_range, and status (Normal, Low, High, Abnormal).
+2. HINGLISH SUMMARY (CRITICAL): Create a patient-friendly explanation mixing Hindi and English naturally.
+3. POTENTIAL RISKS: Identify health risks based on abnormal values with severity (Low, Moderate, High, Critical).
+4. DISEASE POSSIBILITIES: List 2-4 potential conditions.
+5. RECOMMENDATIONS: Provide Indian diet suggestions, clinical next steps, and prevention tips.
+
+### OUTPUT FORMAT (STRICT JSON):
+{
+  "summary": "Brief clinical summary in English",
+  "hinglish_summary": "Patient-friendly Hinglish explanation",
+  "patient_name": "Extract if visible, else null",
+  "report_date": "Extract if visible, else null",
+  "test_results": [
+    {
+      "test_name": "Parameter name",
+      "value": "Measured value",
+      "unit": "Unit",
+      "normal_range": "Reference range",
+      "status": "Normal/Low/High/Abnormal"
+    }
+  ],
+  "disease_possibility": ["Condition 1", "Condition 2"],
+  "potential_risks": [
+    {
+      "risk": "Risk name",
+      "severity": "Low/Moderate/High/Critical",
+      "description": "Why this is a risk"
+    }
+  ],
+  "recommendations": {
+    "diet": ["Diet tip 1", "Diet tip 2"],
+    "medical": ["Next step 1", "Next step 2"],
+    "prevention": ["Prevention tip 1", "Prevention tip 2"]
+  }
+}
+
+### IMPORTANT:
+Return ONLY valid JSON without markdown formatting. Put all properties in the root object as specified.`;
