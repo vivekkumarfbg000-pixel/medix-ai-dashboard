@@ -6,6 +6,7 @@ interface Env {
   GEMINI_SK: string;
 }
 
+// Worker Version: 1.0.5
 export default {
   async fetch(request: Request, env: Env, ctx: any): Promise<Response> {
     const url = new URL(request.url);
@@ -19,6 +20,7 @@ export default {
           'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
           'Access-Control-Allow-Headers': '*',
           'Access-Control-Max-Age': '86400',
+          'X-Worker-Version': '1.0.5',
         },
       });
     }
@@ -88,7 +90,8 @@ async function handleProxy(request: Request, targetOrigin: string, pathPrefix: s
     newHeaders.set('Access-Control-Allow-Origin', '*');
     newHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     newHeaders.set('Access-Control-Allow-Headers', '*');
-
+    newHeaders.set('X-Worker-Version', '1.0.5');
+ 
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
