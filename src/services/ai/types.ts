@@ -3,7 +3,7 @@ export interface ChatResponse {
     sources?: string[];
     isMock?: boolean;
     action?: {
-        type: 'NAVIGATE_POS' | 'NAVIGATE_INVENTORY' | 'OPEN_WHATSAPP' | 'ADD_TO_SHORTBOOK';
+        type: 'NAVIGATE' | 'SELL_MEDICINE' | 'SHARE_WHATSAPP' | 'ADD_TO_SHORTBOOK' | 'NAVIGATE_POS' | 'NAVIGATE_INVENTORY' | 'OPEN_WHATSAPP';
         payload: any;
     };
     navigationPath?: string;

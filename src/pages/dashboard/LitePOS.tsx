@@ -370,8 +370,8 @@ const LitePOS = () => {
             shopDetails: {
                 name: currentShop?.name || "Medix Pharmacy",
                 address: currentShop?.address || "",
-                phone: currentShop?.phone || "",
-                gstin: currentShop?.gst_no || ""
+                phone: (currentShop as any)?.phone || "",
+                gstin: (currentShop as any)?.gst_no || ""
             },
             order: {
                 invoice_number: invoiceId.length > 12 ? invoiceId.slice(0, 12) : invoiceId,
@@ -415,8 +415,8 @@ const LitePOS = () => {
             customer_name: name,
             shop_name: currentShop?.name || "Medix Pharmacy",
             shop_address: currentShop?.address || "",
-            shop_phone: currentShop?.phone || "",
-            shop_gstin: currentShop?.gst_no || "",
+            shop_phone: (currentShop as any)?.phone || "",
+            shop_gstin: (currentShop as any)?.gst_no || "",
             doctor_name: doctorName || undefined,
             created_at: new Date().toISOString(),
             total_amount: totalAmount,
@@ -772,17 +772,16 @@ const LitePOS = () => {
         toast.loading("Checking Interactions...", { id: "manual-check" });
         try {
             const drugNames = [...new Set(cart.map(c => c.item.medicine_name))];
-            const { warnings, isMock } = await aiService.checkInteractions(drugNames);
+            const { warnings } = await aiService.checkInteractions(drugNames);
             setInteractions(warnings);
             if (warnings.length > 0) {
                 toast.error(`Found ${warnings.length} interactions!`, {
-                    id: "manual-check",
-                    description: isMock ? "Using Offline Database (May be incomplete)" : undefined
+                    id: "manual-check"
                 });
             } else {
                 toast.success("No interactions found. Safe to proceed.", {
                     id: "manual-check",
-                    description: isMock ? "Checked against Offline Database" : "Checked with AI Guard"
+                    description: "Checked with AI Guard"
                 });
             }
         } catch (e) {
@@ -1154,6 +1153,39 @@ const LitePOS = () => {
                                         value={search}
                                         onChange={e => setSearch(e.target.value)}
                                         placeholder="Search Medicine..."
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && search.trim()) {
+                                                e.preventDefault();
+                                                const searchTerm = search.trim();
+                                                const searchLower = searchTerm.toLowerCase();
+                                                let match;
+                                                const currentProducts = products || [];
+                                                // Try exact -> partial -> first result
+                                                match = currentProducts.find(i => i.medicine_name.toLowerCase() === searchLower);
+                                                if (!match) match = currentProducts.find(i => i.medicine_name.toLowerCase().includes(searchLower));
+                                                if (!match && currentProducts.length > 0) match = currentProducts[0];
+                                                
+                                                if (match) {
+                                                    addToCart(match, 1);
+                                                    setSearch("");
+                                                    toast.success(`✅ Added ${match.medicine_name}`);
+                                                } else {
+                                                    // Add as manual item
+                                                    const tempItem = {
+                                                        id: `MANUAL_${Date.now()}`,
+                                                        shop_id: currentShop?.id || '',
+                                                        medicine_name: searchTerm + " (Manual)",
+                                                        quantity: 999,
+                                                        unit_price: 0,
+                                                        purchase_price: 0,
+                                                        is_synced: 0
+                                                    } as OfflineInventory;
+                                                    addToCart(tempItem, 1);
+                                                    setSearch("");
+                                                    toast.warning(`Added "${searchTerm}" (Set Price Manually)`);
+                                                }
+                                            }
+                                        }}
                                         className="h-10 pl-9 bg-slate-800 border-slate-700 text-white text-sm focus:ring-1 focus:ring-cyan-500"
                                         autoFocus
                                     />

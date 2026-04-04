@@ -59,7 +59,6 @@ export default function Analytics() {
   useEffect(() => {
     fetchAnalyticsData();
   }, []);
-
   async function fetchAnalyticsData() {
     setLoading(true);
     try {
@@ -71,12 +70,13 @@ export default function Analytics() {
           total_amount,
           created_at,
           customer_name,
-          order_items (
+          items_json: order_items,
+          items_rel: order_items (
             qty,
             price,
             cost_price,
             name,
-            inventory_id: inventory_id ( category, medicine_name )
+            inventory_id: inventory_id ( id, category, medicine_name )
           )
         `)
         .order("created_at", { ascending: false });
@@ -88,27 +88,40 @@ export default function Analytics() {
       const inventoryItems: InventoryItem[] = [];
 
       salesData?.forEach(order => {
+        // Robust item extraction: Use the most complete source (Relational Table vs JSONB column)
         // @ts-ignore
-        order.order_items.forEach((item: any) => {
+        const relItemsCount = order.items_rel?.length || 0;
+        // @ts-ignore
+        const jsonItems = (typeof order.items_json === 'string' ? JSON.parse(order.items_json) : (order.items_json || []));
+        const jsonItemsCount = jsonItems.length || 0;
+
+        // Bias towards relational data for better inventory linking, but fallback if JSON is more complete
+        const items = (relItemsCount >= jsonItemsCount && relItemsCount > 0) 
+            ? order.items_rel 
+            : jsonItems;
+
+        items.forEach((item: any) => {
+          const price = item.price || 0;
+          const qty = item.qty || item.quantity || 1;
+          const cost = item.cost_price || 0;
+          
           flattenedSales.push({
             id: order.id,
-            total_amount: item.price * item.qty, // Per item total
-            quantity_sold: item.qty,
+            total_amount: price * qty, // Per item total
+            quantity_sold: qty,
             sale_date: order.created_at,
             customer_name: order.customer_name,
-            inventory_id: item.inventory_id?.id || 'deleted',
+            inventory_id: item.inventory_id?.id || item.inventory_id || 'deleted',
           });
 
           // Build virtual inventory list for calculations
-          if (item.inventory_id) {
-            inventoryItems.push({
-              id: item.inventory_id.id,
-              medicine_name: item.name,
-              category: item.inventory_id.category,
-              unit_price: item.price,
-              cost_price: item.cost_price || 0
-            });
-          }
+          inventoryItems.push({
+            id: item.inventory_id?.id || item.inventory_id || 'manual-' + (item.name || 'item'),
+            medicine_name: item.name || item.medicine_name || 'Unknown',
+            category: item.inventory_id?.category || item.category || 'General',
+            unit_price: price,
+            cost_price: cost
+          });
         });
       });
 

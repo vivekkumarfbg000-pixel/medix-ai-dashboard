@@ -93,12 +93,21 @@ export const aiService = {
         // Final Synthesis
         const finalPrompt = [
             { role: "system", content: SYSTEM_PROMPT_PHARMACIST },
-            { role: "user", content: `Query: "${contextMessage}"\n\nResult: ${toolResult}` }
+            { role: "user", content: `Query: "${contextMessage}"\n\nTool Used: ${action.tool}\nResult: ${toolResult}` }
         ];
+
         const reply = await callGroqAI(finalPrompt);
+        
+        // Pass the action back to the UI if it's a structural one
+        const finalAction = (action.tool !== "direct_reply") ? {
+            type: action.tool.toUpperCase(),
+            payload: action.args
+        } : undefined;
+
         return { 
             reply, 
             sources: ["Groq AI (Local Tools)"],
+            action: finalAction as any,
             navigationPath: action.tool === "navigate" ? action.args.path : undefined
         };
     },
@@ -134,8 +143,8 @@ Format requirements:
   "items": [
     {
       "name": "Medicine Name (Cleaned)",
-      "quantity": 1, // Number, default to 1 if unspecified
-      "intent": "add" // Use "search" if user is only asking if it's available or checking price. Use "add" or "order" if they want to bill it.
+      "quantity": 1, 
+      "intent": "add" 
     }
   ]
 }` 
@@ -168,6 +177,29 @@ Format requirements:
         return res.json();
     },
 
+    async checkInteractions(drugs: string[]): Promise<{ warnings: string[] }> {
+        const prompt = [
+            { role: "system", content: "You are a clinical pharmacist AI. Check for major drug interactions among the following medications. Return ONLY a valid JSON object with a 'warnings' array containing short descriptions of major interactions. If safe, return { \"warnings\": [] }." },
+            { role: "user", content: drugs.join(", ") }
+        ];
+        try {
+            const res = await callGroqAI(prompt, "llama-3.1-8b-instant", true);
+            return safeJSONParse(res, { warnings: [] });
+        } catch { return { warnings: [] }; }
+    },
+
+    async getGenericSubstitutes(medicineName: string): Promise<any[]> {
+        const prompt = [
+            { role: "system", content: "You are a pharma generic recommender. For the given drug, return generic alternatives that are cheaper or have a better profit margin. Return ONLY a valid JSON array of objects with keys 'name' and 'margin' (percentage number) under a 'substitutes' array. E.g. { \"substitutes\": [ { \"name\": \"Generic Name\", \"margin\": 25 } ] }" },
+            { role: "user", content: medicineName }
+        ];
+        try {
+            const res = await callGroqAI(prompt, "llama-3.1-8b-instant", true);
+            const parsed = safeJSONParse(res, { substitutes: [] });
+            return parsed.substitutes || [];
+        } catch { return []; }
+    },
+
     /**
      * Legacy Compatibility & Restore
      */
@@ -192,6 +224,37 @@ Format requirements:
             { role: "user", content: `Explain this report summary in very simple Hinglish: ${summary}` }
         ];
         return await callGroqAI(prompt);
+    },
+
+    async getDailyBriefing(shopId: string): Promise<string> {
+        try {
+            // Fetch some data for context
+            const { data: inventory } = await supabase.from('inventory').select('medicine_name, quantity, expiry_date').eq('shop_id', shopId);
+            const { data: sales } = await supabase.from('orders').select('total_amount').eq('shop_id', shopId).gte('created_at', new Date(Date.now() - 86400000).toISOString());
+
+            const lowStock = inventory?.filter(i => i.quantity < 10).map(i => i.medicine_name).slice(0, 5) || [];
+            const nearExpiry = inventory?.filter(i => i.expiry_date && new Date(i.expiry_date) < new Date(Date.now() + 2592000000)).map(i => i.medicine_name).slice(0, 5) || [];
+            const totalSalesInput = sales?.reduce((sum, s) => sum + (s.total_amount || 0), 0) || 0;
+
+            const prompt = [
+                { 
+                    role: "system", 
+                    content: "You are the Pharmacist Assistant 'Bharat Medix AI'. Generate a short, motivating daily briefing in Hinglish for the shop owner. Use the provided context." 
+                },
+                { 
+                    role: "user", 
+                    content: `Context: 
+- Total Sales (24h): ₹${totalSalesInput}
+- Low Stock: ${lowStock.join(', ')}
+- Near Expiry: ${nearExpiry.join(', ')}
+` 
+                }
+            ];
+
+            return await callGroqAI(prompt);
+        } catch (error) {
+            return "Bhaiya, data fetch karne mein thodi problem hui, par aapki sale badhiya chal rahi hai! Kaam shuru karte hain.";
+        }
     }
 };
 

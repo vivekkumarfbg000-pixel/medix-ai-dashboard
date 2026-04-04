@@ -36,8 +36,16 @@ export const whatsappService = {
      */
     formatPhone(phone: string | null): string {
         if (!phone) return "";
+        // Remove all non-numeric characters
         const clean = phone.replace(/\D/g, '');
+        
+        // If 10 digits, prefix with 91 (India)
         if (clean.length === 10) return `91${clean}`;
+        
+        // If 12 digits and starts with 91, keep it
+        if (clean.length === 12 && clean.startsWith('91')) return clean;
+        
+        // Otherwise return as is (could be international or already formatted)
         return clean;
     },
 

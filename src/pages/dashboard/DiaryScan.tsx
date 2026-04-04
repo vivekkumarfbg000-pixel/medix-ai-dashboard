@@ -235,11 +235,8 @@ export const DiaryScan = () => {
           }
           toast.success("AI Analysis Complete!");
         } else {
-          toast.error("AI Service Response Invalid. Using Demo Data.");
-          setExtractedItems([
-            { id: 1, sequence: 1, medication_name: "Metformin", strength: "500mg", dosage_frequency: "1-0-1", duration: "30 Days", notes: "After food" },
-            { id: 2, sequence: 2, medication_name: "Atorvastatin", strength: "10mg", dosage_frequency: "0-0-1", duration: "30 Days", notes: "Before sleep" }
-          ]);
+          toast.error("AI could not extract medicines clearly. Please try a better photo or add items manually.");
+          setExtractedItems([]); // Remove misleading chronic demo data
         }
       }
     } catch (error: any) {
@@ -623,127 +620,142 @@ export const DiaryScan = () => {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader className="bg-muted/50">
-                    <TableRow>
-                      <TableHead className="w-[40px] font-semibold text-xs">#</TableHead>
-                      <TableHead className="min-w-[160px] font-semibold text-xs">Medicine Name</TableHead>
-                      {scanMode === 'diary' ? (
-                        <>
-                          <TableHead className="w-[80px] font-semibold text-xs text-center">Qty</TableHead>
-                          <TableHead className="w-[90px] font-semibold text-xs text-right">Price (₹)</TableHead>
-                          <TableHead className="w-[90px] font-semibold text-xs text-right">Amount (₹)</TableHead>
-                          <TableHead className="min-w-[100px] font-semibold text-xs">Notes</TableHead>
-                          <TableHead className="w-[50px]"></TableHead>
-                        </>
-                      ) : (
-                        <>
-                          <TableHead className="min-w-[80px] font-semibold text-xs">Strength</TableHead>
-                          <TableHead className="min-w-[80px] font-semibold text-xs">Dosage</TableHead>
-                          <TableHead className="min-w-[80px] font-semibold text-xs">Duration</TableHead>
-                          <TableHead className="min-w-[120px] font-semibold text-xs">Notes</TableHead>
-                        </>
-                      )}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {extractedItems.map((item) => (
-                      <TableRow key={item.id} className={`group ${item.lasa_alert ? "bg-amber-50" : "hover:bg-muted/30"}`}>
-                        <TableCell className="font-medium text-muted-foreground text-xs py-2">{item.sequence}</TableCell>
-                        <TableCell className="py-1">
-                          <Input
-                            value={item.medication_name}
-                            onChange={(e) => updateItem(item.id, 'medication_name', e.target.value)}
-                            className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors font-medium h-8 text-xs px-2"
-                          />
-                        </TableCell>
+              {extractedItems.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow>
+                        <TableHead className="w-[40px] font-semibold text-xs">#</TableHead>
+                        <TableHead className="min-w-[160px] font-semibold text-xs">Medicine Name</TableHead>
                         {scanMode === 'diary' ? (
                           <>
-                            <TableCell className="py-1">
-                              <Input
-                                type="number"
-                                value={item.quantity || ''}
-                                onChange={(e) => updateItem(item.id, 'quantity', Number(e.target.value))}
-                                className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs px-2 text-center w-16"
-                                min={0}
-                              />
-                            </TableCell>
-                            <TableCell className="py-1">
-                              <Input
-                                type="number"
-                                value={item.price || ''}
-                                onChange={(e) => updateItem(item.id, 'price', Number(e.target.value))}
-                                className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs px-2 text-right w-20"
-                                min={0}
-                              />
-                            </TableCell>
-                            <TableCell className="py-1 text-right font-semibold text-xs text-emerald-700">
-                              ₹{(item.total || 0).toFixed(0)}
-                            </TableCell>
-                            <TableCell className="py-1">
-                              <Input
-                                value={item.notes}
-                                onChange={(e) => updateItem(item.id, 'notes', e.target.value)}
-                                placeholder="cash/udhaar"
-                                className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs text-muted-foreground px-2"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-destructive/50 hover:text-destructive"
-                                onClick={() => removeRow(item.id)}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </TableCell>
+                            <TableHead className="w-[80px] font-semibold text-xs text-center">Qty</TableHead>
+                            <TableHead className="w-[90px] font-semibold text-xs text-right">Price (₹)</TableHead>
+                            <TableHead className="w-[90px] font-semibold text-xs text-right">Amount (₹)</TableHead>
+                            <TableHead className="min-w-[100px] font-semibold text-xs">Notes</TableHead>
+                            <TableHead className="w-[50px]"></TableHead>
                           </>
                         ) : (
                           <>
-                            <TableCell className="py-1">
-                              <Input
-                                value={item.strength}
-                                onChange={(e) => updateItem(item.id, 'strength', e.target.value)}
-                                className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs px-2 min-w-[70px]"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1">
-                              <Input
-                                value={item.dosage_frequency}
-                                onChange={(e) => updateItem(item.id, 'dosage_frequency', e.target.value)}
-                                className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs px-2 min-w-[70px]"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1">
-                              <Input
-                                value={item.duration}
-                                onChange={(e) => updateItem(item.id, 'duration', e.target.value)}
-                                className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs px-2 min-w-[70px]"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1">
-                              {item.lasa_alert ? (
-                                <div className="flex items-center gap-1.5 text-amber-600 bg-amber-100/50 px-2 py-1 rounded-md">
-                                  <AlertTriangle className="w-3.5 h-3.5" />
-                                  <span className="text-[10px] font-bold">LASA</span>
-                                </div>
-                              ) : (
-                                <Input
-                                  value={item.notes}
-                                  onChange={(e) => updateItem(item.id, 'notes', e.target.value)}
-                                  className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs text-muted-foreground px-2"
-                                />
-                              )}
-                            </TableCell>
+                            <TableHead className="min-w-[80px] font-semibold text-xs">Strength</TableHead>
+                            <TableHead className="min-w-[80px] font-semibold text-xs">Dosage</TableHead>
+                            <TableHead className="min-w-[80px] font-semibold text-xs">Duration</TableHead>
+                            <TableHead className="min-w-[120px] font-semibold text-xs">Notes</TableHead>
                           </>
                         )}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {extractedItems.map((item) => (
+                        <TableRow key={item.id} className={`group ${item.lasa_alert ? "bg-amber-50" : "hover:bg-muted/30"}`}>
+                          <TableCell className="font-medium text-muted-foreground text-xs py-2">{item.sequence}</TableCell>
+                          <TableCell className="py-1">
+                            <Input
+                              value={item.medication_name}
+                              onChange={(e) => updateItem(item.id, 'medication_name', e.target.value)}
+                              className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors font-medium h-8 text-xs px-2"
+                            />
+                          </TableCell>
+                          {scanMode === 'diary' ? (
+                            <>
+                              <TableCell className="py-1">
+                                <Input
+                                  type="number"
+                                  value={item.quantity || ''}
+                                  onChange={(e) => updateItem(item.id, 'quantity', Number(e.target.value))}
+                                  className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs px-2 text-center w-16"
+                                  min={0}
+                                />
+                              </TableCell>
+                              <TableCell className="py-1">
+                                <Input
+                                  type="number"
+                                  value={item.price || ''}
+                                  onChange={(e) => updateItem(item.id, 'price', Number(e.target.value))}
+                                  className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs px-2 text-right w-20"
+                                  min={0}
+                                />
+                              </TableCell>
+                              <TableCell className="py-1 text-right font-semibold text-xs text-emerald-700">
+                                ₹{(item.total || 0).toFixed(0)}
+                              </TableCell>
+                              <TableCell className="py-1">
+                                <Input
+                                  value={item.notes}
+                                  onChange={(e) => updateItem(item.id, 'notes', e.target.value)}
+                                  placeholder="cash/udhaar"
+                                  className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs text-muted-foreground px-2"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-destructive/50 hover:text-destructive"
+                                  onClick={() => removeRow(item.id)}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </TableCell>
+                            </>
+                          ) : (
+                            <>
+                              <TableCell className="py-1">
+                                <Input
+                                  value={item.strength}
+                                  onChange={(e) => updateItem(item.id, 'strength', e.target.value)}
+                                  className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs px-2 min-w-[70px]"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1">
+                                <Input
+                                  value={item.dosage_frequency}
+                                  onChange={(e) => updateItem(item.id, 'dosage_frequency', e.target.value)}
+                                  className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs px-2 min-w-[70px]"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1">
+                                <Input
+                                  value={item.duration}
+                                  onChange={(e) => updateItem(item.id, 'duration', e.target.value)}
+                                  className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs px-2 min-w-[70px]"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1">
+                                {item.lasa_alert ? (
+                                  <div className="flex items-center gap-1.5 text-amber-600 bg-amber-100/50 px-2 py-1 rounded-md">
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    <span className="text-[10px] font-bold">LASA</span>
+                                  </div>
+                                ) : (
+                                  <Input
+                                    value={item.notes}
+                                    onChange={(e) => updateItem(item.id, 'notes', e.target.value)}
+                                    className="bg-transparent border-transparent group-hover:bg-background group-hover:border-input transition-colors h-8 text-xs text-muted-foreground px-2"
+                                  />
+                                )}
+                              </TableCell>
+                            </>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="p-12 text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
+                    <ScanLine className="w-8 h-8" />
+                  </div>
+                  <div className="max-w-xs mx-auto">
+                    <p className="font-medium">No medicines extracted yet</p>
+                    <p className="text-sm text-muted-foreground">Upload a clear photo of your {scanMode} to see digital results here.</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={addEmptyRow} className="mt-4">
+                    <Plus className="w-4 h-4 mr-2" /> Add Manual Entry
+                  </Button>
+                </div>
+              )}
 
               {/* Add Row Button (Diary mode) */}
               {scanMode === 'diary' && !isConfirmed && (

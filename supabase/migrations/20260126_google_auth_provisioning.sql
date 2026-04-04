@@ -33,8 +33,13 @@ BEGIN
     SET shop_id = EXCLUDED.shop_id, full_name = EXCLUDED.full_name;
 
     -- 4. Create User-Shop Link
-    INSERT INTO public.user_shops (user_id, shop_id, role)
-    VALUES (new.id, new_shop_id, 'owner')
+    INSERT INTO public.user_shops (user_id, shop_id, is_primary)
+    VALUES (new.id, new_shop_id, true)
+    ON CONFLICT DO NOTHING;
+
+    -- 5. Assign admin role to shop owner
+    INSERT INTO public.user_roles (user_id, shop_id, role)
+    VALUES (new.id, new_shop_id, 'admin')
     ON CONFLICT DO NOTHING;
 
     RETURN new;

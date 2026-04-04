@@ -46,15 +46,39 @@ class SyncService {
 
             for (const order of pendingOrders) {
                 const { id, is_synced, items, ...rest } = order;
-                const { error } = await supabase.from('orders').insert({
+                
+                // 1. Insert Order
+                const { data: newOrder, error } = await supabase.from('orders').insert({
                     ...rest,
-                    order_items: items,
+                    order_items: items, // JSONB backup
                     status: 'approved'
-                } as any);
+                }).select().single();
 
-                if (!error && id) {
-                    await db.orders.update(id, { is_synced: 1 });
-                    syncedCount++;
+                if (!error && newOrder) {
+                    let itemsSynced = true;
+                    // 2. Insert Order Items for Reports/Ledger
+                    if (items && items.length > 0) {
+                        const orderItemsToInsert = items.map((c: any) => ({
+                            order_id: newOrder.id,
+                            inventory_id: c.id || c.inventory_id,
+                            name: c.name,
+                            qty: c.qty,
+                            price: c.price,
+                            cost_price: c.cost_price || 0
+                        }));
+                        // @ts-ignore
+                        const { error: itemsError } = await supabase.from('order_items').insert(orderItemsToInsert);
+                        if (itemsError) {
+                            console.error("Order items sync fail", itemsError);
+                            itemsSynced = false;
+                        }
+                    }
+
+                    if (itemsSynced) {
+                        // 3. Mark as synced locally
+                        await db.orders.update(id, { is_synced: 1 });
+                        syncedCount++;
+                    }
                 }
             }
             if (syncedCount > 0) toast.success(`Synced ${syncedCount} orders!`);

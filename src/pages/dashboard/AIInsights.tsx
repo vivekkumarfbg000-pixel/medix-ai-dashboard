@@ -23,10 +23,9 @@ import {
   MessageSquare,
   CheckCircle,
   AlertOctagon,
-  Volume2, // Icons for TTS
-  VolumeX, // Icons for TTS
-  StopCircle, // Icons for TTS
-  ShieldAlert
+  Volume2,
+  VolumeX,
+  StopCircle
 } from "lucide-react";
 import { drugService, ClinicalDrugInfo, InteractionResult } from "@/services/drugService";
 import { aiService } from "@/services/aiService";
@@ -163,23 +162,30 @@ const AIInsights = () => {
       const history = [...chatMessages];
       const response = await aiService.chatWithAgent(userMsg, userImage || undefined, history);
 
-      // Handle Action (e.g., Redirect to POS)
-      if (response.action && response.action.type === 'NAVIGATE_POS') {
-        const { medicine, quantity } = response.action.payload;
-        toast.success(`Redirecting to Bill ${medicine}...`);
+      // Handle Action: SELL_MEDICINE
+      if (response.action && response.action.type === 'SELL_MEDICINE') {
+        const { drug_name, quantity } = response.action.payload;
+        toast.success(`Redirecting to Bill ${drug_name}...`);
 
         setTimeout(() => {
           navigate("/dashboard/sales/pos", {
             state: {
-              voiceTranscription: `Sell ${quantity} ${medicine}`,
-              voiceItems: [{ name: medicine, quantity: quantity, intent: 'add' }]
+              voiceTranscription: `Sell ${quantity || 1} ${drug_name}`,
+              voiceItems: [{ name: drug_name, quantity: quantity || 1, intent: 'add' }]
             }
           });
-        }, 1500); // Short delay for user to read the message
+        }, 1500);
+      }
+
+      // Handle Action: NAVIGATE
+      if (response.action && response.action.type === 'NAVIGATE') {
+        const { path } = response.action.payload;
+        toast.success(`Navigating to ${path}...`);
+        setTimeout(() => navigate(path), 1000);
       }
 
       // Handle WhatsApp
-      if (response.action && response.action.type === 'OPEN_WHATSAPP') {
+      if (response.action && response.action.type === 'SHARE_WHATSAPP') {
         const { phone, message } = response.action.payload;
         const encodedMsg = encodeURIComponent(message);
         const url = phone ? `https://wa.me/${phone}?text=${encodedMsg}` : `https://wa.me/?text=${encodedMsg}`;

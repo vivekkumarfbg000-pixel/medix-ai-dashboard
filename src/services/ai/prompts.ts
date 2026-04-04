@@ -131,7 +131,9 @@ Analyze this prescription image and extract all medication details.
 }
 
 ### IMPORTANT:
-Return ONLY valid JSON without markdown formatting. Extract ALL visible medications into the medications array.`;
+- Extract ALL visible medications, including acute conditions (Fever, Cough, Pain) and chronic ones (Diabetes, Heart, BP).
+- DO NOT filter or omit any items.
+- Return ONLY valid JSON without markdown formatting.`;
 
 export const LAB_REPORT_PROMPT = `You are an expert Medical AI specializing in Indian healthcare. Analyze this medical lab report and provide comprehensive, patient-friendly insights in Hinglish (Hindi + English mix).
 
