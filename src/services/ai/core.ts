@@ -102,49 +102,61 @@ export async function callGeminiVision(prompt: string, base64Image: string, mime
     }
 }
 
-export async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versatile", jsonMode: boolean = false): Promise<string> {
-    const makeRequest = async (currentModel: string) => {
+export async function callGroqAI(messages: any[], model: string = "gemini-2.0-flash", jsonMode: boolean = false): Promise<string> {
+    const makeRequest = async () => {
         checkConnectivity();
 
-        const baseUrl = typeof window !== 'undefined' ? '/groq-proxy' : 'https://api.groq.com';
+        const baseUrl = typeof window !== 'undefined' ? '/gemini-proxy' : 'https://generativelanguage.googleapis.com';
+        
+        let systemInstruction = "";
+        const contents = [];
+        
+        for (const msg of messages) {
+            if (msg.role === "system") {
+                systemInstruction += msg.content + "\n";
+            } else {
+                contents.push({
+                    role: msg.role === "assistant" ? "model" : "user",
+                    parts: [{ text: msg.content }]
+                });
+            }
+        }
+        
+        const payload: any = {
+            contents: contents
+        };
+        
+        if (systemInstruction) {
+            payload.systemInstruction = { parts: { text: systemInstruction } };
+        }
+        
+        if (jsonMode) {
+            payload.generationConfig = { responseMimeType: "application/json" };
+        }
+
         const response = await fetchWithTimeout(
-            `${baseUrl}/openai/v1/chat/completions`,
+            `${baseUrl}/v1beta/models/gemini-2.0-flash:generateContent`,
             {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    messages: messages,
-                    model: currentModel,
-                    temperature: 0.7,
-                    max_tokens: 1024,
-                    response_format: jsonMode ? { type: "json_object" } : undefined
-                })
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
             },
             15000
         );
 
         if (!response.ok) {
             const errText = await response.text();
-            let errorMessage = errText;
-            try {
-                const errJson = JSON.parse(errText);
-                errorMessage = errJson.message || errJson.error || errText;
-            } catch (e) {
-                // Not JSON
-            }
-            throw new Error(`AI API Failed (${response.status}): ${errorMessage.substring(0, 150)}`);
+            throw new Error(`AI API Failed (${response.status}): ${errText.substring(0, 150)}`);
         }
 
         const data = await response.json();
-        return data.choices[0]?.message?.content || "";
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     };
 
     try {
-        return await makeRequest(model);
-    } catch (e) {
-        return await makeRequest("llama-3.1-8b-instant");
+        return await makeRequest();
+    } catch (e: any) {
+        throw new Error(`Gemini Fallback Failed: ${e.message}`);
     }
 }
 
