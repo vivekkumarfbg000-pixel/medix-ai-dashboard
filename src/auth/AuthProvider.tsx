@@ -86,48 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(newSession?.user ?? null);
             setLoading(false);
 
-            // AUTO-PROVISIONING FALLBACK FOR GOOGLE OAUTH / MAGIC LINKS
-            // Runs only when the user signs in or the session is first initialized if missing profile.
-            if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && newSession?.user) {
-                const userId = newSession.user.id;
-                try {
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('id')
-                        .eq('user_id', userId)
-                        .maybeSingle();
-                        
-                    if (!profile) {
-                        console.warn('Auto-Provisioning Fallback running from AuthStateChange...');
-                        const { data: shop, error: shopErr } = await supabase
-                            .from('shops')
-                            .insert({
-                                owner_id: userId,
-                                name: newSession.user.user_metadata?.full_name ? `${newSession.user.user_metadata.full_name}'s Pharmacy` : "My Pharmacy",
-                                address: "Address Pending",
-                                phone: "Phone Pending"
-                            })
-                            .select()
-                            .single();
-                            
-                        if (shop && !shopErr) {
-                            await supabase.from('profiles').insert({
-                                user_id: userId,
-                                shop_id: shop.id,
-                                full_name: newSession.user.user_metadata?.full_name || "Pharmacist",
-                                role: "owner"
-                            });
-                            await supabase.from('user_shops').insert({
-                                user_id: userId,
-                                shop_id: shop.id,
-                                role: "owner"
-                            });
-                        }
-                    }
-                } catch (e) {
-                    console.error("OAuth auto-provisioning failed", e);
-                }
-            }
+            // AUTO-PROVISIONING is now securely handled by the PostgreSQL 
+            // trigger `handle_new_user` upon user creation in Supabase.
         });
 
         return () => subscription.unsubscribe();
@@ -147,48 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             if (error) return getAuthErrorMessage(error);
 
-            // --- AUTO-PROVISIONING FALLBACK (If Supabase SQL trigger is missing) ---
-            if (data.session?.user) {
-                const userId = data.session.user.id;
-                try {
-                    // Check if profile exists
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('id')
-                        .eq('user_id', userId)
-                        .maybeSingle();
-                        
-                    if (!profile) {
-                        console.warn('Auto-Provisioning Fallback running on signIn...');
-                        const { data: shop, error: shopErr } = await supabase
-                            .from('shops')
-                            .insert({
-                                owner_id: userId,
-                                name: data.session.user.user_metadata?.shop_name || "My Pharmacy",
-                                address: "Address Pending",
-                                phone: "Phone Pending"
-                            })
-                            .select()
-                            .single();
-                            
-                        if (shop && !shopErr) {
-                            await supabase.from('profiles').insert({
-                                user_id: userId,
-                                shop_id: shop.id,
-                                full_name: data.session.user.user_metadata?.full_name || "Pharmacist",
-                                role: "owner"
-                            });
-                            await supabase.from('user_shops').insert({
-                                user_id: userId,
-                                shop_id: shop.id,
-                                role: "owner"
-                            });
-                        }
-                    }
-                } catch (e) {
-                    console.error("Auto-provisioning failed", e);
-                }
-            }
+            // AUTO-PROVISIONING is handled securely by Postgres trigger
 
             // "Remember me" logic — mark session as temporary so DashboardLayout
             // can wipe localStorage on browser close for shared-computer safety.
@@ -243,38 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 return "verify"; // caller should show a "check your inbox" message
             }
 
-            // --- AUTO-PROVISIONING FALLBACK on Instant Sign Up ---
-            if (data?.session?.user) {
-                const userId = data.session.user.id;
-                try {
-                    const { data: shop, error: shopErr } = await supabase
-                        .from('shops')
-                        .insert({
-                            owner_id: userId,
-                            name: shopName || "My Pharmacy",
-                            address: "Address Pending",
-                            phone: "Phone Pending"
-                        })
-                        .select()
-                        .single();
-                        
-                    if (shop && !shopErr) {
-                        await supabase.from('profiles').insert({
-                            user_id: userId,
-                            shop_id: shop.id,
-                            full_name: fullName || "Pharmacist",
-                            role: "owner"
-                        });
-                        await supabase.from('user_shops').insert({
-                            user_id: userId,
-                            shop_id: shop.id,
-                            role: "owner"
-                        });
-                    }
-                } catch (e) {
-                    console.error("Frontend provisioning fallback failed", e);
-                }
-            }
+            // AUTO-PROVISIONING is handled securely by Postgres trigger
 
             // Instant sign-up (verification disabled or auto-confirmed)
             if (!rememberMe) sessionStorage.setItem("temporary_session", "true");
