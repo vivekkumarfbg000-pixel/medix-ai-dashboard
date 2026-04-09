@@ -6,7 +6,7 @@ interface Env {
   GEMINI_SK: string;
 }
 
-// Worker Version: 1.0.5
+// Worker Version: 1.0.8
 export default {
   async fetch(request: Request, env: Env, ctx: any): Promise<Response> {
     const url = new URL(request.url);
@@ -91,6 +91,7 @@ async function handleProxy(request: Request, targetOrigin: string, pathPrefix: s
     newHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     newHeaders.set('Access-Control-Allow-Headers', '*');
     newHeaders.set('X-Worker-Version', '1.0.8');
+    newHeaders.set('X-Proxy-Origin', url.hostname);
  
     return new Response(response.body, {
       status: response.status,

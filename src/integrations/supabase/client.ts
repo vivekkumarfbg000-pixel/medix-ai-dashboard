@@ -16,17 +16,17 @@ export const SUPABASE_URL_RAW = import.meta.env.VITE_SUPABASE_URL || 'https://yk
 function getSupabaseUrl(): string {
   if (typeof window === 'undefined') return SUPABASE_URL_RAW;
 
-  // For Native/Production, or if we want to bypass local ISP blocks via the remote proxy
-  const useRemoteProxy = Capacitor.isNativePlatform() || window.location.hostname !== 'localhost';
+  // For Native (Capacitor/Android/iOS), we must use the full URL as relative paths don't exist.
+  const isNative = Capacitor.isNativePlatform();
   
-  if (useRemoteProxy) {
-    // Standardize on medixai.shop/supabase-proxy as the primary entry point
+  if (isNative) {
+    // ALWAYS use the primary domain proxy for Native to bypass ISP blocks
     return 'https://medixai.shop/supabase-proxy';
   }
 
-  // Local development hits the Vite proxy
-  const { protocol, host } = window.location;
-  return `${protocol}//${host}/supabase-proxy`;
+  // For Web/PWA, use a relative path. This ensures we use the same domain/protocol 
+  // as the current page (medixai.shop, or localhost in dev).
+  return '/supabase-proxy';
 }
 
 const SUPABASE_URL = getSupabaseUrl();

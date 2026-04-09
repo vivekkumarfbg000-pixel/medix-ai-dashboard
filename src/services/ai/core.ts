@@ -1,4 +1,5 @@
 import logger from "@/utils/logger";
+import { Capacitor } from "@capacitor/core";
 
 // Rate limiting configuration
 const requestCache = new Map<string, number>();
@@ -63,7 +64,11 @@ export async function callGeminiVision(prompt: string, base64Image: string, mime
     try {
         checkConnectivity();
 
-        const baseUrl = typeof window !== 'undefined' ? '/gemini-proxy' : 'https://generativelanguage.googleapis.com';
+        const isNative = Capacitor.isNativePlatform();
+        const baseUrl = isNative 
+            ? 'https://medixai.shop/gemini-proxy' 
+            : (typeof window !== 'undefined' ? '/gemini-proxy' : 'https://generativelanguage.googleapis.com');
+        
         const response = await fetchWithTimeout(
             `${baseUrl}/v1beta/models/gemini-2.0-flash:generateContent`,
             {
@@ -106,7 +111,10 @@ export async function callGroqAI(messages: any[], model: string = "gemini-2.0-fl
     const makeRequest = async () => {
         checkConnectivity();
 
-        const baseUrl = typeof window !== 'undefined' ? '/gemini-proxy' : 'https://generativelanguage.googleapis.com';
+        const isNative = Capacitor.isNativePlatform();
+        const baseUrl = isNative 
+            ? 'https://medixai.shop/gemini-proxy' 
+            : (typeof window !== 'undefined' ? '/gemini-proxy' : 'https://generativelanguage.googleapis.com');
         
         let systemInstruction = "";
         const contents = [];
@@ -170,7 +178,10 @@ export async function callGroqWhisper(audioBlob: Blob): Promise<string> {
     formData.append("model", "whisper-large-v3-turbo");
     formData.append("response_format", "json");
 
-    const baseUrl = typeof window !== 'undefined' ? '/groq-proxy' : 'https://api.groq.com';
+    const isNative = Capacitor.isNativePlatform();
+    const baseUrl = isNative 
+        ? 'https://medixai.shop/groq-proxy' 
+        : (typeof window !== 'undefined' ? '/groq-proxy' : 'https://api.groq.com');
     const response = await fetchWithTimeout(
         `${baseUrl}/openai/v1/audio/transcriptions`,
         {
