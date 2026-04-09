@@ -14,24 +14,19 @@ export const SUPABASE_URL_RAW = import.meta.env.VITE_SUPABASE_URL || 'https://yk
 // Development (localhost):   Vite dev server proxy at /supabase-proxy → supabase.co
 // ─────────────────────────────────────────────────────────────────────────────
 function getSupabaseUrl(): string {
-  if (typeof window === 'undefined') {
-    // SSR / build time — use real URL
-    return SUPABASE_URL_RAW;
-  }
+  if (typeof window === 'undefined') return SUPABASE_URL_RAW;
 
-  // App running as a Native Mobile App on device (usually resolves to http://localhost)
-  if (Capacitor.isNativePlatform()) {
+  // For Native/Production, or if we want to bypass local ISP blocks via the remote proxy
+  const useRemoteProxy = Capacitor.isNativePlatform() || window.location.hostname !== 'localhost';
+  
+  if (useRemoteProxy) {
+    // Standardize on medixai.shop/supabase-proxy as the primary entry point
     return 'https://medixai.shop/supabase-proxy';
   }
 
-  const { hostname, protocol, host } = window.location;
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    // Dev: Vite proxies /supabase-proxy → supabase.co (configured in vite.config.ts)
-    return `${protocol}//${host}/supabase-proxy`;
-  }
-  // Production Web: PHP proxy at same origin
-  // Requires .htaccess to rewrite /supabase-proxy/* -> /supabase-proxy/index.php
-  return `${window.location.origin}/supabase-proxy`;
+  // Local development hits the Vite proxy
+  const { protocol, host } = window.location;
+  return `${protocol}//${host}/supabase-proxy`;
 }
 
 const SUPABASE_URL = getSupabaseUrl();

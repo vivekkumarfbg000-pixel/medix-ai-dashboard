@@ -39,6 +39,10 @@ export default function GoogleCallback() {
                 const hashError = hashParams?.get("error");
 
                 const hasError = pkceError || hashError;
+                
+                console.log("🔍 [GoogleCallback] PKCE Code:", pkceCode ? "Found" : "None");
+                console.log("🔍 [GoogleCallback] Hash Params:", hashParams ? "Found" : "None");
+                if (hasError) console.error("❌ [GoogleCallback] Auth Error:", pkceError || hashError);
 
                 if (hasError) {
                     const desc =

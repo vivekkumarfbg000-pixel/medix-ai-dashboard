@@ -22,15 +22,15 @@ if (typeof window !== "undefined") {
 
   // Prioritize PKCE flow querying (?code=...)
   if (search && (search.includes("code=") || search.includes("error="))) {
-    // Clear the search string from the real URL and append it to our hash route
+    const cleanPath = window.location.pathname.endsWith('/') 
+      ? window.location.pathname 
+      : window.location.pathname + '/';
+      
+    console.warn("⚡ [OAuth] PKCE tokens detected. Forwarding to HashRouter internally.");
     window.history.replaceState(
       null,
       "",
-      window.location.pathname + "#/auth/google" + search,
-    );
-    console.log(
-      "⚡ [Init] Intercepted Supabase PKCE query tokens synchronously:",
-      window.location.hash,
+      cleanPath + "#/auth/google" + search,
     );
   }
   // Fallback for Implicit Flow hash tokens (#access_token=...)
@@ -39,15 +39,16 @@ if (typeof window !== "undefined") {
     !hash.startsWith("#/") &&
     (hash.includes("access_token=") || hash.includes("error="))
   ) {
+    const cleanPath = window.location.pathname.endsWith('/') 
+      ? window.location.pathname 
+      : window.location.pathname + '/';
+
     const tokens = hash.substring(1); // remove the first #
+    console.warn("⚡ [OAuth] Hash tokens detected. Forwarding to HashRouter internally.");
     window.history.replaceState(
       null,
       "",
-      window.location.pathname + "#/auth/google#" + tokens,
-    );
-    console.log(
-      "⚡ [Init] Intercepted Supabase hash tokens synchronously:",
-      window.location.hash,
+      cleanPath + "#/auth/google#" + tokens,
     );
   }
 }
