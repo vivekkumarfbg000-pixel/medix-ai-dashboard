@@ -134,9 +134,25 @@ const Settings = () => {
             // Load notification prefs if they exist
             if (settingsData.preferences && typeof settingsData.preferences === 'object') {
               const prefs = settingsData.preferences as Record<string, any>;
+              // ✅ FIX: Merge saved DB prefs but re-sync aiVoice with localStorage
+              // localStorage is the live source of truth for voice (can be changed from chatbot too)
+              const mergedPrefs = { ...prefs };
+              if (typeof prefs.aiVoice !== 'undefined') {
+                // Sync DB pref to localStorage if it exists
+                localStorage.setItem("MEDIX_AI_VOICE_ENABLED", prefs.aiVoice.toString());
+              } else {
+                // Fall back to current localStorage value
+                mergedPrefs.aiVoice = localStorage.getItem("MEDIX_AI_VOICE_ENABLED") !== "false";
+              }
               setNotifications(prev => ({
                 ...prev,
-                ...prefs // Overwrite defaults with saved values
+                ...mergedPrefs,
+              }));
+            } else {
+              // No DB prefs yet - at least read the live aiVoice from localStorage
+              setNotifications(prev => ({
+                ...prev,
+                aiVoice: localStorage.getItem("MEDIX_AI_VOICE_ENABLED") !== "false",
               }));
             }
           }
@@ -467,7 +483,12 @@ const Settings = () => {
                   checked={notifications.aiVoice}
                   onCheckedChange={(c) => {
                     setNotifications(prev => ({ ...prev, aiVoice: c }));
+                    // ✅ FIXED: Immediately persist to localStorage so chatbot & AI Insights sync
                     localStorage.setItem("MEDIX_AI_VOICE_ENABLED", c.toString());
+                    // Stop any ongoing speech if muting
+                    if (!c && typeof window !== 'undefined') {
+                      window.speechSynthesis?.cancel();
+                    }
                   }}
                 />
               </div>

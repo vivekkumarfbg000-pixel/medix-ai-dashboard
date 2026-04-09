@@ -9,7 +9,7 @@ import { logger } from "@/utils/logger";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import VoiceInput from "@/components/common/VoiceInput";
-import { speak } from "@/utils/textToSpeech";
+import { speak, isVoiceEnabled } from "@/utils/textToSpeech";
 import { Volume2, VolumeX } from "lucide-react";
 
 interface Message {
@@ -23,16 +23,9 @@ export function AIChatbotWidget() {
     const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
-    const [isMuted, setIsMuted] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem("MEDIX_AI_VOICE_ENABLED") === "false";
-        }
-        return false;
-    });
-
-    useEffect(() => {
-        localStorage.setItem("MEDIX_AI_VOICE_ENABLED", (!isMuted).toString());
-    }, [isMuted]);
+    // ✅ FIX: isMuted is the inverse of isVoiceEnabled. Use the shared helper so it's
+    // always in sync with what the user set in Settings.
+    const [isMuted, setIsMuted] = useState(() => !isVoiceEnabled());
     const [messages, setMessages] = useState<Message[]>([
         {
             id: 'welcome',
@@ -158,7 +151,12 @@ export function AIChatbotWidget() {
                                 variant="ghost" 
                                 size="icon" 
                                 className="h-6 w-6 text-white hover:bg-white/20 rounded-full" 
-                                onClick={() => setIsMuted(!isMuted)}
+                                onClick={() => {
+                    const newMuted = !isMuted;
+                    setIsMuted(newMuted);
+                    // ✅ Persist the change so Settings page stays in sync
+                    localStorage.setItem("MEDIX_AI_VOICE_ENABLED", (!newMuted).toString());
+                }}
                                 title={isMuted ? "Unmute" : "Mute"}
                             >
                                 {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}

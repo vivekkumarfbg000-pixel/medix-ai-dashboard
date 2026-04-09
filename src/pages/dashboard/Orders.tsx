@@ -8,26 +8,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Pen } from "lucide-react";
 import {
   MessageSquare,
   User,
   RefreshCw,
   ShoppingCart,
-  Plus,
-  Trash2,
-  TrendingUp,
-  ArrowRight,
   FileText,
   Undo2,
   Share2,
-  Search
+  ArrowRight,
+  Search,
+  Pen
 } from "lucide-react";
 import { ReturnOrderModal } from "@/components/dashboard/orders/ReturnOrderModal";
 import { useUserShops } from "@/hooks/useUserShops";
 import { format } from "date-fns";
-import { VoiceCommandBar, ParsedItem } from "@/components/dashboard/VoiceCommandBar";
 import { whatsappService } from "@/services/whatsappService";
+import { useNavigate } from "react-router-dom";
 
 interface OrderItem {
   name: string;
@@ -48,22 +45,9 @@ interface Order {
   invoice_number?: string;
 }
 
-interface CartItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  sgst_rate: number;
-  cgst_rate: number;
-  igst_rate: number;
-  substitute?: {
-    name: string;
-    margin: number;
-  };
-}
-
 const Orders = () => {
   const { currentShop } = useUserShops();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
@@ -72,12 +56,6 @@ const Orders = () => {
   // Return Modal State
   const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [selectedOrderForReturn, setSelectedOrderForReturn] = useState<Order | null>(null);
-
-  // POS State
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
 
   // Edit Phone State
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -192,8 +170,44 @@ const Orders = () => {
   };
 
   const handlePrintInvoice = (order: Order) => {
-    toast.info("Printing invoice...");
-    // Implement actual print logic or window.print() view
+    // Build a printable invoice and use window.print()
+    const items = Array.isArray(order.order_items) ? order.order_items : [];
+    const itemRows = items.map((item: any, idx: number) =>
+      `<tr><td>${idx + 1}</td><td>${item.name}</td><td>${item.qty || 1}</td><td>₹${(item.price || 0).toFixed(2)}</td><td>₹${((item.price || 0) * (item.qty || 1)).toFixed(2)}</td></tr>`
+    ).join('');
+
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (!printWindow) {
+      toast.error("Popup blocked. Please allow popups to print invoices.");
+      return;
+    }
+    printWindow.document.write(`
+      <html><head><title>Invoice #${order.invoice_number || 'NA'}</title>
+      <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 400px; margin: auto; }
+        h2 { text-align: center; margin-bottom: 4px; }
+        .shop-info { text-align: center; font-size: 12px; color: #666; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { border-bottom: 1px solid #eee; padding: 6px 4px; text-align: left; }
+        th { background: #f9f9f9; font-weight: 600; }
+        .total { font-size: 18px; font-weight: bold; text-align: right; margin-top: 12px; }
+        .footer { text-align: center; font-size: 11px; color: #999; margin-top: 20px; }
+        @media print { body { padding: 0; } }
+      </style></head><body>
+      <h2>${currentShop?.name || 'Pharmacy'}</h2>
+      <div class="shop-info">${currentShop?.address || ''}<br/>${currentShop?.phone || ''}</div>
+      <hr/>
+      <p><strong>Invoice:</strong> #${order.invoice_number || 'NA'} &nbsp; <strong>Date:</strong> ${format(new Date(order.created_at), 'PP p')}</p>
+      <p><strong>Patient:</strong> ${order.customer_name}</p>
+      <table><thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+      <tbody>${itemRows}</tbody></table>
+      <div class="total">Grand Total: ₹${(order.total_amount || 0).toFixed(2)}</div>
+      <div class="footer">Thank you for your trust!<br/>Powered by PharmaAssist.AI</div>
+      </body></html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); }, 300);
   };
 
   const handleWhatsAppShare = (order: Order) => {
@@ -241,136 +255,7 @@ const Orders = () => {
     }
   };
 
-  // --- POS FUNCTIONS ---
 
-  const handleAddItem = async () => {
-    if (!searchQuery.trim()) return;
-
-    // Search in Inventory
-    const { data, error } = await supabase
-      .from('inventory')
-      .select('id, medicine_name, unit_price')
-      .eq('shop_id', currentShop?.id)
-      .ilike('medicine_name', `${searchQuery}%`)
-      .limit(1)
-      .maybeSingle();
-
-    if (data) {
-      addToCart({
-        id: data.id,
-        name: data.medicine_name,
-        price: data.unit_price,
-        quantity: 1,
-        sgst_rate: 6, // Default or fetch from DB
-        cgst_rate: 6,
-        igst_rate: 0
-      });
-      setSearchQuery("");
-      toast.success(`Added ${data.medicine_name}`);
-    } else {
-      toast.error("Item not found");
-    }
-  };
-
-  const addToCart = (item: CartItem) => {
-    setCart(prev => {
-      const existing = prev.find(i => i.id === item.id);
-      if (existing) {
-        return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
-      }
-      // Demo logic for substitute
-      if (item.name.toLowerCase().includes("pan 40")) {
-        item.substitute = { name: "Pantoprazole 40 (Generic)", margin: 45 };
-      }
-      return [...prev, item];
-    });
-  };
-
-  const handleVoiceItems = (transcript: string, items: ParsedItem[]) => {
-    toast.info(`Voice: ${transcript}`);
-    // Simplified: Just add first match for demo
-    setSearchQuery(items[0]?.name || transcript);
-  };
-
-  const removeItem = (id: string) => {
-    setCart(prev => prev.filter(i => i.id !== id));
-  };
-
-  const switchSubstitute = (id: string, sub: { name: string, margin: number }) => {
-    setCart(prev => prev.map(i => i.id === id ? { ...i, name: sub.name, substitute: undefined } : i));
-    toast.success("Switched to generic!");
-  };
-
-  const totals = useMemo(() => {
-    const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    const totalTax = subtotal * 0.12; // Simplified 12% tax
-    const totalPayable = subtotal + totalTax;
-    return { subtotal, totalTax, totalPayable };
-  }, [cart]);
-
-  const formatCurrency = (val: number) => `₹${val.toFixed(2)}`;
-
-  const completeSale = async (payLater: boolean) => {
-    if (!currentShop?.id) return;
-
-    setLoading(true);
-    const invoiceNum = `INV-${Date.now().toString().slice(-6)}`;
-
-    try {
-      // 1. Create order
-      const { data: order, error } = await supabase.from('orders').insert({
-        shop_id: currentShop?.id || '',
-        customer_name: customerName || "Walk-in",
-        customer_phone: customerPhone,
-        total_amount: totals.totalPayable,
-        status: 'approved',
-        source: 'web_pos',
-        payment_mode: payLater ? 'credit' : 'cash',
-        payment_status: payLater ? 'pending' : 'paid',
-        invoice_number: invoiceNum,
-        order_items: cart.map(c => ({
-          id: c.id,
-          name: c.name,
-          qty: c.quantity,
-          price: c.price,
-          inventory_id: c.id
-        }))
-      }).select().single();
-
-      if (error) throw error;
-
-      // 2. Create order_items rows (for Analytics joins)
-      // @ts-ignore
-      await supabase.from('order_items').insert(
-        cart.map(c => ({
-          order_id: order.id,
-          inventory_id: c.id,
-          name: c.name,
-          qty: c.quantity,
-          price: c.price,
-          cost_price: 0
-        }))
-      );
-
-      // 3. Deduct inventory stock
-      await Promise.all(cart.map(c =>
-        // @ts-ignore
-        supabase.rpc('decrement_stock', {
-          row_id: c.id,
-          amount: c.quantity
-        })
-      ));
-
-      toast.success(payLater ? "Order saved to Khata" : "Sale Completed!");
-      setCart([]);
-      setCustomerName("");
-      setCustomerPhone("");
-      fetchOrders();
-    } catch (err: any) {
-      toast.error("Order failed: " + err.message);
-    }
-    setLoading(false);
-  };
 
   return (
     <div className="space-y-6 animate-fade-in p-4">
@@ -485,7 +370,7 @@ const Orders = () => {
               We have moved the POS to a dedicated, high-speed terminal for faster checkout.
             </p>
           </div>
-          <Button size="lg" className="gap-2" onClick={() => window.location.href = '/dashboard/sales/pos'}>
+          <Button size="lg" className="gap-2" onClick={() => navigate('/dashboard/sales/pos')}>
             Go to Billing Hub <ArrowRight className="w-4 h-4" />
           </Button>
         </TabsContent>

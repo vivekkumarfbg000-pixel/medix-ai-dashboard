@@ -11,9 +11,23 @@ interface TTSOptions {
  * Text-to-Speech Utility for Indian Context
  * Ensures numbers are spoken naturally and selects appropriate Indian voices.
  */
+
+/** Returns true if the AI voice/sound is enabled globally */
+export const isVoiceEnabled = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    // Default is ON (enabled) unless explicitly set to "false"
+    return localStorage.getItem("MEDIX_AI_VOICE_ENABLED") !== "false";
+};
+
 export const speak = (text: string, options: TTSOptions = {}) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
         logger.warn("TTS not supported in this browser.");
+        return;
+    }
+
+    // ✅ CRITICAL FIX: Respect the global voice toggle from Settings
+    if (!isVoiceEnabled()) {
+        logger.log("[TTS] Voice is muted by user preference. Skipping.");
         return;
     }
 

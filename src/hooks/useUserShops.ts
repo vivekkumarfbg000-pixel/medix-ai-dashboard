@@ -5,6 +5,9 @@ interface Shop {
   id: string;
   name: string;
   address: string | null;
+  phone: string | null;
+  gst_no: string | null;
+  dl_number: string | null;
   is_primary: boolean;
 }
 
@@ -44,7 +47,10 @@ export function useUserShops(): UserShopsState {
             shops (
               id,
               name,
-              address
+              address,
+              phone,
+              gst_no,
+              dl_number
             )
           `)
           .eq("user_id", user.id);
@@ -62,6 +68,9 @@ export function useUserShops(): UserShopsState {
             id: us.shops?.id,
             name: us.shops?.name || "Unknown Shop",
             address: us.shops?.address,
+            phone: us.shops?.phone || null,
+            gst_no: us.shops?.gst_no || null,
+            dl_number: us.shops?.dl_number || null,
             is_primary: us.is_primary,
           })).filter(shop => shop.id);
         }

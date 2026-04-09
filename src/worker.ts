@@ -6,21 +6,40 @@ interface Env {
   GEMINI_SK: string;
 }
 
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+  'https://medixai.shop',
+  'https://www.medixai.shop',
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'capacitor://localhost',       // iOS Capacitor
+  'http://localhost',            // Android Capacitor
+];
+
+function getCorsOrigin(request: Request): string {
+  const origin = request.headers.get('Origin') || '';
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  // For non-browser requests (e.g. native apps without Origin header), allow
+  if (!origin) return ALLOWED_ORIGINS[0];
+  return '';
+}
+
 // Worker Version: 1.0.8
 export default {
   async fetch(request: Request, env: Env, ctx: any): Promise<Response> {
     const url = new URL(request.url);
 
     // 0. Handle CORS Preflight for all proxy routes
+    const corsOrigin = getCorsOrigin(request);
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         status: 204,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': corsOrigin || ALLOWED_ORIGINS[0],
           'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': '*',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-client-info, x-application-name, x-goog-api-key',
           'Access-Control-Max-Age': '86400',
-          'X-Worker-Version': '1.0.8',
+          'X-Worker-Version': '1.1.0',
         },
       });
     }
@@ -85,12 +104,14 @@ async function handleProxy(request: Request, targetOrigin: string, pathPrefix: s
       redirect: 'manual',
     });
 
-    // Add CORS headers for the Mobile App
+    // Add CORS headers — restricted to allowed origins
     const newHeaders = new Headers(response.headers);
-    newHeaders.set('Access-Control-Allow-Origin', '*');
+    const reqOrigin = request.headers.get('Origin') || '';
+    const allowedOrigin = ALLOWED_ORIGINS.includes(reqOrigin) ? reqOrigin : ALLOWED_ORIGINS[0];
+    newHeaders.set('Access-Control-Allow-Origin', allowedOrigin);
     newHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    newHeaders.set('Access-Control-Allow-Headers', '*');
-    newHeaders.set('X-Worker-Version', '1.0.8');
+    newHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, apikey, x-client-info, x-application-name, x-goog-api-key');
+    newHeaders.set('X-Worker-Version', '1.1.0');
     newHeaders.set('X-Proxy-Origin', url.hostname);
  
     return new Response(response.body, {

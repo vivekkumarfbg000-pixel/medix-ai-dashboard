@@ -1,4 +1,5 @@
 import logger from "@/utils/logger";
+import { callGroqAI } from "./ai/core";
 
 const PUBMED_API = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils";
 const FDA_API = "https://api.fda.gov/drug/label.json";
@@ -20,14 +21,6 @@ interface SynthesizedAnswer {
     answer: string;
     citations: string[];
 }
-
-// Import callGroqAI dynamically to avoid circular dependency
-const callGroqAI = async (messages: any[], model: string, jsonMode: boolean): Promise<string> => {
-    const { aiService } = await import("./aiService");
-    // Use aiService chatWithAgent as a proxy
-    const result = await aiService.chatWithAgent(JSON.stringify({ messages, model, jsonMode }));
-    return result.reply;
-};
 
 const safeJSONParse = (text: string, fallback: any = null): any => {
     try {

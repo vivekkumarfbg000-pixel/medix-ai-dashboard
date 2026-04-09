@@ -28,7 +28,6 @@ interface StockoutRisk {
   burnRate: number;
   safetyStock: number;
   reorderQty: number;
-  reorderQty: number;
   criticality: "high" | "medium" | "low";
   reason?: string;
 }

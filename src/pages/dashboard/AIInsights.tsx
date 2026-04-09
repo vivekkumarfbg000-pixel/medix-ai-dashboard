@@ -36,7 +36,7 @@ import { ArrowRight } from "lucide-react";
 
 import { useNavigate } from "react-router-dom"; // Added for navigation
 
-import { speak } from "@/utils/textToSpeech";
+import { speak, isVoiceEnabled } from "@/utils/textToSpeech";
 
 const AIInsights = () => {
   const navigate = useNavigate(); // Hook for navigation
@@ -61,7 +61,8 @@ const AIInsights = () => {
   ]);
   const [currentChatInfo, setCurrentChatInfo] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
-  const [ttsEnabled, setTtsEnabled] = useState(true); // TTS State
+  // ✅ FIX: Initialize from localStorage so it stays in sync with Settings & chatbot mute
+  const [ttsEnabled, setTtsEnabled] = useState(() => isVoiceEnabled());
   const [isSpeaking, setIsSpeaking] = useState(false); // Speaking State
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -380,7 +381,13 @@ const AIInsights = () => {
                 {/* TTS Controls */}
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setTtsEnabled(!ttsEnabled)}
+                    onClick={() => {
+                      const next = !ttsEnabled;
+                      setTtsEnabled(next);
+                      // ✅ Persist to localStorage so Settings page and chatbot stay in sync
+                      localStorage.setItem("MEDIX_AI_VOICE_ENABLED", next.toString());
+                      if (!next) window.speechSynthesis?.cancel(); // Stop any ongoing speech
+                    }}
                     className={`p-2 rounded-full transition-colors ${ttsEnabled ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-800 text-slate-500'}`}
                     title={ttsEnabled ? "Mute Voice" : "Enable Voice"}
                   >

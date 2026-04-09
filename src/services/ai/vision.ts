@@ -102,8 +102,35 @@ export const analyzeDocument = async (file: File, type: 'prescription' | 'lab_re
         return { ...normalized, isMock: false };
 
     } catch (error) {
-        logger.error("[AI Vision] Gemini failed, attempting N8N fallback...", error);
-        return await callN8NVisionFallback(type, base64Data);
+        logger.error("[AI Vision] Gemini failed, retrying with simplified prompt...", error);
+        // Retry with a simpler prompt as fallback
+        try {
+            const simplePrompt = type === 'prescription' 
+                ? "Extract all medicine names, dosages, and instructions from this prescription image. Return JSON with a 'medicines' array."
+                : type === 'lab_report'
+                ? "Extract all test results with values, units, and normal ranges from this lab report. Return JSON with a 'test_results' array."
+                : "Extract all items, quantities, and prices from this document. Return JSON with an 'items' array.";
+            
+            const retryRes = await callGeminiVision(
+                simplePrompt + "\n\nReturn ONLY raw JSON. No markdown.",
+                base64Data,
+                mimeType
+            );
+            const retryParsed = safeJSONParse(retryRes, null);
+            if (retryParsed) {
+                let normalized = retryParsed;
+                if (Array.isArray(retryParsed)) {
+                    if (type === 'lab_report') normalized = { test_results: retryParsed };
+                    else if (type === 'diary') normalized = { entries: retryParsed };
+                    else normalized = { items: retryParsed };
+                }
+                return { ...normalized, isMock: false };
+            }
+            throw new Error("Retry also failed to produce valid JSON");
+        } catch (retryError) {
+            logger.error("[AI Vision] All AI attempts failed", retryError);
+            throw new Error("Document analysis failed. Please try again with a clearer image.");
+        }
     }
 };
 
@@ -111,26 +138,4 @@ const getVisionPrompt = (type: string) => {
     if (type === 'lab_report') return LAB_REPORT_PROMPT;
     if (type === 'diary') return DIARY_ANALYSIS_PROMPT;
     return PRESCRIPTION_ANALYSIS_PROMPT;
-};
-
-const callN8NVisionFallback = async (type: string, base64: string) => {
-    const shopId = localStorage.getItem("currentShopId");
-    const { data: { user } } = await supabase.auth.getUser();
-
-    const payload = {
-        action: type === 'prescription' ? 'analyze-prescription' : 'scan-report',
-        image_base64: base64,
-        userId: user?.id,
-        shopId
-    };
-
-    const endpoint = type === 'prescription' ? ENDPOINTS.ANALYZE_PRESCRIPTION : ENDPOINTS.OPS;
-    const res = await fetchWithTimeout(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    }, 30000);
-
-    if (!res.ok) throw new Error("All AI routes failed.");
-    return res.json();
 };

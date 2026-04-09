@@ -370,8 +370,8 @@ const LitePOS = () => {
             shopDetails: {
                 name: currentShop?.name || "Medix Pharmacy",
                 address: currentShop?.address || "",
-                phone: (currentShop as any)?.phone || "",
-                gstin: (currentShop as any)?.gst_no || ""
+                phone: currentShop?.phone || "",
+                gstin: currentShop?.gst_no || ""
             },
             order: {
                 invoice_number: invoiceId.length > 12 ? invoiceId.slice(0, 12) : invoiceId,
@@ -415,8 +415,8 @@ const LitePOS = () => {
             customer_name: name,
             shop_name: currentShop?.name || "Medix Pharmacy",
             shop_address: currentShop?.address || "",
-            shop_phone: (currentShop as any)?.phone || "",
-            shop_gstin: (currentShop as any)?.gst_no || "",
+            shop_phone: currentShop?.phone || "",
+            shop_gstin: currentShop?.gst_no || "",
             doctor_name: doctorName || undefined,
             created_at: new Date().toISOString(),
             total_amount: totalAmount,

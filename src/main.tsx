@@ -1,21 +1,15 @@
-console.log("🚀 Main.tsx is executing... (Versions 2.4 Debug)");
 import { createRoot } from "react-dom/client";
 
-// [DEV-BYPASS] Aggressively clear Service Workers and Caches to remove Auth guard
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(function (registrations) {
-        for (const registration of registrations) {
-            registration.unregister();
-            console.log('Unregistered service worker', registration);
-        }
-    });
-}
-if ('caches' in window) {
+// PWA Service Worker: Let VitePWA manage registration.
+// Only clear stale caches from previous buggy builds (one-time cleanup).
+if ('caches' in window && sessionStorage.getItem('medix_cache_v2_cleaned') !== '1') {
     caches.keys().then((keyList) => {
-        return Promise.all(keyList.map((key) => {
-            console.log('Deleting cache', key);
-            return caches.delete(key);
-        }));
+        // Only purge legacy caches, not workbox-managed ones
+        const legacyKeys = keyList.filter(k => !k.startsWith('workbox-') && !k.startsWith('google-fonts') && !k.startsWith('gstatic-fonts') && !k.startsWith('api-cache'));
+        if (legacyKeys.length > 0) {
+            Promise.all(legacyKeys.map(k => caches.delete(k)));
+        }
+        sessionStorage.setItem('medix_cache_v2_cleaned', '1');
     });
 }
 

@@ -17,6 +17,13 @@ const FAKE_CUSTOMERS = [
 
 export const seedDemoData = async (shopId: string) => {
     if (!shopId) return;
+
+    // PRODUCTION GUARD: Only allow in dev
+    if (import.meta.env.PROD) {
+        toast.error("Demo seeder is disabled in production.");
+        return;
+    }
+
     const toastId = toast.loading("🌱 Seeding Demo Data...");
 
     try {

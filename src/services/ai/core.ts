@@ -5,17 +5,18 @@ import { Capacitor } from "@capacitor/core";
 const requestCache = new Map<string, number>();
 const RATE_LIMIT_MS = 1000; 
 
-// Configuration from Environment
-export const N8N_BASE = (import.meta.env.VITE_N8N_WEBHOOK_URL || "https://n8n.medixai.shop/webhook").trim();
-
+// ── ENDPOINTS ────────────────────────────────────────────────────────────────
+// Local AI (Gemini) is the primary intelligence engine.
+// N8N webhooks have been removed — all AI tasks run via Gemini proxy.
 export const ENDPOINTS = {
-    CHAT: `${N8N_BASE}/medix-chat-v2`,
-    INTERACTIONS: `${N8N_BASE}/medix-interactions-v5`,
-    MARKET: `${N8N_BASE}/medix-market-v5`,
-    COMPLIANCE: `${N8N_BASE}/medix-compliance-v5`,
-    FORECAST: `${N8N_BASE}/medix-forecast-v5`,
-    OPS: `${N8N_BASE}/operations`,
-    ANALYZE_PRESCRIPTION: `${N8N_BASE}/analyze-prescription`
+    // Legacy keys kept for compatibility but all resolve to Gemini calls
+    CHAT: 'gemini-chat',
+    INTERACTIONS: 'gemini-interactions',
+    MARKET: 'gemini-market',
+    COMPLIANCE: 'gemini-compliance',
+    FORECAST: 'gemini-forecast',
+    OPS: 'gemini-ops',
+    ANALYZE_PRESCRIPTION: 'gemini-prescription'
 };
 
 export function checkConnectivity(): void {
@@ -25,10 +26,6 @@ export function checkConnectivity(): void {
 }
 
 export async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = 15000): Promise<Response> {
-    if (url.includes('n8n') || url.includes('webhook')) {
-        // [CRITICAL FIX]: If n8n host is known to be buggy, we could force fallback here.
-    }
-
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -60,14 +57,25 @@ export function checkRateLimit(endpoint: string): boolean {
     return true;
 }
 
+/** Resolve the Gemini proxy base URL based on platform */
+function getGeminiBaseUrl(): string {
+    const isNative = Capacitor.isNativePlatform();
+    if (isNative) return 'https://medixai.shop/gemini-proxy';
+    return typeof window !== 'undefined' ? '/gemini-proxy' : 'https://generativelanguage.googleapis.com';
+}
+
+/** Resolve the Groq proxy base URL based on platform */
+function getGroqBaseUrl(): string {
+    const isNative = Capacitor.isNativePlatform();
+    if (isNative) return 'https://medixai.shop/groq-proxy';
+    return typeof window !== 'undefined' ? '/groq-proxy' : 'https://api.groq.com';
+}
+
 export async function callGeminiVision(prompt: string, base64Image: string, mimeType: string = "image/jpeg"): Promise<string> {
     try {
         checkConnectivity();
 
-        const isNative = Capacitor.isNativePlatform();
-        const baseUrl = isNative 
-            ? 'https://medixai.shop/gemini-proxy' 
-            : (typeof window !== 'undefined' ? '/gemini-proxy' : 'https://generativelanguage.googleapis.com');
+        const baseUrl = getGeminiBaseUrl();
         
         const response = await fetchWithTimeout(
             `${baseUrl}/v1beta/models/gemini-2.0-flash:generateContent`,
@@ -92,10 +100,10 @@ export async function callGeminiVision(prompt: string, base64Image: string, mime
             try {
                 const errJson = JSON.parse(errText);
                 errorMessage = errJson.message || errJson.error || errText;
-            } catch (e) {
+            } catch (_e) {
                 // Not JSON
             }
-            throw new Error(`Vision API Failed (${response.status}): ${errorMessage.substring(0, 150)}`);
+            throw new Error(`Vision API Failed (${response.status}): ${String(errorMessage).substring(0, 150)}`);
         }
 
         const data = await response.json();
@@ -107,81 +115,50 @@ export async function callGeminiVision(prompt: string, base64Image: string, mime
     }
 }
 
-export async function callGroqAI(messages: any[], model: string = "gemini-2.0-flash", jsonMode: boolean = false): Promise<string> {
-    const makeRequest = async () => {
-        checkConnectivity();
+/**
+ * Primary AI call — routes through Groq AI for fast text operations.
+ */
+export async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versatile", jsonMode: boolean = false): Promise<string> {
+    checkConnectivity();
 
-        const isNative = Capacitor.isNativePlatform();
-        const baseUrl = isNative 
-            ? 'https://medixai.shop/gemini-proxy' 
-            : (typeof window !== 'undefined' ? '/gemini-proxy' : 'https://generativelanguage.googleapis.com');
-        
-        let systemInstruction = "";
-        const contents = [];
-        
-        for (const msg of messages) {
-            if (msg.role === "system") {
-                systemInstruction += msg.content + "\n";
-            } else {
-                contents.push({
-                    role: msg.role === "assistant" ? "model" : "user",
-                    parts: [{ text: msg.content }]
-                });
-            }
-        }
-        
-        const payload: any = {
-            contents: contents
-        };
-        
-        if (systemInstruction) {
-            payload.systemInstruction = { parts: { text: systemInstruction } };
-        }
-        
-        if (jsonMode) {
-            payload.generationConfig = { responseMimeType: "application/json" };
-        }
-
-        const response = await fetchWithTimeout(
-            `${baseUrl}/v1beta/models/gemini-2.0-flash:generateContent`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            },
-            15000
-        );
-
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`AI API Failed (${response.status}): ${errText.substring(0, 150)}`);
-        }
-
-        const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const baseUrl = getGroqBaseUrl();
+    const payload: any = {
+        model: model,
+        messages: messages,
     };
-
-    try {
-        return await makeRequest();
-    } catch (e: any) {
-        throw new Error(`Gemini Fallback Failed: ${e.message}`);
+    
+    if (jsonMode) {
+        payload.response_format = { type: "json_object" };
     }
+
+    const response = await fetchWithTimeout(
+        `${baseUrl}/openai/v1/chat/completions`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        },
+        20000
+    );
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Groq AI Failed (${response.status}): ${errText.substring(0, 150)}`);
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || "";
 }
 
 export async function callGroqWhisper(audioBlob: Blob): Promise<string> {
     checkConnectivity();
 
     const formData = new FormData();
-    // Groq requires a filename with an audio extension
     formData.append("file", audioBlob, "audio.webm");
-    // Standard Whisper v3 model
     formData.append("model", "whisper-large-v3-turbo");
     formData.append("response_format", "json");
 
-    const isNative = Capacitor.isNativePlatform();
-    const baseUrl = isNative 
-        ? 'https://medixai.shop/groq-proxy' 
-        : (typeof window !== 'undefined' ? '/groq-proxy' : 'https://api.groq.com');
+    const baseUrl = getGroqBaseUrl();
     const response = await fetchWithTimeout(
         `${baseUrl}/openai/v1/audio/transcriptions`,
         {
@@ -213,8 +190,8 @@ export const safeJSONParse = (text: string, fallback: any = null): any => {
                 if (jsonMatch) {
                     return JSON.parse(jsonMatch[0]);
                 }
-            } catch (e) {
-                logger.warn("JSON Parse Failed completely:", text);
+            } catch (_e) {
+                logger.warn("JSON Parse Failed completely:", text.substring(0, 100));
             }
         }
     }

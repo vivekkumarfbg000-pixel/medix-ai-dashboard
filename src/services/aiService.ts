@@ -2,7 +2,6 @@ import { supabase } from "@/integrations/supabase/client";
 import logger from "@/utils/logger";
 import { 
     checkConnectivity, 
-    fetchWithTimeout, 
     checkRateLimit, 
     callGroqAI, 
     callGeminiVision, 
@@ -21,7 +20,7 @@ import { ChatResponse, ComplianceResult, MarketData } from "./ai/types";
 
 /**
  * BHARAT MEDIX AI SERVICE (Unified Orchestrator)
- * Refactored for Production Readiness & Modularity.
+ * Production-ready — all AI routes via local Gemini proxy. N8N removed.
  */
 
 export const aiService = {
@@ -29,14 +28,7 @@ export const aiService = {
      * Universal AI Query Handler (Chat)
      */
     async chatWithAgent(message: string, image?: string, history: { role: string, text: string }[] = []): Promise<ChatResponse> {
-        const isDemoMode = typeof window !== 'undefined' && localStorage.getItem("DEMO_MODE") === "true";
-        if (isDemoMode) {
-            await new Promise(r => setTimeout(r, 1000));
-            return { reply: "Demo Mode Active. AI is simulated.", isMock: true };
-        }
-
         const shopId = localStorage.getItem("currentShopId");
-        const { data: { user } } = await supabase.auth.getUser();
 
         // 1. Context Injection (Stock & Patient)
         let contextMessage = message;
@@ -81,13 +73,12 @@ export const aiService = {
         } else if (action.tool === "get_inventory_value" && shopId) {
             toolResult = await tools.tool_getInventoryValue(shopId);
         } else if (action.tool === "navigate") {
-            // This will be handled by the UI, but we acknowledge it
             toolResult = `Navigating to ${action.args.path}`;
         } else if (action.tool === "market_data") {
             const mkt = await this.getMarketData(action.args.drug_name);
             toolResult = JSON.stringify(mkt);
         } else if (action.tool === "direct_reply") {
-            if (action.args?.answer) return { reply: action.args.answer, sources: ["Groq AI"] };
+            if (action.args?.answer) return { reply: action.args.answer, sources: ["Gemini AI"] };
         }
 
         // Final Synthesis
@@ -98,7 +89,6 @@ export const aiService = {
 
         const reply = await callGroqAI(finalPrompt);
         
-        // Pass the action back to the UI if it's a structural one
         const finalAction = (action.tool !== "direct_reply") ? {
             type: action.tool.toUpperCase(),
             payload: action.args
@@ -106,7 +96,7 @@ export const aiService = {
 
         return { 
             reply, 
-            sources: ["Groq AI (Local Tools)"],
+            sources: ["Gemini AI (Local Tools)"],
             action: finalAction as any,
             navigationPath: action.tool === "navigate" ? action.args.path : undefined
         };
@@ -153,7 +143,7 @@ Format requirements:
         ];
         
         try {
-            const res = await callGroqAI(prompt, "llama-3.1-8b-instant", true);
+            const res = await callGroqAI(prompt, "llama-3.3-70b-versatile", true);
             return safeJSONParse(res, { items: [] });
         } catch (error) {
             logger.error("[Voice] parseOrderFromText AI parsing failed:", error);
@@ -165,16 +155,65 @@ Format requirements:
         return analyzeDocImpl(file, type);
     },
 
+    /**
+     * Drug compliance check — powered by local Gemini AI
+     * Replaces the deprecated N8N webhook endpoint.
+     */
     async checkCompliance(drugName: string): Promise<ComplianceResult> {
         checkConnectivity();
-        const res = await fetchWithTimeout(`${ENDPOINTS.COMPLIANCE}?drug=${encodeURIComponent(drugName)}`, { method: "GET" });
-        return res.json();
+        const prompt = [
+            {
+                role: "system",
+                content: `You are a pharmaceutical compliance expert for the Indian market (CDSCO/DPCO regulations).
+Check if the given drug is banned, restricted, or has regulatory issues in India.
+Return ONLY valid JSON:
+{
+  "is_banned": boolean,
+  "reason": "string explanation",
+  "schedule": "H/H1/X/OTC/None",
+  "requires_prescription": boolean,
+  "storage_conditions": "string",
+  "max_retail_governed": boolean
+}`
+            },
+            { role: "user", content: `Check compliance status for: ${drugName}` }
+        ];
+        const res = await callGroqAI(prompt, "llama-3.3-70b-versatile", true);
+        return safeJSONParse(res, { is_banned: false, reason: "Unable to determine", schedule: "Unknown" });
     },
 
+    /**
+     * Market data & substitute intelligence — powered by local Gemini AI
+     * Replaces the deprecated N8N webhook endpoint.
+     */
     async getMarketData(drugName: string): Promise<MarketData> {
         checkConnectivity();
-        const res = await fetchWithTimeout(`${ENDPOINTS.MARKET}?drug=${encodeURIComponent(drugName)}`, { method: "GET" });
-        return res.json();
+        const prompt = [
+            {
+                role: "system",
+                content: `You are a pharmaceutical market intelligence system for the Indian pharma market.
+For the given drug, provide market data including generic substitutes with pricing.
+Return ONLY valid JSON:
+{
+  "drug_name": "string",
+  "avg_market_price": number,
+  "substitutes": [
+    {
+      "name": "Brand Name",
+      "generic_name": "Generic Name",
+      "price": number,
+      "margin_percentage": number,
+      "manufacturer": "string"
+    }
+  ],
+  "market_trend": "stable|rising|declining",
+  "availability": "high|medium|low"
+}`
+            },
+            { role: "user", content: `Market data for: ${drugName}` }
+        ];
+        const res = await callGroqAI(prompt, "llama-3.3-70b-versatile", true);
+        return safeJSONParse(res, { drug_name: drugName, substitutes: [], market_trend: "stable" });
     },
 
     async checkInteractions(drugs: string[]): Promise<{ warnings: string[] }> {
@@ -183,18 +222,18 @@ Format requirements:
             { role: "user", content: drugs.join(", ") }
         ];
         try {
-            const res = await callGroqAI(prompt, "llama-3.1-8b-instant", true);
+            const res = await callGroqAI(prompt, "llama-3.3-70b-versatile", true);
             return safeJSONParse(res, { warnings: [] });
         } catch { return { warnings: [] }; }
     },
 
     async getGenericSubstitutes(medicineName: string): Promise<any[]> {
         const prompt = [
-            { role: "system", content: "You are a pharma generic recommender. For the given drug, return generic alternatives that are cheaper or have a better profit margin. Return ONLY a valid JSON array of objects with keys 'name' and 'margin' (percentage number) under a 'substitutes' array. E.g. { \"substitutes\": [ { \"name\": \"Generic Name\", \"margin\": 25 } ] }" },
+            { role: "system", content: "You are a pharma generic recommender for Indian market. For the given drug, return generic alternatives that are cheaper or have a better profit margin. Return ONLY a valid JSON array of objects with keys 'name' and 'margin' (percentage number) under a 'substitutes' array. E.g. { \"substitutes\": [ { \"name\": \"Generic Name\", \"margin\": 25 } ] }" },
             { role: "user", content: medicineName }
         ];
         try {
-            const res = await callGroqAI(prompt, "llama-3.1-8b-instant", true);
+            const res = await callGroqAI(prompt, "llama-3.3-70b-versatile", true);
             const parsed = safeJSONParse(res, { substitutes: [] });
             return parsed.substitutes || [];
         } catch { return []; }
@@ -213,7 +252,7 @@ Format requirements:
             { role: "system", content: "You are an inventory assistant. Extract medicine names, quantities, and prices from the input. Return a JSON array of objects: { brand_name, quantity, mrp }." },
             { role: "user", content: text }
         ];
-        const res = await callGroqAI(prompt, "llama-3.1-8b-instant", true);
+        const res = await callGroqAI(prompt, "llama-3.3-70b-versatile", true);
         const parsed = safeJSONParse(res, { items: [] });
         return parsed.items || [];
     },
@@ -228,7 +267,6 @@ Format requirements:
 
     async getDailyBriefing(shopId: string): Promise<string> {
         try {
-            // Fetch some data for context
             const { data: inventory } = await supabase.from('inventory').select('medicine_name, quantity, expiry_date').eq('shop_id', shopId);
             const { data: sales } = await supabase.from('orders').select('total_amount').eq('shop_id', shopId).gte('created_at', new Date(Date.now() - 86400000).toISOString());
 
@@ -245,16 +283,51 @@ Format requirements:
                     role: "user", 
                     content: `Context: 
 - Total Sales (24h): ₹${totalSalesInput}
-- Low Stock: ${lowStock.join(', ')}
-- Near Expiry: ${nearExpiry.join(', ')}
+- Low Stock: ${lowStock.join(', ') || 'None'}
+- Near Expiry: ${nearExpiry.join(', ') || 'None'}
 ` 
                 }
             ];
 
             return await callGroqAI(prompt);
-        } catch (error) {
+        } catch {
             return "Bhaiya, data fetch karne mein thodi problem hui, par aapki sale badhiya chal rahi hai! Kaam shuru karte hain.";
         }
+    },
+
+    /**
+     * AI-Powered Demand Forecast — replaces N8N forecast endpoint
+     */
+    async getInventoryForecast(inventoryData: { medicine_name: string; quantity: number; avg_daily_sales?: number }[]): Promise<any> {
+        const prompt = [
+            {
+                role: "system",
+                content: `You are a pharmacy inventory demand forecasting AI for Indian medical shops.
+Analyze the provided inventory data and predict which items need reordering.
+Return ONLY valid JSON:
+{
+  "forecast": [
+    {
+      "medicine_name": "string",
+      "current_stock": number,
+      "predicted_daily_demand": number,
+      "days_until_stockout": number,
+      "recommended_order_qty": number,
+      "urgency": "critical|high|medium|low",
+      "reason": "brief explanation"
+    }
+  ],
+  "summary": "brief overall summary"
+}`
+            },
+            {
+                role: "user",
+                content: `Inventory data:\n${inventoryData.map(i => `${i.medicine_name}: ${i.quantity} units (avg daily: ${i.avg_daily_sales || 'unknown'})`).join('\n')}`
+            }
+        ];
+
+        const res = await callGroqAI(prompt, "llama-3.3-70b-versatile", true);
+        return safeJSONParse(res, { forecast: [], summary: "Unable to generate forecast" });
     }
 };
 

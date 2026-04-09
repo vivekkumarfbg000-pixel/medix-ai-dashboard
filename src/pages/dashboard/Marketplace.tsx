@@ -4,15 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Search, ShoppingCart, Filter, ArrowLeftRight, Package, Store, TrendingUp, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useUserShops } from "@/hooks/useUserShops";
 import { format } from "date-fns";
 import Purchases from "@/pages/dashboard/Purchases";
 import { supabase } from "@/integrations/supabase/client";
-import { aiService } from "@/services/aiService"; // Import AI Service
+import { aiService } from "@/services/aiService";
 
-// ... imports
 
 interface CatalogItem {
     id: string;
@@ -29,9 +29,37 @@ interface CartItem extends CatalogItem {
     orderQty: number;
 }
 
-// Dummy Modals to satisfy build (or import if they exist)
-const QuoteRequestModal = ({ open, onOpenChange, product }: any) => null;
-const PurchaseReturnModal = ({ open, onOpenChange }: any) => null;
+// Placeholder modals — Marketplace B2B is a future feature
+const QuoteRequestModal = ({ open, onOpenChange, productName, distributorName }: any) => {
+    if (!open) return null;
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Request Quote — Coming Soon</DialogTitle>
+                </DialogHeader>
+                <div className="py-6 text-center text-muted-foreground">
+                    <p>Quote requests for <strong>{productName}</strong> from {distributorName} will be available when the B2B marketplace launches.</p>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
+const PurchaseReturnModal = ({ open, onOpenChange }: any) => {
+    if (!open) return null;
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Purchase Returns — Coming Soon</DialogTitle>
+                </DialogHeader>
+                <div className="py-6 text-center text-muted-foreground">
+                    <p>The purchase return workflow will be available in the next update.</p>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
 
 // Sample data since B2B tables don't exist yet
 const sampleItems: CatalogItem[] = [
@@ -64,11 +92,7 @@ const Marketplace = () => {
     };
 
     const placeOrder = async () => {
-        toast.info("Connecting to Distributor Network...");
-        setTimeout(() => {
-            toast.success("Order Placed Successfully! (Simulation)");
-            setCart([]);
-        }, 1500);
+        toast.info("B2B ordering will be available when the Marketplace launches. Stay tuned!");
     };
 
     // --- Real Search Implementation ---
@@ -164,7 +188,7 @@ const Marketplace = () => {
                     <div>
                         <div className="flex items-center gap-2 mb-2">
                             <Badge className="bg-blue-500/20 text-blue-200 hover:bg-blue-500/30 border-none">B2B Network</Badge>
-                            <Badge className="bg-green-500/20 text-green-200 hover:bg-green-500/30 border-none">Live Prices</Badge>
+                            <Badge className="bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 border-none">Preview</Badge>
                         </div>
                         <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Procurement Hub</h1>
                         <p className="text-blue-100/80 mt-2 max-w-xl">

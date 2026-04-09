@@ -154,6 +154,8 @@ export default defineConfig(({ mode }) => {
     terserOptions: {
       compress: {
         drop_debugger: true,
+        drop_console: true,     // Strip all console.* in production
+        pure_funcs: ['console.log', 'console.info', 'console.debug'], // Extra safety
       },
     },
     rollupOptions: {

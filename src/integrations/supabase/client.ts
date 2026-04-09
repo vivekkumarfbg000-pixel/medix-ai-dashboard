@@ -62,7 +62,38 @@ export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON
   },
 });
 
-// Legacy compatibility exports used by useSessionEnforcement
-export const isSupabaseReachable = true;
-export const connectivityReady: Promise<boolean> = Promise.resolve(true);
-export const checkConnection = async (): Promise<boolean> => true;
+// ── Connectivity Check ────────────────────────────────────────────────────────
+// Actual reachability check instead of hardcoded true
+export let isSupabaseReachable = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+export const checkConnection = async (): Promise<boolean> => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        isSupabaseReachable = false;
+        return false;
+    }
+    try {
+        const url = getSupabaseUrl();
+        const res = await fetch(`${url}/rest/v1/`, { 
+            method: 'HEAD', 
+            headers: { 'apikey': SUPABASE_ANON_KEY },
+            signal: AbortSignal.timeout(5000)
+        });
+        isSupabaseReachable = res.ok;
+        return res.ok;
+    } catch {
+        isSupabaseReachable = false;
+        return false;
+    }
+};
+
+// Run connectivity check once at startup, non-blocking
+export const connectivityReady: Promise<boolean> = checkConnection().catch(() => {
+    isSupabaseReachable = false;
+    return false;
+});
+
+// Re-check on network status change
+if (typeof window !== 'undefined') {
+    window.addEventListener('online', () => { checkConnection(); });
+    window.addEventListener('offline', () => { isSupabaseReachable = false; });
+}
