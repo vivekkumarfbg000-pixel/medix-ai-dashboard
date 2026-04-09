@@ -82,7 +82,7 @@ async function handleProxy(request: Request, targetOrigin: string, pathPrefix: s
       body: request.method !== 'GET' && request.method !== 'HEAD' 
         ? await request.arrayBuffer() 
         : null,
-      redirect: 'follow',
+      redirect: 'manual',
     });
 
     // Add CORS headers for the Mobile App

@@ -35,6 +35,9 @@ function getSupabaseUrl(): string {
 }
 
 const SUPABASE_URL = getSupabaseUrl();
+if (typeof window !== 'undefined') {
+  console.log('⚡ [Supabase] Client initialized with URL:', SUPABASE_URL);
+}
 
 /** Exposed so the connectivity checker can ping the right base URL. */
 export const getSupabaseBaseUrl = () => SUPABASE_URL;

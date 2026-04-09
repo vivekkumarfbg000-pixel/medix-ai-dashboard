@@ -15,10 +15,21 @@ export default defineConfig(({ mode }) => {
       // Reverse proxy to bypass ISP blocks on *.supabase.co (Jio/Airtel India)
       // Browser hits localhost:5173/supabase-proxy/* → Vite forwards server-side to supabase.co
       '/supabase-proxy': {
-        target: 'https://ykrqpxbbyfipjqhpaszf.supabase.co',
+        target: 'https://medixai.shop',
         changeOrigin: true,
-        rewrite: (path: string) => path.replace(/^\/supabase-proxy/, ''),
-        secure: true,
+        rewrite: (path: string) => path, // Preserve /supabase-proxy/ prefix for the remote proxy
+        secure: false,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.error('[Supabase Proxy Error]:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log(`[Supabase Proxy Request]: ${req.method} ${req.url}`);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log(`[Supabase Proxy Response]: ${proxyRes.statusCode} for ${req.url}`);
+          });
+        },
       },
       // Reverse proxy to bypass CORS for Groq API (Chatbot)
       '/groq-proxy': {

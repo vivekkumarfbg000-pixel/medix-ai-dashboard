@@ -23,7 +23,7 @@ export const getAuthErrorMessage = (error: unknown): string => {
     if (msg.includes("load failed"))
         return "Connection Failed: The authentication server is unreachable. Your ISP may be blocking it — try a VPN or mobile hotspot.";
     if (status === 500 || msg.includes("500") || msg.includes("internal server error"))
-        return "Server Error: The authentication proxy returned an error. Please try again or use a VPN.";
+        return "Critical Error (500): The authentication proxy or database trigger failed. If using localhost, ensure your proxy bypass (Cloudflare/Production) is reachable. Check console for details.";
     if (msg.includes("timeout") || msg.includes("timed out") || msg.includes("aborted"))
         return "Connection Timeout: The server took too long to respond. Your ISP may be blocking the service.";
 
