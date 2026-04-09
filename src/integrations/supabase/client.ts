@@ -30,14 +30,26 @@ function getSupabaseUrl(): string {
 }
 
 const SUPABASE_URL = getSupabaseUrl();
-if (typeof window !== 'undefined') {
-  console.log('⚡ [Supabase] Client initialized with URL:', SUPABASE_URL);
-}
+
+// Failsafe: Provide a way to bypass proxy if specifically requested via URL param (for debugging)
+const getFinalUrl = () => {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('no_proxy') === 'true') {
+      console.warn('⚠️ [Supabase] Failsafe: Bypassing proxy for direct connection.');
+      return SUPABASE_URL_RAW;
+    }
+    console.log('⚡ [Supabase] Client using URL:', SUPABASE_URL);
+  }
+  return SUPABASE_URL;
+};
+
+const FINAL_SUPABASE_URL = getFinalUrl();
 
 /** Exposed so the connectivity checker can ping the right base URL. */
 export const getSupabaseBaseUrl = () => SUPABASE_URL;
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,

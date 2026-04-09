@@ -99,6 +99,7 @@ const AiDebug = lazy(() => import("./pages/AiDebug"));
 
 const TestAIFallback = lazy(() => import("./pages/TestAIFallback"));
 const DebugAI = lazy(() => import("./pages/DebugAI"));
+const AuthDebug = lazy(() => import("./pages/AuthDebug"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -153,6 +154,7 @@ const AppRoutes = () => {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/logout" element={<LogoutHandler />} />
         <Route path="/auth/google" element={<GoogleCallback />} />
+        <Route path="/auth/debug" element={<AuthDebug />} />
 
         {/* Legacy /auth route — redirect to /login for backwards compat */}
         <Route path="/auth" element={<Navigate to="/login" replace />} />
