@@ -16,7 +16,7 @@ export const SUPABASE_URL_RAW = import.meta.env.VITE_SUPABASE_URL || 'https://yk
 function getSupabaseUrl(): string {
   if (typeof window === 'undefined') return SUPABASE_URL_RAW;
 
-  // For Native (Capacitor/Android/iOS), we must use the full URL as relative paths don't exist.
+  // For Native (Capacitor/Android/iOS), we must use a full URL.
   const isNative = Capacitor.isNativePlatform();
   
   if (isNative) {
@@ -24,9 +24,15 @@ function getSupabaseUrl(): string {
     return 'https://medixai.shop/supabase-proxy';
   }
 
-  // For Web/PWA, use a relative path. This ensures we use the same domain/protocol 
-  // as the current page (medixai.shop, or localhost in dev).
-  return '/supabase-proxy';
+  // Construct absolute URL for the proxy to satisfy Supabase client requirements.
+  // Using window.location.origin ensures the same protocol/domain is used.
+  const proxyPath = import.meta.env.VITE_SUPABASE_PROXY_URL || '/supabase-proxy';
+  
+  // If it's already absolute (starts with http), use it as is
+  if (proxyPath.startsWith('http')) return proxyPath;
+  
+  // Otherwise, prefix with origin
+  return `${window.location.origin}${proxyPath.startsWith('/') ? '' : '/'}${proxyPath}`;
 }
 
 const SUPABASE_URL = getSupabaseUrl();
@@ -39,9 +45,20 @@ const getFinalUrl = () => {
       console.warn('⚠️ [Supabase] Failsafe: Bypassing proxy for direct connection.');
       return SUPABASE_URL_RAW;
     }
-    console.log('⚡ [Supabase] Client using URL:', SUPABASE_URL);
   }
-  return SUPABASE_URL;
+  
+  // Validation: ensure the URL is absolute and valid.
+  try {
+    const urlObj = new URL(SUPABASE_URL);
+    if (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') {
+      console.log('⚡ [Supabase] Client using URL:', SUPABASE_URL);
+      return SUPABASE_URL;
+    }
+  } catch (e) {
+    console.warn('⚠️ [Supabase] Invalid Proxy URL generated, falling back to raw:', SUPABASE_URL);
+  }
+  
+  return SUPABASE_URL_RAW;
 };
 
 const FINAL_SUPABASE_URL = getFinalUrl();

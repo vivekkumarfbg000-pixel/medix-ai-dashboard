@@ -96,40 +96,91 @@ window.addEventListener('unhandledrejection', (event) => {
 // Helper to show error UI
 function showCriticalError(message: string, stack?: string) {
     const display = document.getElementById('global-error-display');
-    const msgEl = document.getElementById('global-error-message');
-    if (display && msgEl) {
-        display.style.display = 'flex'; // Changed to flex for centering if CSS supports it, or valid
+    if (display) {
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : 'unknown';
+        const platform = typeof navigator !== 'undefined' ? navigator.platform : 'unknown';
+        const time = new Date().toISOString();
+        
+        // Construct diagnostic blob for copy-pasting
+        const diagnosticInfo = JSON.stringify({
+            time,
+            isOnline,
+            platform,
+            userAgent: navigator.userAgent,
+            location: window.location.href,
+            message,
+            stack: stack?.substring(0, 500) // Truncate stack for UI safety
+        }, null, 2);
 
-        // Inject robust HTML directly
         display.innerHTML = `
-            <div style="font-family: system-ui, sans-serif; padding: 2rem; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); max-width: 500px; width: 90%; text-align: center;">
-                <h2 style="color: #dc2626; margin-bottom: 1rem; font-size: 1.5rem; font-weight: bold;">Critical Error</h2>
-                <p style="color: #4b5563; margin-bottom: 1.5rem;">The application trapped a critical error and cannot load.</p>
+            <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2rem; background: white; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); max-width: 550px; width: 95%; text-align: center; color: #1f2937; animation: slideUp 0.3s ease-out;">
+                <div style="width: 60px; height: 60px; background: #fee2e2; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem;">
+                    <svg style="width: 32px; height: 32px; color: #dc2626;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
                 
-                <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px; text-align: left; font-family: monospace; font-size: 0.8em; margin-bottom: 1.5rem; overflow: auto; max-height: 200px; color: #374151;">
-                    <strong>${message}</strong>
-                    <div style="margin-top: 0.5rem; opacity: 0.7;">${stack || ''}</div>
+                <h2 style="margin-bottom: 0.5rem; font-size: 1.75rem; font-weight: 800; letter-spacing: -0.025em;">Critical Error</h2>
+                <p style="color: #6b7280; margin-bottom: 1.5rem; line-height: 1.5;">The application encountered an unexpected issue during startup. This is often caused by network restrictions or a stale cache.</p>
+                
+                <div style="background: #f9fafb; border: 1px solid #e5e7eb; padding: 1.25rem; border-radius: 12px; text-align: left; font-family: 'ui-monospace', 'Cascadia Code', monospace; font-size: 0.85rem; margin-bottom: 2rem; overflow: auto; max-height: 250px; color: #374151; position: relative;">
+                    <button onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText)" style="position: absolute; right: 8px; top: 8px; font-size: 0.7rem; background: #fff; border: 1px solid #ddd; padding: 2px 6px; border-radius: 4px; cursor: pointer;">Copy</button>
+                    <pre style="margin: 0; white-space: pre-wrap; word-break: break-all;"><strong>Error: ${message}</strong>\n\nDiagnostic Info:\n${diagnosticInfo}</pre>
                 </div>
 
-                <div style="display: flex; gap: 1rem; justify-content: center;">
-                    <button onclick="window.location.reload()" style="background: #2563eb; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <button onclick="window.location.reload()" style="background: #2563eb; color: white; padding: 0.875rem; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);">
                         Reload App
                     </button>
-                    <button onclick="localStorage.clear(); sessionStorage.clear(); window.location.reload()" style="background: #dc2626; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
-                        Factory Reset (Fix)
+                    <button onclick="medixFactoryReset()" style="background: #dc2626; color: white; padding: 0.875rem; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(220, 38, 38, 0.2);">
+                        Factory Reset
                     </button>
                 </div>
-                <p style="margin-top: 1rem; font-size: 0.75rem; color: #9ca3af;">Factory Reset clears local data which usually fixes startup crashes.</p>
+                <p style="margin-top: 1.25rem; font-size: 0.8rem; color: #9ca3af; line-height: 1.4;">
+                    <strong>Factory Reset</strong> clears all local storage and unregisters service workers. Use this if multiple reloads fail.
+                </p>
+                
+                <style>
+                    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+                </style>
             </div>
         `;
+        
+        // Define the reset function globally so the button can call it
+        (window as any).medixFactoryReset = async () => {
+            console.warn('[Maintenance] Executing Full Factory Reset...');
+            
+            // 1. Clear Storages
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // 2. Unregister all Service Workers
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (const registration of registrations) {
+                    await registration.unregister();
+                }
+            }
+            
+            // 3. Delete all caches
+            if ('caches' in window) {
+                const keys = await caches.keys();
+                for (const key of keys) {
+                    await caches.delete(key);
+                }
+            }
+            
+            // 4. Force Reload
+            window.location.reload();
+        };
+
         // Ensure container is visible and styled for overlay
         display.style.position = 'fixed';
         display.style.top = '0';
         display.style.left = '0';
         display.style.width = '100vw';
         display.style.height = '100vh';
-        display.style.zIndex = '9999';
-        display.style.background = 'rgba(0,0,0,0.8)';
+        display.style.zIndex = '99999';
+        display.style.background = 'rgba(17, 24, 39, 0.9)'; // Darker, theme-aware background
+        display.style.backdropFilter = 'blur(8px)';
         display.style.display = 'flex';
         display.style.alignItems = 'center';
         display.style.justifyContent = 'center';
