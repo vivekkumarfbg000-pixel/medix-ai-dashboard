@@ -99,6 +99,8 @@ function showCriticalError(message: string, stack?: string) {
     if (display) {
         const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : 'unknown';
         const platform = typeof navigator !== 'undefined' ? navigator.platform : 'unknown';
+        const userAgent = typeof navigator !== 'undefined' ? (navigator.userAgent || 'unknown') : 'unknown';
+        const locationHref = typeof window !== 'undefined' ? (window.location?.href || 'unknown') : 'unknown';
         const time = new Date().toISOString();
         
         // Construct diagnostic blob for copy-pasting
@@ -106,8 +108,8 @@ function showCriticalError(message: string, stack?: string) {
             time,
             isOnline,
             platform,
-            userAgent: navigator.userAgent,
-            location: window.location.href,
+            userAgent,
+            location: locationHref,
             message,
             stack: stack?.substring(0, 500) // Truncate stack for UI safety
         }, null, 2);
