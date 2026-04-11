@@ -138,7 +138,11 @@ export const syncUserShop = async (userId: string): Promise<string | null> => {
             
             if (shopId) {
                 localStorage.setItem("currentShopId", shopId);
-                console.log("✅ [AuthHelpers] Shop ID synchronized:", shopId);
+                
+                // DISPATCH CUSTOM EVENT for same-window reactivity
+                window.dispatchEvent(new CustomEvent("medix_shop_sync", { detail: { shopId } }));
+                
+                console.log("✅ [AuthHelpers] Shop ID synchronized and event dispatched:", shopId);
                 return shopId;
             }
         }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/auth/useAuth";
 
 interface Shop {
   id: string;
@@ -20,6 +21,7 @@ interface UserShopsState {
 }
 
 export function useUserShops(): UserShopsState {
+  const { user } = useAuth();
   const [shops, setShops] = useState<Shop[]>([]);
   const [currentShopId, setCurrentShopId] = useState<string | null>(() => {
     return localStorage.getItem("currentShopId");
@@ -33,12 +35,22 @@ export function useUserShops(): UserShopsState {
         setCurrentShopId(e.newValue);
       }
     };
+    
+    // CUSTOM EVENT: Handle same-window sync (e.g. from syncUserShop)
+    const handleCustomSync = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.shopId && detail.shopId !== currentShopId) {
+        setCurrentShopId(detail.shopId);
+      }
+    };
+
     window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("medix_shop_sync", handleCustomSync);
     
-    // Also check on a timer/interval or specific custom events if needed
-    // but the storage event handles multi-tab synchronization.
-    
-    return () => window.removeEventListener("storage", handleStorageChange);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("medix_shop_sync", handleCustomSync);
+    };
   }, [currentShopId]);
 
   useEffect(() => {
@@ -118,7 +130,7 @@ export function useUserShops(): UserShopsState {
     }
 
     fetchShops();
-  }, []);
+  }, [user?.id, currentShopId]); // Re-fetch if user changes or shop ID is updated/synced
 
   const switchShop = (shopId: string) => {
     setCurrentShopId(shopId);
