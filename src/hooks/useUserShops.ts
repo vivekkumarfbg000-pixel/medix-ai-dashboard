@@ -21,11 +21,25 @@ interface UserShopsState {
 
 export function useUserShops(): UserShopsState {
   const [shops, setShops] = useState<Shop[]>([]);
-  // OPTIMIZATION: Initialize directly from LocalStorage to avoid waiting for network
   const [currentShopId, setCurrentShopId] = useState<string | null>(() => {
     return localStorage.getItem("currentShopId");
   });
   const [loading, setLoading] = useState(true);
+
+  // Synchronization with other tabs and immediate auth syncs
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "currentShopId" && e.newValue !== currentShopId) {
+        setCurrentShopId(e.newValue);
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    
+    // Also check on a timer/interval or specific custom events if needed
+    // but the storage event handles multi-tab synchronization.
+    
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [currentShopId]);
 
   useEffect(() => {
     async function fetchShops() {
@@ -85,14 +99,15 @@ export function useUserShops(): UserShopsState {
           const savedShopId = localStorage.getItem("currentShopId");
           const isValidSaved = savedShopId && mappedShops.some(s => s.id === savedShopId);
 
-          // If we already have a valid ID (checked against new data), keep it. 
-          // Otherwise, switch to primary/default.
           if (!isValidSaved) {
             const defaultShopId = mappedShops.find(s => s.is_primary)?.id || mappedShops[0]?.id;
             if (defaultShopId) {
               setCurrentShopId(defaultShopId);
               localStorage.setItem("currentShopId", defaultShopId);
             }
+          } else if (savedShopId !== currentShopId) {
+            // Update local state if localStorage has it but our state doesn't
+            setCurrentShopId(savedShopId);
           }
         }
       } catch (err) {

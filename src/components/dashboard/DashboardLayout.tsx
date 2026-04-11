@@ -154,37 +154,20 @@ function DashboardContent() {
 
 export function DashboardLayout() {
   useSessionEnforcement(); // Enforce single device login
+  const { loading: shopsLoading, currentShopId } = useUserShops();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
-  // Pre-fetch shop ID for immediate availability to all children
   useEffect(() => {
-    const prefetchShop = async () => {
-      try {
-        if (!localStorage.getItem('currentShopId')) {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            const { data } = await supabase
-              .from('user_shops')
-              .select('shop_id')
-              .eq('user_id', session.user.id)
-              .limit(1)
-              .single();
+    // We wait for useUserShops to finish its initial resolution.
+    // If it's done loading and we still don't have a shop ID, 
+    // it means the user truly has no shops yet (unlikely due to DB triggers),
+    // but we can proceed or handle it in the children.
+    if (!shopsLoading) {
+      setLoading(false);
+    }
+  }, [shopsLoading]);
 
-            if (data?.shop_id) {
-              localStorage.setItem('currentShopId', data.shop_id);
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Failed to pre-fetch initial shop", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    prefetchShop();
-  }, [navigate]);
 
   if (loading) {
     return (

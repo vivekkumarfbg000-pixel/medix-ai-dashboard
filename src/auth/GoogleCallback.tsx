@@ -14,7 +14,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { extractTokensFromHash } from "./authHelpers";
+import { extractTokensFromHash, syncUserShop } from "./authHelpers";
 import { toast } from "sonner";
 
 export default function GoogleCallback() {
@@ -72,6 +72,8 @@ export default function GoogleCallback() {
                     );
 
                     if (!error) {
+                        const { data: { user } } = await supabase.auth.getUser();
+                        if (user) await syncUserShop(user.id);
                         toast.success("Login verified successfully!");
                         navigate("/dashboard", { replace: true });
                         return;
@@ -99,6 +101,8 @@ export default function GoogleCallback() {
                         );
 
                         if (!error) {
+                            const { data: { user } } = await supabase.auth.getUser();
+                            if (user) await syncUserShop(user.id);
                             toast.success("Login verified successfully!");
                             navigate("/dashboard", { replace: true });
                             return;
@@ -113,6 +117,7 @@ export default function GoogleCallback() {
                     data: { session },
                 } = await supabase.auth.getSession();
                 if (session?.user) {
+                    await syncUserShop(session.user.id);
                     navigate("/dashboard", { replace: true });
                 } else {
                     setStatus("No valid tokens found. Redirecting...");

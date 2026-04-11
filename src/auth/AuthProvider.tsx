@@ -16,7 +16,7 @@ import {
     type ReactNode,
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getAuthErrorMessage } from "./authHelpers";
+import { getAuthErrorMessage, syncUserShop } from "./authHelpers";
 import type { User, Session } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
 
@@ -88,6 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             // AUTO-PROVISIONING is now securely handled by the PostgreSQL 
             // trigger `handle_new_user` upon user creation in Supabase.
+            if (event === "SIGNED_IN" && newSession?.user) {
+                await syncUserShop(newSession.user.id);
+            }
         });
 
         return () => subscription.unsubscribe();
@@ -108,6 +111,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (error) return getAuthErrorMessage(error);
 
             // AUTO-PROVISIONING is handled securely by Postgres trigger
+            if (data?.user) {
+                await syncUserShop(data.user.id);
+            }
 
             // "Remember me" logic — mark session as temporary so DashboardLayout
             // can wipe localStorage on browser close for shared-computer safety.
@@ -163,6 +169,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
 
             // AUTO-PROVISIONING is handled securely by Postgres trigger
+            if (data?.user?.id) {
+                await syncUserShop(data.user.id);
+            }
 
             // Instant sign-up (verification disabled or auto-confirmed)
             if (!rememberMe) sessionStorage.setItem("temporary_session", "true");

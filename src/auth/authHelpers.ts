@@ -5,7 +5,10 @@
  * - extractTokensFromHash: parses OAuth/email-verification tokens from the
  *   URL hash when running under HashRouter.
  * - checkSupabaseConnectivity: pings the Supabase health endpoint.
+ * - syncUserShop: Fetches and stores the user's current shop ID in localStorage.
  */
+
+import { supabase } from "@/integrations/supabase/client";
 
 // ─── User-friendly error messages ───────────────────────────────────────────
 export const getAuthErrorMessage = (error: unknown): string => {
@@ -106,5 +109,44 @@ export const checkSupabaseConnectivity = async (
                     ? "Connection timed out (ISP may be blocking Supabase)"
                     : (err as Error).message || "Network error",
         };
+    }
+};
+
+// ─── Shop Synchronization ───────────────────────────────────────────────────
+/**
+ * syncUserShop — Fetches the user's shops and ensures a valid shop_id is in localStorage.
+ * This is critical for immediate sync after sign-in.
+ */
+export const syncUserShop = async (userId: string): Promise<string | null> => {
+    try {
+        console.log("🔄 [AuthHelpers] Synchronizing Shop ID for user:", userId);
+        
+        const { data: userShops, error } = await supabase
+            .from("user_shops")
+            .select("shop_id, is_primary")
+            .eq("user_id", userId);
+
+        if (error) {
+            console.error("❌ [AuthHelpers] Shop sync fetch error:", error);
+            return null;
+        }
+
+        if (userShops && userShops.length > 0) {
+            // Priority: Primary Shop -> First Shop
+            const primaryShop = userShops.find(s => s.is_primary) || userShops[0];
+            const shopId = primaryShop.shop_id;
+            
+            if (shopId) {
+                localStorage.setItem("currentShopId", shopId);
+                console.log("✅ [AuthHelpers] Shop ID synchronized:", shopId);
+                return shopId;
+            }
+        }
+        
+        console.warn("⚠️ [AuthHelpers] No shops found for user during sync.");
+        return null;
+    } catch (err) {
+        console.error("❌ [AuthHelpers] Shop sync exception:", err);
+        return null;
     }
 };
