@@ -15,7 +15,7 @@ import {
     useCallback,
     type ReactNode,
 } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, supabaseAuth } from "@/integrations/supabase/client";
 import { getAuthErrorMessage, syncUserShop } from "./authHelpers";
 import type { User, Session } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         const init = async () => {
             try {
-                const { data } = await supabase.auth.getSession();
+                const { data } = await supabaseAuth.auth.getSession();
                 setSession(data.session);
                 setUser(data.session?.user ?? null);
             } catch {
@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             password: string,
             rememberMe = false,
         ): Promise<string | null> => {
-            const { data, error } = await supabase.auth.signInWithPassword({
+            const { data, error } = await supabaseAuth.auth.signInWithPassword({
                 email: email.trim(),
                 password,
             });
@@ -138,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             shopName?: string;
             rememberMe?: boolean;
         }): Promise<string | null> => {
-            const { data, error } = await supabase.auth.signUp({
+            const { data, error } = await supabaseAuth.auth.signUp({
                 email: email.trim(),
                 password,
                 options: {
@@ -182,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ? "com.pharmaassist.app://callback" // Native Deep Link
             : `${window.location.origin}/`; // Web/PWA Root (Always include trailing slash)
 
-        const { error } = await supabase.auth.signInWithOAuth({
+        const { error } = await supabaseAuth.auth.signInWithOAuth({
             provider: "google",
             options: {
                 // Supabase strips hash fragments from redirectTo.
@@ -198,7 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // ─── Sign out ───────────────────────────────────────────────────────────
     const signOut = useCallback(async () => {
-        await supabase.auth.signOut();
+        await supabaseAuth.auth.signOut();
         localStorage.removeItem("currentShopId");
         localStorage.removeItem("medix_device_id");
         sessionStorage.removeItem("temporary_session");

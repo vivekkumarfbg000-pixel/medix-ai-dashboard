@@ -69,14 +69,40 @@ const FINAL_SUPABASE_URL = getFinalUrl();
 /** Exposed so the connectivity checker can ping the right base URL. */
 export const getSupabaseBaseUrl = () => SUPABASE_URL;
 
+// ─── Shared Auth Storage Key ─────────────────────────────────────────────────
+// Both clients MUST use the same storageKey so they share the session.
+// Using the project reference ensures stability regardless of proxy URL changes.
+const AUTH_STORAGE_KEY = 'sb-ykrqpxbbyfipjqhpaszf-auth-token';
+
+// ─── Main Client (DATA operations go through proxy for ISP bypass) ───────────
 export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-    // FIX BUG-2: Keep detectSessionInUrl FALSE.
-    // If true, it causes a known deadlock with manual exchangeCodeForSession
-    // in GoogleCallback.tsx. Our hash router prevents this from working reliably anyway.
+    storageKey: AUTH_STORAGE_KEY,
+    detectSessionInUrl: false,
+  },
+  db: { schema: 'public' },
+  global: {
+    headers: { 'x-application-name': 'medix-ai-dashboard' }
+  },
+});
+
+// ─── Auth Client (DIRECT to supabase.co — bypasses the proxy) ────────────────
+// Auth POST requests (signIn, setSession, exchangeCode) hang when routed through
+// the Cloudflare Worker proxy. The proxy works fine for GET requests (health check
+// passes at ~200ms) but POST requests to /auth/v1/token timeout.
+// 
+// This dedicated client connects DIRECTLY to ykrqpxbbyfipjqhpaszf.supabase.co
+// for all auth operations, completely eliminating the proxy bottleneck.
+// It shares the same storageKey as the main client so sessions are synchronized.
+export const supabaseAuth = createClient<Database>(SUPABASE_URL_RAW, SUPABASE_ANON_KEY, {
+  auth: {
+    storage: localStorage,
+    persistSession: true,
+    autoRefreshToken: false, // Only the main client handles token refresh
+    storageKey: AUTH_STORAGE_KEY,
     detectSessionInUrl: false,
   },
   db: { schema: 'public' },

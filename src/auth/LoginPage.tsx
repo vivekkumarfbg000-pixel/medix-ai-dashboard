@@ -11,7 +11,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "./useAuth";
 import { checkSupabaseConnectivity, type ConnectivityResult } from "./authHelpers";
-import { getSupabaseBaseUrl, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
+import { SUPABASE_URL_RAW, SUPABASE_ANON_KEY } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -51,7 +51,8 @@ export default function LoginPage() {
         let cancelled = false;
         const check = async () => {
             setIsCheckingConnection(true);
-            const result = await checkSupabaseConnectivity(getSupabaseBaseUrl(), SUPABASE_ANON_KEY);
+            // Check DIRECT Supabase URL since auth now bypasses the proxy
+            const result = await checkSupabaseConnectivity(SUPABASE_URL_RAW, SUPABASE_ANON_KEY);
             if (!cancelled) {
                 setConnectivity(result);
                 setIsCheckingConnection(false);
@@ -63,31 +64,15 @@ export default function LoginPage() {
 
     const retryConnection = async () => {
         setIsCheckingConnection(true);
-        const result = await checkSupabaseConnectivity(getSupabaseBaseUrl(), SUPABASE_ANON_KEY);
+        const result = await checkSupabaseConnectivity(SUPABASE_URL_RAW, SUPABASE_ANON_KEY);
         setConnectivity(result);
         setIsCheckingConnection(false);
         if (result.reachable) {
             toast.success("Connected to authentication server!");
         } else {
-            toast.error("Still unable to connect. Try using a VPN or the Bypass below.");
+            toast.error("Still unable to connect. Try using a VPN.");
         }
     };
-
-    const handleBypassProxy = () => {
-        console.warn("⚡ [Login] User requested proxy bypass.");
-        localStorage.setItem("medix_force_no_proxy", "true");
-        toast.info("Switched to Direct Connection. Reloading...", { icon: <Wifi /> });
-        setTimeout(() => window.location.reload(), 1000);
-    };
-
-    const handleRestoreProxy = () => {
-        console.warn("⚡ [Login] User restored proxy.");
-        localStorage.removeItem("medix_force_no_proxy");
-        toast.info("Restored Proxy Connection. Reloading...");
-        setTimeout(() => window.location.reload(), 1000);
-    };
-
-    const isProxyBypassed = localStorage.getItem("medix_force_no_proxy") === "true";
 
     // If already authenticated, redirect to dashboard
     if (user) {
@@ -251,27 +236,11 @@ export default function LoginPage() {
                         </div>
                     )}
                     {connectivity?.reachable && !isCheckingConnection && (
-                        <div className="mb-4 flex flex-col gap-2 rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/40 px-4 py-3 text-sm text-green-700 dark:text-green-300">
-                            <div className="flex items-center gap-2">
-                                <Wifi className="h-4 w-4 flex-shrink-0" />
-                                <span>Connected to server ({connectivity.latencyMs}ms)</span>
-                            </div>
+                        <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/40 px-4 py-3 text-sm text-green-700 dark:text-green-300">
+                            <Wifi className="h-4 w-4 flex-shrink-0" />
+                            <span>Connected to server ({connectivity.latencyMs}ms)</span>
                         </div>
                     )}
-
-                    {/* Always show the proxy bypass toggle as an advanced fallback explicitly */}
-                    <div className="mb-4 flex justify-end">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs border-orange-300 bg-orange-50/50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-300 hover:bg-orange-100"
-                            onClick={isProxyBypassed ? handleRestoreProxy : handleBypassProxy}
-                            title={isProxyBypassed ? "Restore to default connectivity settings" : "Try if your ISP is not blocking Supabase but the proxy is slow"}
-                        >
-                            <Wifi className="h-3 w-3 mr-1" />
-                            {isProxyBypassed ? "Restore Proxy" : "Bypass Proxy & Try Direct"}
-                        </Button>
-                    </div>
 
                     <Card className="border-0 shadow-lg">
                         <CardHeader className="space-y-1 pb-4">
