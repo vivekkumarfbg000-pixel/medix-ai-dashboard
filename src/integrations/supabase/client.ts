@@ -40,12 +40,22 @@ function getSupabaseUrl(): string {
 
 const SUPABASE_URL = getSupabaseUrl();
 
-// Failsafe: Provide a way to bypass proxy if specifically requested via URL param (for debugging)
+// ─── Proxy Management ────────────────────────────────────────────────────────
+// Add a way to toggle the proxy dynamically if it hangs
+let forceNoProxy = false;
+if (typeof window !== 'undefined') {
+  // Listen for a custom event to bypass proxy if a hang is detected elsewhere
+  window.addEventListener('medix_bypass_proxy', () => {
+    console.warn('⚡ [Supabase] Bypassing proxy via emergency event.');
+    forceNoProxy = true;
+  });
+}
+
 const getFinalUrl = () => {
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('no_proxy') === 'true') {
-      console.warn('⚠️ [Supabase] Failsafe: Bypassing proxy for direct connection.');
+    if (params.get('no_proxy') === 'true' || forceNoProxy) {
+      console.warn('⚠️ [Supabase] Failsafe: Connecting DIRECTLY to supabase.co');
       return SUPABASE_URL_RAW;
     }
   }
@@ -54,11 +64,10 @@ const getFinalUrl = () => {
   try {
     const urlObj = new URL(SUPABASE_URL);
     if (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') {
-      console.log('⚡ [Supabase] Client using URL:', SUPABASE_URL);
       return SUPABASE_URL;
     }
   } catch (e) {
-    console.warn('⚠️ [Supabase] Invalid Proxy URL generated, falling back to raw:', SUPABASE_URL);
+    console.warn('⚠️ [Supabase] Invalid Proxy URL, falling back to raw.');
   }
   
   return SUPABASE_URL_RAW;

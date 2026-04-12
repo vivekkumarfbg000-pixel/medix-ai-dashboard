@@ -28,99 +28,110 @@ export default function GoogleCallback() {
         processed.current = true;
 
         const handleCallback = async () => {
+            const startTime = Date.now();
+            console.log("🚦 [GoogleCallback] Verification started at:", new Date(startTime).toLocaleTimeString());
+
+            // 1. Setup Timeout Fallback (20 seconds)
+            const timeoutId = setTimeout(() => {
+                if (!processed.current) return; 
+                console.error("❌ [GoogleCallback] Global Timeout triggered after 20s");
+                setStatus("Verification timed out...");
+                toast.error("Authentication timed out. Your ISP or proxy might be slow. Try using a VPN.");
+                navigate("/login", { replace: true });
+            }, 20000);
+
+            // 1b. Setup Emergency Proxy Bypass (8 seconds)
+            const bypassId = setTimeout(() => {
+                if (!processed.current) return;
+                console.warn("⚠️ [GoogleCallback] Hang detected. Attempting emergency proxy bypass...");
+                window.dispatchEvent(new CustomEvent('medix_bypass_proxy'));
+                setStatus("Still working: Attempting direct connection fallback...");
+            }, 8000);
+
+            const clearAuthTimeout = () => {
+                clearTimeout(timeoutId);
+                clearTimeout(bypassId);
+            };
+
             try {
-                // 1. Check for PKCE flow tokens (query parameters like ?code=)
+                // 2. Extract Tokens (Check ALL possible locations)
+                setStatus("Step 1/3: Parsing security tokens...");
+                
+                // PKCE Search Params
                 const queryParams = new URLSearchParams(location.search);
                 const pkceCode = queryParams.get("code");
                 const pkceError = queryParams.get("error");
 
-                // 2. Fallback to Implicit flow tokens (hash fragments like #access_token=)
+                // Implicit Hash Params (using helper for double-hash handling)
                 const hashParams = extractTokensFromHash();
                 const hashError = hashParams?.get("error");
 
-                const hasError = pkceError || hashError;
-                
-                console.log("🔍 [GoogleCallback] PKCE Code:", pkceCode ? "Found" : "None");
-                console.log("🔍 [GoogleCallback] PHASH:", hashParams ? "Found" : "None");
-                if (hasError) console.error("❌ [GoogleCallback] Auth Error:", pkceError || hashError);
+                // Fallback: Check if Search Params are stuck INSIDE the location search (HashRouter quirks)
+                const combinedParams = new URLSearchParams(window.location.search || location.search);
+                const finalCode = pkceCode || combinedParams.get("code");
 
-                // --- 2. Add Timeout Protection ---
-                const timeoutId = setTimeout(() => {
-                    if (!processed.current) return; // Should not happen but safety first
-                    setStatus("Authentication timed out...");
-                    toast.error("Authentication timed out. Your connection might be slow or blocked.");
-                    navigate("/login", { replace: true });
-                }, 15000); // 15 seconds max
+                console.log("🔍 [GoogleCallback] Tokens — PKCE:", finalCode ? "YES" : "NO", "| Hash:", hashParams ? "YES" : "NO");
 
-                const clearAuthTimeout = () => clearTimeout(timeoutId);
-
-                if (hasError) {
+                if (pkceError || hashError) {
                     clearAuthTimeout();
-                    const desc =
-                        queryParams.get("error_description")?.replace(/\+/g, " ") ||
-                        hashParams?.get("error_description")?.replace(/\+/g, " ") ||
-                        "Verification failed";
-                    toast.error(desc);
-                    window.history.replaceState(null, "", window.location.pathname + "#/login");
+                    const desc = pkceError || hashError || "Authorization failed";
+                    console.error("❌ [GoogleCallback] OAuth Error:", desc);
+                    toast.error(`Auth Error: ${desc}`);
                     navigate("/login", { replace: true });
                     return;
                 }
 
-                if (pkceCode) {
-                    setStatus("Setting up session via secure code...");
-                    const { error } = await supabase.auth.exchangeCodeForSession(pkceCode);
-                    clearAuthTimeout();
-
-                    if (!error) {
-                        const { data: { user } } = await supabase.auth.getUser();
-                        if (user) await syncUserShop(user.id);
-                        toast.success("Login verified!");
-                        navigate("/dashboard", { replace: true });
-                        return;
-                    } else {
-                        console.error("❌ [GoogleCallback] PKCE Error:", error);
-                        toast.error(error.message || "Session verification failed.");
-                    }
+                // 3. Establish Session
+                setStatus("Step 2/3: Establishing secure session...");
+                
+                if (finalCode) {
+                    console.log("⚡ [GoogleCallback] Exchanging PKCE code...");
+                    const { error } = await supabase.auth.exchangeCodeForSession(finalCode);
+                    if (error) throw error;
                 } else if (hashParams) {
                     const accessToken = hashParams.get("access_token");
                     const refreshToken = hashParams.get("refresh_token");
-
                     if (accessToken && refreshToken) {
-                        setStatus("Setting up session...");
+                        console.log("⚡ [GoogleCallback] Setting implicit session...");
                         const { error } = await supabase.auth.setSession({
                             access_token: accessToken,
                             refresh_token: refreshToken,
                         });
-                        clearAuthTimeout();
-
-                        if (!error) {
-                            const { data: { user } } = await supabase.auth.getUser();
-                            if (user) await syncUserShop(user.id);
-                            toast.success("Login verified!");
-                            navigate("/dashboard", { replace: true });
-                            return;
-                        } else {
-                            console.error("❌ [GoogleCallback] Session Error:", error);
-                            toast.error(error.message || "Session setup failed.");
-                        }
+                        if (error) throw error;
                     }
                 }
 
-                // Fallback check
-                const { data: { session } } = await supabase.auth.getSession();
-                clearAuthTimeout();
+                // 4. Verify & Sync Profile
+                setStatus("Step 3/3: Synchronizing shop profile...");
                 
-                if (session?.user) {
-                    await syncUserShop(session.user.id);
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError) throw userError;
+
+                if (user) {
+                    console.log("⚡ [GoogleCallback] Fetching user shop link...");
+                    await syncUserShop(user.id);
+                    
+                    clearAuthTimeout();
+                    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+                    console.log(`✅ [GoogleCallback] Success! Total time: ${duration}s`);
+                    
+                    toast.success("Login verified successfully!");
                     navigate("/dashboard", { replace: true });
                 } else {
-                    setStatus("Authentication failed...");
-                    toast.error("Authentication failed. Please try again.");
-                    navigate("/login", { replace: true });
+                    throw new Error("No user found in session after verification.");
                 }
+
             } catch (err) {
-                console.error("[GoogleCallback] Critical Error:", err);
-                toast.error("Authentication error. Check your internet or try a VPN.");
+                clearAuthTimeout();
+                console.error("❌ [GoogleCallback] Critical Failure:", err);
+                
+                const errMsg = (err as Error).message || "Unknown auth error";
+                if (errMsg.includes("401") || errMsg.includes("Unauthorized")) {
+                    toast.error("Security session expired or API key invalid. Please login again.");
+                } else {
+                    toast.error("Connection failed. Your ISP may be blocking the session. Try a VPN.");
+                }
+                
                 navigate("/login", { replace: true });
             }
         };
