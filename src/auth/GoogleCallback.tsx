@@ -106,11 +106,10 @@ export default function GoogleCallback() {
                 if (user) {
                     console.log("⚡ [GoogleCallback] Session established! Navigating to dashboard...");
                     
-                    // Fire-and-forget: don't block navigation on shop sync.
-                    // useUserShops hook in dashboard will retry if this fails.
-                    syncUserShop(user.id).catch(err => 
-                        console.warn("⚠️ [GoogleCallback] Shop sync deferred:", err)
-                    );
+                    // We MUST await this. The DB trigger needs time to create the user's
+                    // default shop. If we navigate before this finishes, useUserShops will
+                    // fetch an empty shop list, causing the 'No Shop Selected' crash.
+                    await syncUserShop(user.id);
                     
                     clearAuthTimeout();
                     const duration = ((Date.now() - startTime) / 1000).toFixed(1);

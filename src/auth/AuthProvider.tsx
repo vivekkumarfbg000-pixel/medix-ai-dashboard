@@ -118,6 +118,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 sessionStorage.removeItem("temporary_session");
             }
 
+            // GUARANTEE SHOP SYNC BEFORE RETURNING
+            if (data?.user) {
+                await syncUserShop(data.user.id);
+            }
+
             return null; // success
         },
         [],
