@@ -81,7 +81,17 @@ export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON
   },
   db: { schema: 'public' },
   global: {
-    headers: { 'x-application-name': 'medix-ai-dashboard' }
+    headers: { 'x-application-name': 'medix-ai-dashboard' },
+    fetch: (url, options) => {
+      // FIX BUG-5: Add a global 15-second timeout to ALL Supabase requests.
+      // This prevents the UI from hanging forever (e.g. on "Signing in...")
+      // if the user's ISP drops connections to the proxy or supabase.co silently.
+      const timeoutMatch = options?.signal ? undefined : AbortSignal.timeout(15000);
+      return fetch(url, {
+        ...options,
+        signal: options?.signal || timeoutMatch
+      });
+    }
   },
 });
 

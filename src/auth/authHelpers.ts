@@ -164,6 +164,38 @@ export const syncUserShop = async (userId: string, maxRetries = 3): Promise<stri
         }
     }
 
-    console.warn("⚠️ [AuthHelpers] All shop sync retries exhausted.");
+    console.warn("⚠️ [AuthHelpers] All shop sync retries exhausted. Attempting client-side fallback provisioning...");
+    
+    try {
+        // FALLBACK: Auto-provision shop if trigger failed or user is legacy
+        const { data: userProfile } = await supabase.from('profiles').select('full_name, email').eq('user_id', userId).maybeSingle();
+        const fallbackName = userProfile?.full_name ? `${userProfile.full_name}'s Pharmacy` : "My Medical Shop";
+
+        console.log(`[AuthHelpers] Creating fallback shop: ${fallbackName}`);
+        
+        // 1. Create Shop
+        const { data: newShop, error: createErr } = await supabase
+            .from("shops")
+            .insert({ name: fallbackName, owner_id: userId })
+            .select("id")
+            .single();
+
+        if (newShop?.id && !createErr) {
+            // 2. Link Profile
+            await supabase.from("profiles").upsert({ user_id: userId, shop_id: newShop.id, role: 'owner' });
+            
+            // 3. Link User Shops (Junction)
+            await supabase.from("user_shops").insert({ user_id: userId, shop_id: newShop.id, is_primary: true });
+
+            localStorage.setItem("currentShopId", newShop.id);
+            window.dispatchEvent(new CustomEvent("medix_shop_sync", { detail: { shopId: newShop.id } }));
+            
+            console.log(`✅ [AuthHelpers] Fallback shop provisioned automatically:`, newShop.id);
+            return newShop.id;
+        }
+    } catch (fallbackErr) {
+        console.error("❌ [AuthHelpers] Fallback provisioning failed:", fallbackErr);
+    }
+
     return null;
 };
