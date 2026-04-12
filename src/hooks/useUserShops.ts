@@ -126,10 +126,11 @@ export function useUserShops(): UserShopsState {
         let mappedShops: Shop[] = [];
 
         if (userShops && userShops.length > 0) {
-          const validShops = userShops.filter((us: any) => us && us.shops);
-          mappedShops = validShops.map((us: any) => ({
-            id: us.shops?.id,
-            name: us.shops?.name || "Unknown Shop",
+          // FIX BUG-6: If RLS blocks reading the 'shops' table (e.g. for Staff users),
+          // us.shops will be null. DO NOT filter out the mapping, use us.shop_id instead!
+          mappedShops = userShops.map((us: any) => ({
+            id: us.shops?.id || us.shop_id,
+            name: us.shops?.name || "Assigned Pharmacy",
             address: us.shops?.address,
             phone: us.shops?.phone || null,
             gst_no: us.shops?.gst_no || null,
