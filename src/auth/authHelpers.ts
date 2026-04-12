@@ -143,6 +143,16 @@ export const syncUserShop = async (userId: string, maxRetries = 3): Promise<stri
                 if (shopId) {
                     localStorage.setItem("currentShopId", shopId);
                     
+                    // Prime shops cache for faster dashboard load
+                    const { data: fullShops } = await supabase.from('shops').select('id, name').in('id', userShops.map(s => s.shop_id));
+                    if (fullShops) {
+                        const mapped = userShops.map(us => {
+                             const s = fullShops.find(fs => fs.id === us.shop_id);
+                             return { id: us.shop_id, name: s?.name || "My Pharmacy", is_primary: us.is_primary };
+                        });
+                        localStorage.setItem("medix_cached_shops", JSON.stringify(mapped));
+                    }
+
                     // DISPATCH CUSTOM EVENT for same-window reactivity
                     window.dispatchEvent(new CustomEvent("medix_shop_sync", { detail: { shopId } }));
                     

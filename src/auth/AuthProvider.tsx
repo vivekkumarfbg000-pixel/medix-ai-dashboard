@@ -205,6 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signOut = useCallback(async () => {
         await supabase.auth.signOut();
         localStorage.removeItem("currentShopId");
+        localStorage.removeItem("medix_cached_shops");
         localStorage.removeItem("medix_device_id");
         sessionStorage.removeItem("temporary_session");
     }, []);

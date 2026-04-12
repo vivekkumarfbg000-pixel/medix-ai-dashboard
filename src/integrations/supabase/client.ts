@@ -93,7 +93,7 @@ export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON
       // Connectivity / Timeout logic
       // This prevents the UI from hanging forever (e.g. on "Signing in...")
       // if the user's ISP drops connections silently.
-      const timeoutMatch = options?.signal ? undefined : AbortSignal.timeout(15000);
+      const timeoutMatch = options?.signal ? undefined : AbortSignal.timeout(30000); // 30s timeout for slow proxies
       
       if (url.toString().includes('supabase-proxy')) {
           console.log(`📡 [Proxy Request] ${url.toString().split('?')[0]}`);

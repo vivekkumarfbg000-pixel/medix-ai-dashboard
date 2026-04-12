@@ -159,11 +159,9 @@ export function DashboardLayout() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // We wait for useUserShops to finish its initial resolution.
+    // With offline-first sync, useUserShops loads from cache instantly.
+    // We only wait for the hook if it's truly empty and fetching for the first time.
     if (!shopsLoading) {
-      // If we are done loading but still have no currentShopId,
-      // it might be because the state hasn't finished propagating from useUserShops.
-      // We give it one more tiny tick before showing the dashboard.
       setLoading(false);
     }
   }, [shopsLoading]);
