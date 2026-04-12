@@ -185,12 +185,12 @@ export const syncUserShop = async (userId: string, maxRetries = 3): Promise<stri
                 
                 // 2. Link Profile
                 const { error: profileErr } = await supabase.from("profiles").upsert({ user_id: userId, shop_id: newShop.id, role: 'owner' });
-                if (profileErr) console.error("❌ [AuthHelpers] Fallback profile link failed:", profileErr);
+                if (profileErr) console.error("❌ [AuthHelpers] Fallback profile link failed:", profileErr.code, profileErr.message, profileErr);
                 
                 // 3. Link User Shops (Junction)
                 const { error: junctionErr } = await supabase.from("user_shops").insert({ user_id: userId, shop_id: newShop.id, is_primary: true });
                 if (junctionErr) {
-                    console.error("❌ [AuthHelpers] Fallback junction link failed (Check RLS!):", junctionErr);
+                    console.error("❌ [AuthHelpers] Fallback junction link failed (Check RLS!):", junctionErr.code, junctionErr.message, junctionErr);
                 } else {
                     console.log(`✅ [AuthHelpers] Fallback junction link success`);
                 }
@@ -202,7 +202,7 @@ export const syncUserShop = async (userId: string, maxRetries = 3): Promise<stri
                 console.log(`✅ [AuthHelpers] Fallback shop provisioned automatically:`, newShop.id);
                 return newShop.id;
             } else if (createErr) {
-                console.error("❌ [AuthHelpers] Fallback shop creation failed (Check RLS!):", createErr);
+                console.error("❌ [AuthHelpers] Fallback shop creation failed (Check RLS!):", createErr.code, createErr.message, createErr);
             }
         } catch (fallbackErr) {
             console.error("❌ [AuthHelpers] Fallback provisioning exception:", fallbackErr);
