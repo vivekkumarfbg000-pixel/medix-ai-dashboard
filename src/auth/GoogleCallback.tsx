@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { supabase, supabaseAuth } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 import { extractTokensFromHash, syncUserShop } from "./authHelpers";
 import { toast } from "sonner";
 
@@ -76,15 +76,15 @@ export default function GoogleCallback() {
                 setStatus("Step 2/3: Establishing secure session...");
                 
                 if (finalCode) {
-                    console.log("⚡ [GoogleCallback] Exchanging PKCE code via DIRECT connection...");
-                    const { error } = await supabaseAuth.auth.exchangeCodeForSession(finalCode);
+                    console.log("⚡ [GoogleCallback] Exchanging PKCE code...");
+                    const { error } = await supabase.auth.exchangeCodeForSession(finalCode);
                     if (error) throw error;
                 } else if (hashParams) {
                     const accessToken = hashParams.get("access_token");
                     const refreshToken = hashParams.get("refresh_token");
                     if (accessToken && refreshToken) {
-                        console.log("⚡ [GoogleCallback] Setting implicit session via DIRECT connection...");
-                        const { error } = await supabaseAuth.auth.setSession({
+                        console.log("⚡ [GoogleCallback] Setting implicit session...");
+                        const { error } = await supabase.auth.setSession({
                             access_token: accessToken,
                             refresh_token: refreshToken,
                         });
@@ -99,16 +99,12 @@ export default function GoogleCallback() {
                 // getSession() reads the locally-cached session token — zero network calls.
                 setStatus("Step 3/3: Synchronizing shop profile...");
                 
-                const { data: { session: currentSession }, error: sessionError } = await supabaseAuth.auth.getSession();
+                const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
                 if (sessionError) throw sessionError;
                 const user = currentSession?.user ?? null;
 
                 if (user) {
-                    console.log("⚡ [GoogleCallback] Session established! Navigating to dashboard...");
-                    
-                    // We MUST await this. The DB trigger needs time to create the user's
-                    // default shop. If we navigate before this finishes, useUserShops will
-                    // fetch an empty shop list, causing the 'No Shop Selected' crash.
+                    console.log("⚡ [GoogleCallback] Fetching user shop link...");
                     await syncUserShop(user.id);
                     
                     clearAuthTimeout();
