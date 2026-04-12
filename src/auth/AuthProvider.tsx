@@ -110,11 +110,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             if (error) return getAuthErrorMessage(error);
 
-            // AUTO-PROVISIONING is handled securely by Postgres trigger
-            if (data?.user) {
-                await syncUserShop(data.user.id);
-            }
-
             // "Remember me" logic — mark session as temporary so DashboardLayout
             // can wipe localStorage on browser close for shared-computer safety.
             if (!rememberMe) {

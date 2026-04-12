@@ -190,16 +190,20 @@ const Inventory = () => {
 
   // fetchStaging removed
 
+  const shopResolveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (currentShopId) {
+      if (shopResolveTimerRef.current) clearTimeout(shopResolveTimerRef.current);
       setLoading(true);
       fetchInventory();
     } else {
-      // Only set loading false if we really don't have an ID (and not just waiting for async)
-      // If currentShopId is from localStorage, it's instant.
-      if (!localStorage.getItem("currentShopId")) {
-        setLoading(false);
-      }
+      setLoading(true);
+      shopResolveTimerRef.current = setTimeout(() => {
+        if (!localStorage.getItem("currentShopId")) {
+          setLoading(false);
+        }
+      }, 5000);
     }
 
     const channel = supabase
@@ -207,7 +211,10 @@ const Inventory = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, fetchInventory)
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => { 
+      supabase.removeChannel(channel); 
+      if (shopResolveTimerRef.current) clearTimeout(shopResolveTimerRef.current);
+    };
   }, [currentShopId]);
 
   const getExpiryStatus = (expiryDate: string | null) => {

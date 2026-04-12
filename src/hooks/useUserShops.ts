@@ -1,4 +1,14 @@
-import { useEffect, useState } from "react";
+/**
+ * useUserShops — Resolves the current user's shops and active shop ID.
+ *
+ * FIX LOG (2026-04-12):
+ *  - Bug B: Removed duplicate syncUserShop call pattern (now only in AuthProvider onAuthStateChange)
+ *  - Bug C: Fixed stale closure in medix_shop_sync event listener by using useRef
+ *  - Bug D: Removed `currentShopId` from fetchShops dependency array — it only re-fetches on user change
+ *  - Bug F: Replaced window.location.reload() in switchShop with event dispatch
+ */
+
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/auth/useAuth";
 
@@ -15,7 +25,7 @@ interface Shop {
 interface UserShopsState {
   shops: Shop[];
   currentShop: Shop | null;
-  currentShopId: string | null; // NEW: Expose ID directly for fast loading
+  currentShopId: string | null;
   loading: boolean;
   switchShop: (shopId: string) => void;
 }
@@ -28,43 +38,61 @@ export function useUserShops(): UserShopsState {
   });
   const [loading, setLoading] = useState(true);
 
-  // Synchronization with other tabs and immediate auth syncs
+  // FIX C: Use a ref to hold the latest currentShopId so event listeners
+  // never capture a stale closure value. The listener effect runs ONCE (empty deps).
+  const currentShopIdRef = useRef<string | null>(currentShopId);
   useEffect(() => {
+    currentShopIdRef.current = currentShopId;
+  }, [currentShopId]);
+
+  // FIX C: Register event listeners ONCE with empty dependency array.
+  // Use ref for current value comparison to avoid stale closures.
+  useEffect(() => {
+    // Cross-tab sync via storage event
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "currentShopId" && e.newValue !== currentShopId) {
+      if (e.key === "currentShopId" && e.newValue !== currentShopIdRef.current) {
+        console.log("🏪 [useUserShops] Storage sync received:", e.newValue);
         setCurrentShopId(e.newValue);
       }
     };
-    
-    // CUSTOM EVENT: Handle same-window sync (e.g. from syncUserShop)
+
+    // Same-window sync via custom event (dispatched by syncUserShop in authHelpers)
     const handleCustomSync = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.shopId && detail.shopId !== currentShopId) {
+      const detail = (e as CustomEvent<{ shopId: string }>).detail;
+      if (detail?.shopId && detail.shopId !== currentShopIdRef.current) {
+        console.log("🏪 [useUserShops] Custom sync event received:", detail.shopId);
         setCurrentShopId(detail.shopId);
       }
     };
 
     window.addEventListener("storage", handleStorageChange);
     window.addEventListener("medix_shop_sync", handleCustomSync);
-    
+
     return () => {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("medix_shop_sync", handleCustomSync);
     };
-  }, [currentShopId]);
+  }, []); // ✅ FIX C: Empty deps — listener registered once, ref handles current value
 
+  // FIX D: fetchShops ONLY re-runs when the user identity changes (login/logout).
+  // It does NOT depend on currentShopId, preventing the race condition loop.
   useEffect(() => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
     async function fetchShops() {
+      console.log("🏪 [useUserShops] fetchShops triggered for user:", user!.id);
       try {
-        // OPTIMIZATION: getSession is cached locally, getUser always hits network
+        // OPTIMIZATION: getSession is cached locally, avoids a network call
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) {
           setLoading(false);
           return;
         }
-        const user = session.user;
 
-        // OPTIMIZATION: Single efficient query for shop details through the junction table
+        // Single efficient query through the junction table
         const { data: userShops, error } = await supabase
           .from("user_shops")
           .select(`
@@ -79,10 +107,10 @@ export function useUserShops(): UserShopsState {
               dl_number
             )
           `)
-          .eq("user_id", user.id);
+          .eq("user_id", session.user.id);
 
         if (error) {
-          console.error("Error fetching shops:", error);
+          console.error("❌ [useUserShops] Error fetching shops:", error);
           throw error;
         }
 
@@ -98,45 +126,53 @@ export function useUserShops(): UserShopsState {
             gst_no: us.shops?.gst_no || null,
             dl_number: us.shops?.dl_number || null,
             is_primary: us.is_primary,
-          })).filter(shop => shop.id);
+          })).filter((shop: Shop) => shop.id);
         }
-
-        // REMOVED REDUNDANT FALLBACK: The user_shops table is the source of truth. 
-        // If it's empty, the user has no shops. Profile fallback is legacy and slow.
 
         if (mappedShops.length > 0) {
           setShops(mappedShops);
 
-          // Smart Selection: LocalStorage -> Primary -> First
+          // Smart Selection: LocalStorage → Primary → First
+          // Read ref directly to avoid stale state at the time this async fn resolves
           const savedShopId = localStorage.getItem("currentShopId");
           const isValidSaved = savedShopId && mappedShops.some(s => s.id === savedShopId);
 
           if (!isValidSaved) {
-            const defaultShopId = mappedShops.find(s => s.is_primary)?.id || mappedShops[0]?.id;
+            const defaultShopId =
+              mappedShops.find(s => s.is_primary)?.id || mappedShops[0]?.id;
             if (defaultShopId) {
-              setCurrentShopId(defaultShopId);
+              console.log("🏪 [useUserShops] Setting default shop:", defaultShopId);
               localStorage.setItem("currentShopId", defaultShopId);
+              setCurrentShopId(defaultShopId);
             }
-          } else if (savedShopId !== currentShopId) {
-            // Update local state if localStorage has it but our state doesn't
+          } else if (savedShopId !== currentShopIdRef.current) {
+            // Sync state to localStorage if they diverged
             setCurrentShopId(savedShopId);
           }
+
+          console.log(`✅ [useUserShops] Loaded ${mappedShops.length} shop(s)`);
+        } else {
+          console.warn("⚠️ [useUserShops] No shops found for user:", user!.id);
         }
       } catch (err) {
-        console.error("Shop Load Error:", err);
+        console.error("❌ [useUserShops] Shop Load Error:", err);
       } finally {
         setLoading(false);
       }
     }
 
     fetchShops();
-  }, [user?.id, currentShopId]); // Re-fetch if user changes or shop ID is updated/synced
+  }, [user?.id]); // ✅ FIX D: ONLY user.id — no currentShopId dependency
 
+  // FIX F: No more window.location.reload(). Use reactive state + event dispatch.
   const switchShop = (shopId: string) => {
-    setCurrentShopId(shopId);
+    console.log("🔄 [useUserShops] Switching shop to:", shopId);
     localStorage.setItem("currentShopId", shopId);
-    // Force a full app sync to update all isolated components instantly
-    window.location.reload();
+    setCurrentShopId(shopId);
+    // Notify all other components using useUserShops in the same window
+    window.dispatchEvent(
+      new CustomEvent("medix_shop_sync", { detail: { shopId } })
+    );
   };
 
   const currentShop = shops.find((s) => s.id === currentShopId) || null;
