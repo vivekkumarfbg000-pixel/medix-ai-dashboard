@@ -1,6 +1,18 @@
 -- FIX: Allow Staff/Team members to view the shop details for shops they are assigned to.
 -- Current policy 'Users can view their own shop' only checks owner_id, which blocks staff.
 
+-- Ensure helper function exists (self-contained fix)
+CREATE OR REPLACE FUNCTION public.is_shop_member(p_shop_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.user_shops 
+        WHERE user_id = auth.uid() 
+        AND shop_id = p_shop_id
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 DO $$ 
 BEGIN
     -- 1. Drop the restrictive owner-only policy
