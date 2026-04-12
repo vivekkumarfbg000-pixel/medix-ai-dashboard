@@ -37,6 +37,7 @@ export function useUserShops(): UserShopsState {
     return localStorage.getItem("currentShopId");
   });
   const [loading, setLoading] = useState(true);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   // FIX C: Use a ref to hold the latest currentShopId so event listeners
   // never capture a stale closure value. The listener effect runs ONCE (empty deps).
@@ -45,34 +46,42 @@ export function useUserShops(): UserShopsState {
     currentShopIdRef.current = currentShopId;
   }, [currentShopId]);
 
-  // FIX C: Register event listeners ONCE with empty dependency array.
-  // Use ref for current value comparison to avoid stale closures.
-  useEffect(() => {
-    // Cross-tab sync via storage event
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "currentShopId" && e.newValue !== currentShopIdRef.current) {
-        console.log("🏪 [useUserShops] Storage sync received:", e.newValue);
-        setCurrentShopId(e.newValue);
-      }
-    };
+    // FIX C: Register event listeners ONCE with empty dependency array.
+    // Use ref for current value comparison to avoid stale closures.
+    useEffect(() => {
+        // Cross-tab sync via storage event
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === "currentShopId" && e.newValue !== currentShopIdRef.current) {
+                console.log("🏪 [useUserShops] Storage sync received:", e.newValue);
+                setCurrentShopId(e.newValue);
+            }
+        };
 
-    // Same-window sync via custom event (dispatched by syncUserShop in authHelpers)
-    const handleCustomSync = (e: Event) => {
-      const detail = (e as CustomEvent<{ shopId: string }>).detail;
-      if (detail?.shopId && detail.shopId !== currentShopIdRef.current) {
-        console.log("🏪 [useUserShops] Custom sync event received:", detail.shopId);
-        setCurrentShopId(detail.shopId);
-      }
-    };
+        // Same-window sync via custom event (dispatched by syncUserShop in authHelpers)
+        const handleCustomSync = (e: Event) => {
+            const detail = (e as CustomEvent<{ shopId: string }>).detail;
+            if (detail?.shopId && detail.shopId !== currentShopIdRef.current) {
+                console.log("🏪 [useUserShops] Custom sync event received:", detail.shopId);
+                setCurrentShopId(detail.shopId);
+                // We MUST force a re-fetch of the shops array, because if this event fired,
+                // it means a new shop was just created in the DB by the auth trigger!
+                // We emit another custom event to trigger the other useEffect to run.
+                window.dispatchEvent(new CustomEvent("medix_shop_refetch"));
+            }
+        };
 
-    window.addEventListener("storage", handleStorageChange);
-    window.addEventListener("medix_shop_sync", handleCustomSync);
+        const handleRefetch = () => setRefetchTrigger(prev => prev + 1);
 
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("medix_shop_sync", handleCustomSync);
-    };
-  }, []); // ✅ FIX C: Empty deps — listener registered once, ref handles current value
+        window.addEventListener("storage", handleStorageChange);
+        window.addEventListener("medix_shop_sync", handleCustomSync);
+        window.addEventListener("medix_shop_refetch", handleRefetch);
+
+        return () => {
+            window.removeEventListener("storage", handleStorageChange);
+            window.removeEventListener("medix_shop_sync", handleCustomSync);
+            window.removeEventListener("medix_shop_refetch", handleRefetch);
+        };
+    }, []); // ✅ FIX C: Empty deps — listener registered once, ref handles current value
 
   // FIX D: fetchShops ONLY re-runs when the user identity changes (login/logout).
   // It does NOT depend on currentShopId, preventing the race condition loop.
@@ -162,7 +171,7 @@ export function useUserShops(): UserShopsState {
     }
 
     fetchShops();
-  }, [user?.id]); // ✅ FIX D: ONLY user.id — no currentShopId dependency
+  }, [user?.id, refetchTrigger]); // ✅ FIX D: Re-run on user change or explicit refetch trigger
 
   // FIX F: No more window.location.reload(). Use reactive state + event dispatch.
   const switchShop = (shopId: string) => {
