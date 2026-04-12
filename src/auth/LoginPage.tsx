@@ -69,8 +69,15 @@ export default function LoginPage() {
         if (result.reachable) {
             toast.success("Connected to authentication server!");
         } else {
-            toast.error("Still unable to connect. Try using a VPN.");
+            toast.error("Still unable to connect. Try using a VPN or the Bypass below.");
         }
+    };
+
+    const handleBypassProxy = () => {
+        console.warn("⚡ [Login] User requested proxy bypass.");
+        window.dispatchEvent(new CustomEvent("medix_bypass_proxy"));
+        toast.info("Switched to Direct Connection. Retrying...", { icon: <Wifi /> });
+        setTimeout(() => retryConnection(), 500);
     };
 
     // If already authenticated, redirect to dashboard
@@ -220,15 +227,28 @@ export default function LoginPage() {
                                 Your ISP may be blocking the service. Try using a <strong>VPN</strong> or
                                 switching to a <strong>mobile hotspot</strong>.
                             </p>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 text-xs border-red-300 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/40"
-                                onClick={retryConnection}
-                            >
-                                <RefreshCw className="h-3 w-3 mr-1" />
-                                Retry Connection
-                            </Button>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs border-red-300 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/40"
+                                    onClick={retryConnection}
+                                    disabled={isCheckingConnection}
+                                >
+                                    <RefreshCw className={`h-3 w-3 mr-1 ${isCheckingConnection ? 'animate-spin' : ''}`} />
+                                    Retry Connection
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs border-orange-300 bg-orange-50/50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-300 hover:bg-orange-100"
+                                    onClick={handleBypassProxy}
+                                    title="Try if your ISP is not blocking Supabase but the proxy is slow"
+                                >
+                                    <Wifi className="h-3 w-3 mr-1" />
+                                    Bypass Proxy & Try Direct
+                                </Button>
+                            </div>
                         </div>
                     )}
                     {connectivity?.reachable && !isCheckingConnection && (

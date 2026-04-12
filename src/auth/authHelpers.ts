@@ -77,7 +77,7 @@ export const checkSupabaseConnectivity = async (
     const start = Date.now();
     try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
+        const timeout = setTimeout(() => controller.abort(), 16000); // Increased to 16s for slow proxies
 
         const headers: Record<string, string> = { Accept: "application/json" };
         if (apiKey) headers["apikey"] = apiKey;
@@ -106,7 +106,7 @@ export const checkSupabaseConnectivity = async (
             latencyMs: Date.now() - start,
             error:
                 err instanceof DOMException && err.name === "AbortError"
-                    ? "Connection timed out (ISP may be blocking Supabase)"
+                    ? `Connection timed out after ${Date.now() - start}ms. Your ISP or proxy might be slow.`
                     : (err as Error).message || "Network error",
         };
     }
