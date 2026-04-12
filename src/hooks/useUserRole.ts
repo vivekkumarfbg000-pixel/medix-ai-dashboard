@@ -28,9 +28,11 @@ export function useUserRole(shopId?: string | null): UserRoleState {
           return;
         }
 
-        // Unified Role Fetching: Check user_shops junction table
+        // FIX BUG-5: Roles are stored in `user_roles` table, NOT in `user_shops`.
+        // user_shops has: user_id, shop_id, is_primary — NO role column.
+        // user_roles has: user_id, shop_id, role — the correct source of truth.
         const { data: mapping, error } = await supabase
-          .from("user_shops")
+          .from("user_roles")
           .select("role")
           .eq("user_id", session.user.id)
           .eq("shop_id", shopId)

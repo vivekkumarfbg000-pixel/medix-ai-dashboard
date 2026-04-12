@@ -515,7 +515,7 @@ const LitePOS = () => {
 
             // REALTIME SUSCRIPTION
             const channel = supabase
-                .channel('pos-inventory-sync')
+                .channel(`pos-inventory-sync-${currentShop?.id}`)
                 .on(
                     'postgres_changes',
                     { event: '*', schema: 'public', table: 'inventory', filter: `shop_id=eq.${currentShop?.id}` },

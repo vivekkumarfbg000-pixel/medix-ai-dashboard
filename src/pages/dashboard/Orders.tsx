@@ -103,7 +103,7 @@ const Orders = () => {
 
       // Real-time subscription to automatically refresh when orders change
       const channel = supabase
-        .channel('orders-realtime')
+        .channel(`orders-realtime-${activeId}`)
         .on(
           'postgres_changes',
           {

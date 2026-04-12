@@ -12,8 +12,10 @@ import { whatsappService } from "@/services/whatsappService";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { CameraCapture } from "@/components/ui/camera-capture";
+import { useUserShops } from "@/hooks/useUserShops";
 
 const LabAnalyzer = () => {
+    const { currentShopId } = useUserShops();
     const [isDragging, setIsDragging] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [analyzing, setAnalyzing] = useState(false);
@@ -115,10 +117,18 @@ const LabAnalyzer = () => {
 
         setIsSaving(true);
         try {
+            // FIX: Use currentShopId from useUserShops (reactive, always correct).
+            // Previously used supabase.auth.getUser().user_metadata.shop_id which
+            // doesn't exist in metadata and always returned 'UNKNOWN'.
+            const activeShopId = currentShopId || localStorage.getItem('currentShopId');
+            if (!activeShopId) {
+                toast.error('No shop selected. Please configure your shop in Settings.');
+                setIsSaving(false);
+                return;
+            }
             // 1. Try to find patient by phone
             let patientId = null;
             let patientName = "Unknown";
-            const currentShopId = (await supabase.auth.getUser()).data.user?.user_metadata?.shop_id || 'UNKNOWN';
 
             const { data: customers } = await supabase.from('customers').select('id, name').eq('phone', patientPhone).limit(1);
 
@@ -130,7 +140,7 @@ const LabAnalyzer = () => {
                 // If patient doesn't exist, create a profiled one
                 toast.loading("New Patient detected. Creating record...");
                 const { data: newCust, error: createError } = await supabase.from('customers').insert({
-                    shop_id: currentShopId,
+                    shop_id: activeShopId,
                     name: report.patientName || "New Patient (Lab)", // Extracted from report if available
                     phone: patientPhone,
                     total_spent: 0,
@@ -146,7 +156,7 @@ const LabAnalyzer = () => {
             // 2. Insert Report
             // @ts-ignore: lab_reports table exists in DB but not yet in generated types
             const { error } = await supabase.from('lab_reports').insert({
-                shop_id: currentShopId,
+                shop_id: activeShopId,
                 patient_id: patientId,
                 patient_name: patientName,
                 summary_json: report,

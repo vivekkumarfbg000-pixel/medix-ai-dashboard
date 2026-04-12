@@ -83,7 +83,10 @@ export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false,
+    // FIX BUG-2: Set to true so the Supabase SDK auto-parses #access_token= or ?code=
+    // from the URL on implicit flow. App.tsx's hash rewriter handles PKCE flow.
+    // Previously set to false which broke implicit flow and required fragile manual parsing.
+    detectSessionInUrl: true,
   },
   db: { schema: 'public' },
   global: {

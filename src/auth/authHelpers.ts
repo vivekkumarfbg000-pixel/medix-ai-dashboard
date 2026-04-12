@@ -115,42 +115,55 @@ export const checkSupabaseConnectivity = async (
 // ─── Shop Synchronization ───────────────────────────────────────────────────
 /**
  * syncUserShop — Fetches the user's shops and ensures a valid shop_id is in localStorage.
- * This is critical for immediate sync after sign-in.
+ *
+ * FIX BUG-4: Added retry-with-backoff (max 3 attempts, 1s/2s/3s delays).
+ * Reason: For new Google OAuth users, the `handle_new_user` Postgres trigger may not
+ * have committed the `user_shops` row by the time this runs immediately after SIGNED_IN.
+ * Retrying gives the DB trigger time to complete before we give up.
  */
-export const syncUserShop = async (userId: string): Promise<string | null> => {
-    try {
-        console.log("🔄 [AuthHelpers] Synchronizing Shop ID for user:", userId);
-        
-        const { data: userShops, error } = await supabase
-            .from("user_shops")
-            .select("shop_id, is_primary")
-            .eq("user_id", userId);
-
-        if (error) {
-            console.error("❌ [AuthHelpers] Shop sync fetch error:", error);
-            return null;
-        }
-
-        if (userShops && userShops.length > 0) {
-            // Priority: Primary Shop -> First Shop
-            const primaryShop = userShops.find(s => s.is_primary) || userShops[0];
-            const shopId = primaryShop.shop_id;
+export const syncUserShop = async (userId: string, maxRetries = 3): Promise<string | null> => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            console.log(`🔄 [AuthHelpers] Synchronizing Shop ID for user: ${userId} (attempt ${attempt}/${maxRetries})`);
             
-            if (shopId) {
-                localStorage.setItem("currentShopId", shopId);
+            const { data: userShops, error } = await supabase
+                .from("user_shops")
+                .select("shop_id, is_primary")
+                .eq("user_id", userId);
+
+            if (error) {
+                console.error("❌ [AuthHelpers] Shop sync fetch error:", error);
+                // Don't retry on permission errors
+                if (error.code === 'PGRST301' || error.message?.includes('JWT')) return null;
+            } else if (userShops && userShops.length > 0) {
+                // Priority: Primary Shop -> First Shop
+                const primaryShop = userShops.find(s => s.is_primary) || userShops[0];
+                const shopId = primaryShop.shop_id;
                 
-                // DISPATCH CUSTOM EVENT for same-window reactivity
-                window.dispatchEvent(new CustomEvent("medix_shop_sync", { detail: { shopId } }));
-                
-                console.log("✅ [AuthHelpers] Shop ID synchronized and event dispatched:", shopId);
-                return shopId;
+                if (shopId) {
+                    localStorage.setItem("currentShopId", shopId);
+                    
+                    // DISPATCH CUSTOM EVENT for same-window reactivity
+                    window.dispatchEvent(new CustomEvent("medix_shop_sync", { detail: { shopId } }));
+                    
+                    console.log(`✅ [AuthHelpers] Shop ID synchronized on attempt ${attempt}:`, shopId);
+                    return shopId;
+                }
+            } else {
+                console.warn(`⚠️ [AuthHelpers] No shops found on attempt ${attempt} for user:`, userId);
             }
+        } catch (err) {
+            console.error(`❌ [AuthHelpers] Shop sync exception on attempt ${attempt}:`, err);
         }
-        
-        console.warn("⚠️ [AuthHelpers] No shops found for user during sync.");
-        return null;
-    } catch (err) {
-        console.error("❌ [AuthHelpers] Shop sync exception:", err);
-        return null;
+
+        // Wait before next retry (1s, 2s, 3s...)
+        if (attempt < maxRetries) {
+            const delay = attempt * 1000;
+            console.log(`⏳ [AuthHelpers] Retrying shop sync in ${delay}ms...`);
+            await new Promise(r => setTimeout(r, delay));
+        }
     }
+
+    console.warn("⚠️ [AuthHelpers] All shop sync retries exhausted.");
+    return null;
 };

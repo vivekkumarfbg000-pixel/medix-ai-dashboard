@@ -1,17 +1,14 @@
-/**
- * AuthGuard — Route protection wrapper.
- *
- * Checks authentication state from AuthProvider:
- *   - loading  → show spinner
- *   - no user  → redirect to /login
- *   - has user → render children (Outlet)
- */
-
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./useAuth";
 
 export function AuthGuard() {
     const { user, loading } = useAuth();
+    const location = useLocation();
+
+    // FIX BUG-3: If we are inside the auth callback flow, never redirect to /login.
+    // GoogleCallback needs time to exchange the PKCE code and establish the session.
+    // AuthProvider's getSession() returning null right now is expected — session isn't set yet.
+    const isOAuthCallback = location.pathname === "/auth/google";
 
     // Still resolving session — show a branded loading spinner
     if (loading) {
@@ -35,11 +32,11 @@ export function AuthGuard() {
         );
     }
 
-    // Not authenticated — redirect to login
-    if (!user) {
+    // Not authenticated — but don't redirect if we're handling an OAuth callback
+    if (!user && !isOAuthCallback) {
         return <Navigate to="/login" replace />;
     }
 
-    // Authenticated — render nested routes
+    // Authenticated (or mid-oauth-callback) — render nested routes
     return <Outlet />;
 }

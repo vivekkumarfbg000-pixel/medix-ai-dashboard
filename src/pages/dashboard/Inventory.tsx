@@ -207,7 +207,7 @@ const Inventory = () => {
     }
 
     const channel = supabase
-      .channel('inventory-updates')
+      .channel(`inventory-updates-${activeShopId || 'none'}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, fetchInventory)
       .subscribe();
 

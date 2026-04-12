@@ -102,10 +102,15 @@ export default function GoogleCallback() {
                 }
 
                 // 4. Verify & Sync Profile
+                // FIX BUG-1: Use getSession() instead of getUser().
+                // getUser() makes a live network call to /auth/v1/user through the PHP proxy,
+                // which can return 401 or hang if the proxy strips the Authorization header.
+                // getSession() reads the locally-cached session token — zero network calls.
                 setStatus("Step 3/3: Synchronizing shop profile...");
                 
-                const { data: { user }, error: userError } = await supabase.auth.getUser();
-                if (userError) throw userError;
+                const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+                if (sessionError) throw sessionError;
+                const user = currentSession?.user ?? null;
 
                 if (user) {
                     console.log("⚡ [GoogleCallback] Fetching user shop link...");
