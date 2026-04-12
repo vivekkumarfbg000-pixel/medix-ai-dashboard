@@ -160,10 +160,10 @@ export function DashboardLayout() {
 
   useEffect(() => {
     // We wait for useUserShops to finish its initial resolution.
-    // If it's done loading and we still don't have a shop ID, 
-    // it means the user truly has no shops yet (unlikely due to DB triggers),
-    // but we can proceed or handle it in the children.
     if (!shopsLoading) {
+      // If we are done loading but still have no currentShopId,
+      // it might be because the state hasn't finished propagating from useUserShops.
+      // We give it one more tiny tick before showing the dashboard.
       setLoading(false);
     }
   }, [shopsLoading]);

@@ -22,6 +22,12 @@ export default function GoogleCallback() {
     const location = useLocation();
     const processed = useRef(false);
     const [status, setStatus] = useState("Verifying login...");
+    const [showFailsafe, setShowFailsafe] = useState(false);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setShowFailsafe(true), 6000);
+        return () => clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         if (processed.current) return;
@@ -114,7 +120,15 @@ export default function GoogleCallback() {
                     toast.success("Login verified successfully!");
                     navigate("/dashboard", { replace: true });
                 } else {
-                    throw new Error("No user found in session after verification.");
+                    // One last check: even if session.user is null in the local state, 
+                    // maybe the session IS there but the state is lagging.
+                    const { data: { session: retrySession } } = await supabase.auth.getSession();
+                    if (retrySession?.user) {
+                        console.log("⚡ [GoogleCallback] Session found on retry. Proceeding.");
+                        navigate("/dashboard", { replace: true });
+                    } else {
+                        throw new Error("No user found in session after verification.");
+                    }
                 }
 
             } catch (err) {
@@ -148,6 +162,19 @@ export default function GoogleCallback() {
                 <p className="text-sm text-muted-foreground animate-pulse">
                     Please wait...
                 </p>
+                {showFailsafe && (
+                    <div className="mt-8 flex flex-col items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                        <p className="text-xs text-muted-foreground max-w-xs px-4">
+                            ISP or Proxy slow? If your login with Google was already successful, you can try entering the dashboard directly.
+                        </p>
+                        <button 
+                            onClick={() => navigate("/dashboard", { replace: true })}
+                            className="px-6 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-full text-sm font-medium transition-colors border border-primary/20"
+                        >
+                            Skip to Dashboard →
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

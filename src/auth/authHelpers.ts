@@ -188,11 +188,18 @@ export const syncUserShop = async (userId: string, maxRetries = 3): Promise<stri
                 if (profileErr) console.error("❌ [AuthHelpers] Fallback profile link failed:", profileErr.code, profileErr.message, profileErr);
                 
                 // 3. Link User Shops (Junction)
-                const { error: junctionErr } = await supabase.from("user_shops").insert({ user_id: userId, shop_id: newShop.id, is_primary: true });
-                if (junctionErr) {
-                    console.error("❌ [AuthHelpers] Fallback junction link failed (Check RLS!):", junctionErr.code, junctionErr.message, junctionErr);
+                // Check if already exists first (maybe trigger just finished)
+                const { data: existingLink } = await supabase.from("user_shops").select("shop_id").eq("user_id", userId).eq("shop_id", newShop.id).maybeSingle();
+                
+                if (!existingLink) {
+                    const { error: junctionErr } = await supabase.from("user_shops").insert({ user_id: userId, shop_id: newShop.id, is_primary: true });
+                    if (junctionErr) {
+                        console.error("❌ [AuthHelpers] Fallback junction link failed (Check RLS!):", junctionErr.code, junctionErr.message, junctionErr);
+                    } else {
+                        console.log(`✅ [AuthHelpers] Fallback junction link success`);
+                    }
                 } else {
-                    console.log(`✅ [AuthHelpers] Fallback junction link success`);
+                    console.log(`ℹ️ [AuthHelpers] Junction link already exists, skipping insert.`);
                 }
 
                 localStorage.setItem("currentShopId", newShop.id);
