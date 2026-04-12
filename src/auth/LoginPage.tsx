@@ -247,25 +247,31 @@ export default function LoginPage() {
                                     <RefreshCw className={`h-3 w-3 mr-1 ${isCheckingConnection ? 'animate-spin' : ''}`} />
                                     Retry Connection
                                 </Button>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 text-xs border-orange-300 bg-orange-50/50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-300 hover:bg-orange-100"
-                                    onClick={isProxyBypassed ? handleRestoreProxy : handleBypassProxy}
-                                    title={isProxyBypassed ? "Restore to default connectivity settings" : "Try if your ISP is not blocking Supabase but the proxy is slow"}
-                                >
-                                    <Wifi className="h-3 w-3 mr-1" />
-                                    {isProxyBypassed ? "Restore Proxy" : "Bypass Proxy & Try Direct"}
-                                </Button>
                             </div>
                         </div>
                     )}
                     {connectivity?.reachable && !isCheckingConnection && (
-                        <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/40 px-4 py-3 text-sm text-green-700 dark:text-green-300">
-                            <Wifi className="h-4 w-4 flex-shrink-0" />
-                            <span>Connected to server ({connectivity.latencyMs}ms)</span>
+                        <div className="mb-4 flex flex-col gap-2 rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/40 px-4 py-3 text-sm text-green-700 dark:text-green-300">
+                            <div className="flex items-center gap-2">
+                                <Wifi className="h-4 w-4 flex-shrink-0" />
+                                <span>Connected to server ({connectivity.latencyMs}ms)</span>
+                            </div>
                         </div>
                     )}
+
+                    {/* Always show the proxy bypass toggle as an advanced fallback explicitly */}
+                    <div className="mb-4 flex justify-end">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs border-orange-300 bg-orange-50/50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-300 hover:bg-orange-100"
+                            onClick={isProxyBypassed ? handleRestoreProxy : handleBypassProxy}
+                            title={isProxyBypassed ? "Restore to default connectivity settings" : "Try if your ISP is not blocking Supabase but the proxy is slow"}
+                        >
+                            <Wifi className="h-3 w-3 mr-1" />
+                            {isProxyBypassed ? "Restore Proxy" : "Bypass Proxy & Try Direct"}
+                        </Button>
+                    </div>
 
                     <Card className="border-0 shadow-lg">
                         <CardHeader className="space-y-1 pb-4">
