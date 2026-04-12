@@ -11,6 +11,7 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/auth/useAuth";
+import { toast } from "sonner";
 
 interface Shop {
   id: string;
@@ -177,10 +178,12 @@ export function useUserShops(): UserShopsState {
             // But only if we are SURE it's not a temporary error. 
             // For now, we keep the cache to be safe.
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("❌ [useUserShops] Shop Load Error (Background):", err);
-        // DO NOT set loading false on error if we already have cache.
-        // The finally block handles it for fresh/empty states anyway.
+        // If we don't have a cache, and the network timed out, let the user know.
+        if (!localStorage.getItem("medix_cached_shops")) {
+            toast.error("Network timeout. Your connection or proxy is unstable. Please refresh or use Bypass Proxy.", { duration: 10000 });
+        }
       } finally {
         setLoading(false);
       }

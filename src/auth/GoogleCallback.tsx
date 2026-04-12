@@ -33,12 +33,14 @@ export default function GoogleCallback() {
         if (processed.current) return;
         processed.current = true;
 
+        let authTimeoutId: ReturnType<typeof setTimeout>;
+
         const handleCallback = async () => {
             const startTime = Date.now();
             console.log("🚦 [GoogleCallback] Verification started at:", new Date(startTime).toLocaleTimeString());
 
             // 1. Setup Timeout Fallback (20 seconds)
-            const timeoutId = setTimeout(() => {
+            authTimeoutId = setTimeout(() => {
                 if (!processed.current) return; 
                 console.error("❌ [GoogleCallback] Global Timeout triggered after 20s");
                 setStatus("Verification timed out...");
@@ -47,7 +49,7 @@ export default function GoogleCallback() {
             }, 20000);
 
             const clearAuthTimeout = () => {
-                clearTimeout(timeoutId);
+                clearTimeout(authTimeoutId);
             };
 
             try {
@@ -147,6 +149,10 @@ export default function GoogleCallback() {
         };
 
         handleCallback();
+
+        return () => {
+            if (authTimeoutId) clearTimeout(authTimeoutId);
+        };
     }, [navigate, location.search]);
 
     return (
