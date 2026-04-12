@@ -41,92 +41,86 @@ export default function GoogleCallback() {
                 const hasError = pkceError || hashError;
                 
                 console.log("🔍 [GoogleCallback] PKCE Code:", pkceCode ? "Found" : "None");
-                console.log("🔍 [GoogleCallback] Hash Params:", hashParams ? "Found" : "None");
+                console.log("🔍 [GoogleCallback] PHASH:", hashParams ? "Found" : "None");
                 if (hasError) console.error("❌ [GoogleCallback] Auth Error:", pkceError || hashError);
 
+                // --- 2. Add Timeout Protection ---
+                const timeoutId = setTimeout(() => {
+                    if (!processed.current) return; // Should not happen but safety first
+                    setStatus("Authentication timed out...");
+                    toast.error("Authentication timed out. Your connection might be slow or blocked.");
+                    navigate("/login", { replace: true });
+                }, 15000); // 15 seconds max
+
+                const clearAuthTimeout = () => clearTimeout(timeoutId);
+
                 if (hasError) {
+                    clearAuthTimeout();
                     const desc =
                         queryParams.get("error_description")?.replace(/\+/g, " ") ||
                         hashParams?.get("error_description")?.replace(/\+/g, " ") ||
                         "Verification failed";
                     toast.error(desc);
-                    window.history.replaceState(
-                        null,
-                        "",
-                        window.location.pathname + "#/login",
-                    );
+                    window.history.replaceState(null, "", window.location.pathname + "#/login");
                     navigate("/login", { replace: true });
                     return;
                 }
 
                 if (pkceCode) {
-                    // PKCE Flow logic
                     setStatus("Setting up session via secure code...");
-
                     const { error } = await supabase.auth.exchangeCodeForSession(pkceCode);
-
-                    window.history.replaceState(
-                        null,
-                        "",
-                        window.location.pathname + "#/dashboard",
-                    );
+                    clearAuthTimeout();
 
                     if (!error) {
                         const { data: { user } } = await supabase.auth.getUser();
                         if (user) await syncUserShop(user.id);
-                        toast.success("Login verified successfully!");
+                        toast.success("Login verified!");
                         navigate("/dashboard", { replace: true });
                         return;
                     } else {
+                        console.error("❌ [GoogleCallback] PKCE Error:", error);
                         toast.error(error.message || "Session verification failed.");
                     }
                 } else if (hashParams) {
-                    // Implicit Flow logic
                     const accessToken = hashParams.get("access_token");
                     const refreshToken = hashParams.get("refresh_token");
 
                     if (accessToken && refreshToken) {
-                        setStatus("Setting up legacy session...");
-
+                        setStatus("Setting up session...");
                         const { error } = await supabase.auth.setSession({
                             access_token: accessToken,
                             refresh_token: refreshToken,
                         });
-
-                        // Clean tokens from the URL
-                        window.history.replaceState(
-                            null,
-                            "",
-                            window.location.pathname + "#/dashboard",
-                        );
+                        clearAuthTimeout();
 
                         if (!error) {
                             const { data: { user } } = await supabase.auth.getUser();
                             if (user) await syncUserShop(user.id);
-                            toast.success("Login verified successfully!");
+                            toast.success("Login verified!");
                             navigate("/dashboard", { replace: true });
                             return;
                         } else {
-                            toast.error(error.message || "Session verification failed.");
+                            console.error("❌ [GoogleCallback] Session Error:", error);
+                            toast.error(error.message || "Session setup failed.");
                         }
                     }
                 }
 
-                // No tokens found or session set failed — check for existing session
-                const {
-                    data: { session },
-                } = await supabase.auth.getSession();
+                // Fallback check
+                const { data: { session } } = await supabase.auth.getSession();
+                clearAuthTimeout();
+                
                 if (session?.user) {
                     await syncUserShop(session.user.id);
                     navigate("/dashboard", { replace: true });
                 } else {
-                    setStatus("No valid tokens found. Redirecting...");
+                    setStatus("Authentication failed...");
                     toast.error("Authentication failed. Please try again.");
                     navigate("/login", { replace: true });
                 }
             } catch (err) {
-                console.error("[GoogleCallback] Error:", err);
-                toast.error("Authentication error. Please try again.");
+                console.error("[GoogleCallback] Critical Error:", err);
+                toast.error("Authentication error. Check your internet or try a VPN.");
                 navigate("/login", { replace: true });
             }
         };

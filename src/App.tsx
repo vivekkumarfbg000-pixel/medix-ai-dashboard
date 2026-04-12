@@ -22,11 +22,12 @@ if (typeof window !== "undefined") {
 
   // Prioritize PKCE flow querying (?code=...)
   if (search && (search.includes("code=") || search.includes("error="))) {
-    const cleanPath = window.location.pathname.endsWith('/') 
-      ? window.location.pathname 
-      : window.location.pathname + '/';
+    // Normalize path to ensure it always targets the root hash route.
+    // In production, we want to stay at /#/auth/google even if the user
+    // was accidentally on /dashboard/ or another sub-path.
+    const cleanPath = "/";
       
-    console.warn("⚡ [OAuth] PKCE tokens detected. Forwarding to HashRouter internally.");
+    console.warn("⚡ [OAuth] PKCE tokens detected. Forwarding to HashRouter at root.");
     window.history.replaceState(
       null,
       "",
@@ -39,12 +40,10 @@ if (typeof window !== "undefined") {
     !hash.startsWith("#/") &&
     (hash.includes("access_token=") || hash.includes("error="))
   ) {
-    const cleanPath = window.location.pathname.endsWith('/') 
-      ? window.location.pathname 
-      : window.location.pathname + '/';
+    const cleanPath = "/";
 
     const tokens = hash.substring(1); // remove the first #
-    console.warn("⚡ [OAuth] Hash tokens detected. Forwarding to HashRouter internally.");
+    console.warn("⚡ [OAuth] Hash tokens detected. Forwarding to HashRouter at root.");
     window.history.replaceState(
       null,
       "",
