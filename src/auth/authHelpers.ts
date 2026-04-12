@@ -180,22 +180,33 @@ export const syncUserShop = async (userId: string, maxRetries = 3): Promise<stri
             .select("id")
             .single();
 
-        if (newShop?.id && !createErr) {
-            // 2. Link Profile
-            await supabase.from("profiles").upsert({ user_id: userId, shop_id: newShop.id, role: 'owner' });
-            
-            // 3. Link User Shops (Junction)
-            await supabase.from("user_shops").insert({ user_id: userId, shop_id: newShop.id, is_primary: true });
+            if (newShop?.id && !createErr) {
+                console.log(`[AuthHelpers] Fallback shop record created: ${newShop.id}. Linking...`);
+                
+                // 2. Link Profile
+                const { error: profileErr } = await supabase.from("profiles").upsert({ user_id: userId, shop_id: newShop.id, role: 'owner' });
+                if (profileErr) console.error("❌ [AuthHelpers] Fallback profile link failed:", profileErr);
+                
+                // 3. Link User Shops (Junction)
+                const { error: junctionErr } = await supabase.from("user_shops").insert({ user_id: userId, shop_id: newShop.id, is_primary: true });
+                if (junctionErr) {
+                    console.error("❌ [AuthHelpers] Fallback junction link failed (Check RLS!):", junctionErr);
+                } else {
+                    console.log(`✅ [AuthHelpers] Fallback junction link success`);
+                }
 
-            localStorage.setItem("currentShopId", newShop.id);
-            window.dispatchEvent(new CustomEvent("medix_shop_sync", { detail: { shopId: newShop.id } }));
-            
-            console.log(`✅ [AuthHelpers] Fallback shop provisioned automatically:`, newShop.id);
-            return newShop.id;
+                localStorage.setItem("currentShopId", newShop.id);
+                // DISPATCH EVENT so hooks can pick it up immediately
+                window.dispatchEvent(new CustomEvent("medix_shop_sync", { detail: { shopId: newShop.id } }));
+                
+                console.log(`✅ [AuthHelpers] Fallback shop provisioned automatically:`, newShop.id);
+                return newShop.id;
+            } else if (createErr) {
+                console.error("❌ [AuthHelpers] Fallback shop creation failed (Check RLS!):", createErr);
+            }
+        } catch (fallbackErr) {
+            console.error("❌ [AuthHelpers] Fallback provisioning exception:", fallbackErr);
         }
-    } catch (fallbackErr) {
-        console.error("❌ [AuthHelpers] Fallback provisioning failed:", fallbackErr);
-    }
 
     return null;
 };

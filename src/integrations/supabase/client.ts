@@ -83,12 +83,25 @@ export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON
   global: {
     headers: { 'x-application-name': 'medix-ai-dashboard' },
     fetch: (url, options) => {
-      // FIX BUG-5: Add a global 15-second timeout to ALL Supabase requests.
+      // FIX BUG: Proxy Header Hardening. Ensure 'apikey' is ALWAYS present.
+      // Often proxies or browser extensions strip headers. Explicitly merging solves this.
+      const headers = new Headers(options?.headers || {});
+      if (!headers.has('apikey')) {
+        headers.set('apikey', SUPABASE_ANON_KEY);
+      }
+
+      // Connectivity / Timeout logic
       // This prevents the UI from hanging forever (e.g. on "Signing in...")
-      // if the user's ISP drops connections to the proxy or supabase.co silently.
+      // if the user's ISP drops connections silently.
       const timeoutMatch = options?.signal ? undefined : AbortSignal.timeout(15000);
+      
+      if (url.toString().includes('supabase-proxy')) {
+          console.log(`📡 [Proxy Request] ${url.toString().split('?')[0]}`);
+      }
+
       return fetch(url, {
         ...options,
+        headers,
         signal: options?.signal || timeoutMatch
       });
     }

@@ -141,9 +141,7 @@ export function useUserShops(): UserShopsState {
 
         if (mappedShops.length > 0) {
           setShops(mappedShops);
-
-          // Smart Selection: LocalStorage → Primary → First
-          // Read ref directly to avoid stale state at the time this async fn resolves
+          // ... (rest of selection logic)
           const savedShopId = localStorage.getItem("currentShopId");
           const isValidSaved = savedShopId && mappedShops.some(s => s.id === savedShopId);
 
@@ -156,13 +154,23 @@ export function useUserShops(): UserShopsState {
               setCurrentShopId(defaultShopId);
             }
           } else if (savedShopId !== currentShopIdRef.current) {
-            // Sync state to localStorage if they diverged
             setCurrentShopId(savedShopId);
           }
-
           console.log(`✅ [useUserShops] Loaded ${mappedShops.length} shop(s)`);
         } else {
-          console.warn("⚠️ [useUserShops] No shops found for user:", user!.id);
+          console.warn("⚠️ [useUserShops] No shops found. Entering sync grace period (1.5s)...");
+          // If no shops found, wait 1.5s to see if the background provisioner (authHelpers) 
+          // fires a trigger. If not, then we finally set loading to false.
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          // Re-check once more without full refetch logic to avoid infinite loops,
+          // just see if any shop appeared in the table now.
+          const { data: retryData } = await supabase.from("user_shops").select("shop_id").eq("user_id", session.user.id);
+          if (retryData && retryData.length > 0) {
+              console.log("🏪 [useUserShops] Shop found after grace period! Forcing refetch...");
+              setRefetchTrigger(prev => prev + 1);
+              return; // let the trigger handle the next run
+          }
         }
       } catch (err) {
         console.error("❌ [useUserShops] Shop Load Error:", err);
