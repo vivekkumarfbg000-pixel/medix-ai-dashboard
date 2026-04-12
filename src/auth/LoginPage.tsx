@@ -75,10 +75,19 @@ export default function LoginPage() {
 
     const handleBypassProxy = () => {
         console.warn("⚡ [Login] User requested proxy bypass.");
-        window.dispatchEvent(new CustomEvent("medix_bypass_proxy"));
-        toast.info("Switched to Direct Connection. Retrying...", { icon: <Wifi /> });
-        setTimeout(() => retryConnection(), 500);
+        localStorage.setItem("medix_force_no_proxy", "true");
+        toast.info("Switched to Direct Connection. Reloading...", { icon: <Wifi /> });
+        setTimeout(() => window.location.reload(), 1000);
     };
+
+    const handleRestoreProxy = () => {
+        console.warn("⚡ [Login] User restored proxy.");
+        localStorage.removeItem("medix_force_no_proxy");
+        toast.info("Restored Proxy Connection. Reloading...");
+        setTimeout(() => window.location.reload(), 1000);
+    };
+
+    const isProxyBypassed = localStorage.getItem("medix_force_no_proxy") === "true";
 
     // If already authenticated, redirect to dashboard
     if (user) {
@@ -242,11 +251,11 @@ export default function LoginPage() {
                                     variant="outline"
                                     size="sm"
                                     className="h-7 text-xs border-orange-300 bg-orange-50/50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-300 hover:bg-orange-100"
-                                    onClick={handleBypassProxy}
-                                    title="Try if your ISP is not blocking Supabase but the proxy is slow"
+                                    onClick={isProxyBypassed ? handleRestoreProxy : handleBypassProxy}
+                                    title={isProxyBypassed ? "Restore to default connectivity settings" : "Try if your ISP is not blocking Supabase but the proxy is slow"}
                                 >
                                     <Wifi className="h-3 w-3 mr-1" />
-                                    Bypass Proxy & Try Direct
+                                    {isProxyBypassed ? "Restore Proxy" : "Bypass Proxy & Try Direct"}
                                 </Button>
                             </div>
                         </div>

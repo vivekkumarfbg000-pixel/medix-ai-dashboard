@@ -41,19 +41,10 @@ function getSupabaseUrl(): string {
 const SUPABASE_URL = getSupabaseUrl();
 
 // ─── Proxy Management ────────────────────────────────────────────────────────
-// Add a way to toggle the proxy dynamically if it hangs
-let forceNoProxy = false;
-if (typeof window !== 'undefined') {
-  // Listen for a custom event to bypass proxy if a hang is detected elsewhere
-  window.addEventListener('medix_bypass_proxy', () => {
-    console.warn('⚡ [Supabase] Bypassing proxy via emergency event.');
-    forceNoProxy = true;
-  });
-}
-
 const getFinalUrl = () => {
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
+    const forceNoProxy = localStorage.getItem('medix_force_no_proxy') === 'true';
     if (params.get('no_proxy') === 'true' || forceNoProxy) {
       console.warn('⚠️ [Supabase] Failsafe: Connecting DIRECTLY to supabase.co');
       return SUPABASE_URL_RAW;
@@ -83,10 +74,10 @@ export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-    // FIX BUG-2: Set to true so the Supabase SDK auto-parses #access_token= or ?code=
-    // from the URL on implicit flow. App.tsx's hash rewriter handles PKCE flow.
-    // Previously set to false which broke implicit flow and required fragile manual parsing.
-    detectSessionInUrl: true,
+    // FIX BUG-2: Keep detectSessionInUrl FALSE.
+    // If true, it causes a known deadlock with manual exchangeCodeForSession
+    // in GoogleCallback.tsx. Our hash router prevents this from working reliably anyway.
+    detectSessionInUrl: false,
   },
   db: { schema: 'public' },
   global: {

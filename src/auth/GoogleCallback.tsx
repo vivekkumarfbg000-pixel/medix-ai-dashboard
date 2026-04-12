@@ -36,21 +36,12 @@ export default function GoogleCallback() {
                 if (!processed.current) return; 
                 console.error("❌ [GoogleCallback] Global Timeout triggered after 20s");
                 setStatus("Verification timed out...");
-                toast.error("Authentication timed out. Your ISP or proxy might be slow. Try using a VPN.");
+                toast.error("Authentication timed out. If this keeps happening, use the 'Bypass Proxy' button on the Login page.");
                 navigate("/login", { replace: true });
             }, 20000);
 
-            // 1b. Setup Emergency Proxy Bypass (8 seconds)
-            const bypassId = setTimeout(() => {
-                if (!processed.current) return;
-                console.warn("⚠️ [GoogleCallback] Hang detected. Attempting emergency proxy bypass...");
-                window.dispatchEvent(new CustomEvent('medix_bypass_proxy'));
-                setStatus("Still working: Attempting direct connection fallback...");
-            }, 8000);
-
             const clearAuthTimeout = () => {
                 clearTimeout(timeoutId);
-                clearTimeout(bypassId);
             };
 
             try {
