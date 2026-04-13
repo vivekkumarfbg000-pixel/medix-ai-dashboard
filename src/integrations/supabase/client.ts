@@ -109,6 +109,7 @@ export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON
       return fetch(url, {
         ...options,
         headers,
+        credentials: 'omit', // CRITICAL: Prevents PHP proxies from deadlocking on session_start()
         signal: options?.signal || timeoutMatch
       }).then(res => {
           if (isProxy && !res.ok) {
