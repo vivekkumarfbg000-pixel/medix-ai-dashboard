@@ -109,57 +109,63 @@ export default function GoogleCallback() {
                 // 4. Establish Session
                 setStatus("Step 2/3: Establishing secure session...");
                 
-                const { data: { session: existingSession } } = await supabase.auth.getSession();
-                if (existingSession?.user) {
-                    console.log("⚡ [GoogleCallback] Valid session already exists. Skipping exchange.");
+                const { data: { session: initialSession } } = await supabase.auth.getSession();
+                if (initialSession?.user) {
+                    console.log("⚡ [GoogleCallback] Session detected immediately. Jumping to redirect.");
+                    finalSession = initialSession;
                 } else if (finalCode) {
                     console.log("⚡ [GoogleCallback] Exchanging PKCE code...");
                     
-                    const MAX_TIMEOUT = 12000;
+                    const PKCE_TIMEOUT = 4000; // 4s — Google/Supabase should be faster
                     const exchangePromise = supabase.auth.exchangeCodeForSession(finalCode);
                     const timeoutPromise = new Promise<{error: Error}>((_, reject) => 
-                        setTimeout(() => reject(new Error(`Timeout: PKCE exchange took longer than ${MAX_TIMEOUT}ms.`)), MAX_TIMEOUT)
+                        setTimeout(() => reject(new Error("PKCE exchange timed out (4s)")), PKCE_TIMEOUT)
                     );
 
-                    const { error } = await Promise.race([exchangePromise, timeoutPromise]);
-                    
-                    if (error) {
-                        if (error.message.includes("invalid_grant") || error.message.includes("PKCE") || (error as any).status === 400) {
-                            console.warn("⚠️ PKCE Code used. Checking if session is active...");
-                            const { data: maybeSession } = await supabase.auth.getSession();
-                            if (!maybeSession?.session) throw error;
-                        } else {
-                            throw error;
+                    try {
+                        const { error } = await Promise.race([exchangePromise, timeoutPromise]) as any;
+                        if (error) {
+                            if (error.message.includes("invalid_grant") || error.message.includes("PKCE")) {
+                                console.warn("⚠️ PKCE Code might have been used. Checking session...");
+                                const { data: maybeSession } = await supabase.auth.getSession();
+                                if (!maybeSession?.session) throw error;
+                                finalSession = maybeSession.session;
+                            } else {
+                                throw error;
+                            }
                         }
+                    } catch (err) {
+                        console.warn("⚠️ PKCE Exchange failed/timed out, but session may still exist:", err);
                     }
                 } else if (hashParams) {
                     const accessToken = hashParams.get("access_token");
                     const refreshToken = hashParams.get("refresh_token");
                     if (accessToken && refreshToken) {
-                        const { error } = await supabase.auth.setSession({
+                        const { error, data } = await supabase.auth.setSession({
                             access_token: accessToken,
                             refresh_token: refreshToken,
                         });
                         if (error) throw error;
+                        finalSession = data.session;
                     }
                 }
 
                 if (isDone) return;
 
                 // 5. Verify & Sync Profile
-                setStatus("Step 3/3: Synchronizing shop profile...");
-                
-                let pollCount = 0;
-                let finalSession = null;
-                while (pollCount < 6 && !isDone) {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    if (session?.user) {
-                        finalSession = session;
-                        break;
+                if (!finalSession) {
+                    setStatus("Step 3/3: Synchronizing shop profile...");
+                    let pollCount = 0;
+                    while (pollCount < 6 && !isDone) {
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (session?.user) {
+                            finalSession = session;
+                            break;
+                        }
+                        console.info(`⏳ [GoogleCallback] Waiting for session sync (Poll ${pollCount + 1})...`);
+                        await new Promise(r => setTimeout(r, 1000));
+                        pollCount++;
                     }
-                    console.info(`⏳ [GoogleCallback] Waiting for session sync (Poll ${pollCount + 1})...`);
-                    await new Promise(r => setTimeout(r, 1000));
-                    pollCount++;
                 }
 
                 if (finalSession?.user) {
