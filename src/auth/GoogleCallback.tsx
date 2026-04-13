@@ -163,7 +163,13 @@ export default function GoogleCallback() {
                 }
 
                 if (finalSession?.user) {
-                    await syncUserShop(finalSession.user.id);
+                    console.log("✅ [GoogleCallback] Session verified. Triggering background sync and redirecting.");
+                    
+                    // Background sync (Non-blocking)
+                    syncUserShop(finalSession.user.id).catch(err => {
+                        console.error("❌ [GoogleCallback] Background sync error:", err);
+                    });
+
                     cleanup();
                     toast.success("Login verified successfully!");
                     navigate("/dashboard", { replace: true });

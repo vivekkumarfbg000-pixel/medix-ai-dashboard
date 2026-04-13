@@ -82,14 +82,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const {
             data: { subscription },
         } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+            console.log(`🔐 [AuthContext] Event: ${event}`);
+            
             setSession(newSession);
             setUser(newSession?.user ?? null);
             setLoading(false);
 
-            // AUTO-PROVISIONING is now securely handled by the PostgreSQL 
-            // trigger `handle_new_user` upon user creation in Supabase.
             if (event === "SIGNED_IN" && newSession?.user) {
-                await syncUserShop(newSession.user.id);
+                // INSTANT LOAD: If we have a cached shop ID, broadcast it immediately
+                // before wait for the network sync.
+                const cachedShopId = localStorage.getItem("currentShopId");
+                if (cachedShopId) {
+                    console.log("⚡ [AuthContext] Using cached Shop ID for instant load:", cachedShopId);
+                    window.dispatchEvent(new CustomEvent("medix_shop_sync", { detail: { shopId: cachedShopId } }));
+                }
+                
+                // Background sync (don't block the UI rendering)
+                syncUserShop(newSession.user.id).catch(err => {
+                    console.error("❌ [AuthContext] Background shop sync failed:", err);
+                });
             }
         });
 
