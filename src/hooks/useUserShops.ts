@@ -123,13 +123,20 @@ export function useUserShops(): UserShopsState {
             return;
           }
 
-          // PHASE A: Fetch Junction IDs (Simple query)
-          const { data: userShops, error: linkError } = await supabase
-            .from("user_shops")
-            .select("shop_id, is_primary")
-            .eq("user_id", session.user.id);
+          // Force a 10s timeout on this specific request to prevent hangs
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-          if (linkError) throw linkError;
+          try {
+            // PHASE A: Fetch Junction IDs (Simple query)
+            const { data: userShops, error: linkError } = await supabase
+              .from("user_shops")
+              .select("shop_id, is_primary")
+              .eq("user_id", session.user.id)
+              .abortSignal(controller.signal);
+
+            clearTimeout(timeoutId);
+            if (linkError) throw linkError;
 
           let mappedShops: Shop[] = [];
           if (userShops && userShops.length > 0) {

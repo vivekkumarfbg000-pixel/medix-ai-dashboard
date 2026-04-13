@@ -101,13 +101,25 @@ export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON
 
       const fetchWithRetry = async (attempt = 1): Promise<Response> => {
         try {
-          const timeoutMatch = options?.signal ? undefined : AbortSignal.timeout(isLogout ? 2000 : 30000);
+          // Use a shorter 15s timeout for auth-related calls to prevent UI hangs.
+          const isAuth = url.toString().includes('/auth/v1/');
+          const timeoutMs = isAuth ? 15000 : (isLogout ? 2000 : 30000);
+          
+          // AbortSignal.any is Chrome 116+. Fallback for older browsers.
+          let fetchSignal: AbortSignal;
+          try {
+            fetchSignal = options?.signal 
+              ? (AbortSignal as any).any([options.signal, AbortSignal.timeout(timeoutMs)])
+              : AbortSignal.timeout(timeoutMs);
+          } catch {
+            fetchSignal = options?.signal || AbortSignal.timeout(timeoutMs);
+          }
           
           const res = await fetch(url, {
             ...options,
             headers,
             credentials: 'omit',
-            signal: options?.signal || timeoutMatch
+            signal: fetchSignal
           });
 
           if (isProxy && res.status >= 500 && attempt < 3) {

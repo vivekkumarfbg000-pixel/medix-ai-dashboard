@@ -157,6 +157,16 @@ export function DashboardLayout() {
   const { loading: shopsLoading, currentShopId } = useUserShops();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [showFailsafe, setShowFailsafe] = useState(false);
+
+  useEffect(() => {
+    // 8-second safety timer: show 'Proceed Anyway' if network is slow
+    const timer = setTimeout(() => {
+      if (loading) setShowFailsafe(true);
+    }, 8000);
+
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   useEffect(() => {
     // With offline-first sync, useUserShops loads from cache instantly.
@@ -170,15 +180,39 @@ export function DashboardLayout() {
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-medical-canvas space-y-4">
-        <div className="relative">
-          <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+        <div className="relative text-center">
+          <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="text-xl font-bold text-primary">M</span>
           </div>
         </div>
-        <div className="text-center">
+        <div className="text-center px-6">
           <h2 className="text-lg font-semibold text-foreground">Loading MedixAI.Shop...</h2>
-          <p className="text-sm text-muted-foreground animate-pulse">Initializing Secure Dashboard</p>
+          <p className="text-sm text-muted-foreground animate-pulse mb-8">Initializing Secure Dashboard</p>
+          
+          {showFailsafe && (
+             <div className="mt-8 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <p className="text-xs text-muted-foreground max-w-xs">
+                    Your ISP connection seems slow. You can enter the dashboard now; data will continue to sync in the background.
+                </p>
+                <div className="flex flex-col gap-2">
+                    <Button 
+                        onClick={() => setLoading(false)}
+                        className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-full"
+                    >
+                        Proceed to Dashboard (Syncing) →
+                    </Button>
+                    <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => navigate("/login")}
+                        className="text-xs text-muted-foreground"
+                    >
+                        Back to Login
+                    </Button>
+                </div>
+             </div>
+          )}
         </div>
       </div>
     );

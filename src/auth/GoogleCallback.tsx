@@ -46,13 +46,12 @@ export default function GoogleCallback() {
                 if (isDone) return;
                 console.error("❌ [GoogleCallback] Global Timeout triggered after 30s");
                 setStatus("Verification timed out...");
-                toast.error("Authentication timed out. If this keeps happening, use the 'Bypass Proxy' button on the Login page.");
-                navigate("/login", { replace: true });
+                toast.dismiss(); // Clear any "Parsing..." toasts
+                toast.error("Connecting... If loading takes too long, you can skip from the dashboard screen.");
+                navigate("/dashboard", { replace: true }); // Fallback to Dashboard instead of Login
             }, 30000);
 
             // 2. Background Session Checker (Self-Healing)
-            // If the official exchange call hangs, this interval will detect if a session
-            // was successfully created in local storage by the Supabase core.
             sessionCheckerId = setInterval(async () => {
                 if (isDone) return;
                 const { data: { session } } = await supabase.auth.getSession();
@@ -62,13 +61,12 @@ export default function GoogleCallback() {
                     clearInterval(sessionCheckerId);
                     clearTimeout(authTimeoutId);
                     
-                    // Sync shop if possible
                     try { await syncUserShop(session.user.id); } catch(e) { console.error(e); }
                     
                     toast.success("Login verified (recovered)!");
                     navigate("/dashboard", { replace: true });
                 }
-            }, 2000);
+            }, 1000); // 1s interval for faster recovery
 
             const cleanup = () => {
                 isDone = true;
@@ -77,7 +75,7 @@ export default function GoogleCallback() {
             };
 
             try {
-                // 3. Extract Tokens (Check ALL possible locations)
+                // 3. Extract Tokens
                 setStatus("Step 1/3: Parsing security tokens...");
                 
                 const queryParams = new URLSearchParams(location.search);
@@ -90,10 +88,12 @@ export default function GoogleCallback() {
 
                 console.log("🔍 [GoogleCallback] Tokens — PKCE:", finalCode ? "YES" : "NO", "| Hash:", hashParams ? "YES" : "NO");
 
-                // Immediately wipe the URL search params so a refresh doesn't reuse the spent code
-                if (typeof window !== "undefined" && window.location.search.includes("code=")) {
+                // Immediately wipe the URL search params
+                if (typeof window !== "undefined" && (window.location.search.includes("code=") || location.search.includes("code="))) {
+                    console.log("🧹 [GoogleCallback] Wiping code from URL...");
                     const urlObj = new URL(window.location.href);
                     urlObj.search = "";
+                    if (urlObj.hash.includes("?")) urlObj.hash = urlObj.hash.split("?")[0];
                     window.history.replaceState({}, document.title, urlObj.toString());
                 }
 
@@ -109,15 +109,12 @@ export default function GoogleCallback() {
                 // 4. Establish Session
                 setStatus("Step 2/3: Establishing secure session...");
                 
-                // PRE-CHECK: If we already have a session (e.g. background sync or redirect retry),
-                // don't try to exchange the code again (which would cause a 400).
                 const { data: { session: existingSession } } = await supabase.auth.getSession();
                 if (existingSession?.user) {
                     console.log("⚡ [GoogleCallback] Valid session already exists. Skipping exchange.");
                 } else if (finalCode) {
                     console.log("⚡ [GoogleCallback] Exchanging PKCE code...");
                     
-                    // Failsafe: Hard timeout for the exchange call to prevent complete freeze
                     const MAX_TIMEOUT = 12000;
                     const exchangePromise = supabase.auth.exchangeCodeForSession(finalCode);
                     const timeoutPromise = new Promise<{error: Error}>((_, reject) => 
@@ -127,13 +124,10 @@ export default function GoogleCallback() {
                     const { error } = await Promise.race([exchangePromise, timeoutPromise]);
                     
                     if (error) {
-                        // If it's a 400 Bad Request regarding PKCE, it means the code was already used.
                         if (error.message.includes("invalid_grant") || error.message.includes("PKCE") || (error as any).status === 400) {
-                            console.warn("⚠️ PKCE Code already used or invalid. Let's check if session is already active.");
+                            console.warn("⚠️ PKCE Code used. Checking if session is active...");
                             const { data: maybeSession } = await supabase.auth.getSession();
-                            if (!maybeSession?.session) {
-                                throw error;
-                            }
+                            if (!maybeSession?.session) throw error;
                         } else {
                             throw error;
                         }
@@ -142,7 +136,6 @@ export default function GoogleCallback() {
                     const accessToken = hashParams.get("access_token");
                     const refreshToken = hashParams.get("refresh_token");
                     if (accessToken && refreshToken) {
-                        console.log("⚡ [GoogleCallback] Setting implicit session...");
                         const { error } = await supabase.auth.setSession({
                             access_token: accessToken,
                             refresh_token: refreshToken,
@@ -156,31 +149,26 @@ export default function GoogleCallback() {
                 // 5. Verify & Sync Profile
                 setStatus("Step 3/3: Synchronizing shop profile...");
                 
-                const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
-                if (sessionError) throw sessionError;
-                const user = currentSession?.user ?? null;
+                let pollCount = 0;
+                let finalSession = null;
+                while (pollCount < 6 && !isDone) {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session?.user) {
+                        finalSession = session;
+                        break;
+                    }
+                    console.info(`⏳ [GoogleCallback] Waiting for session sync (Poll ${pollCount + 1})...`);
+                    await new Promise(r => setTimeout(r, 1000));
+                    pollCount++;
+                }
 
-                if (user) {
-                    console.log("⚡ [GoogleCallback] Fetching user shop link...");
-                    await syncUserShop(user.id);
-                    
+                if (finalSession?.user) {
+                    await syncUserShop(finalSession.user.id);
                     cleanup();
-                    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-                    console.log(`✅ [GoogleCallback] Success! Total time: ${duration}s`);
-                    
                     toast.success("Login verified successfully!");
                     navigate("/dashboard", { replace: true });
                 } else {
-                    // One last check: even if session.user is null in the local state, 
-                    // maybe the session IS there but the state is lagging.
-                    const { data: { session: retrySession } } = await supabase.auth.getSession();
-                    if (retrySession?.user) {
-                        console.log("⚡ [GoogleCallback] Session found on retry. Proceeding.");
-                        cleanup();
-                        navigate("/dashboard", { replace: true });
-                    } else {
-                        throw new Error("No user found in session after verification.");
-                    }
+                    throw new Error("Session verification failed. Your connection might be too slow.");
                 }
 
             } catch (err) {
@@ -188,25 +176,13 @@ export default function GoogleCallback() {
                 cleanup();
                 console.error("❌ [GoogleCallback] Critical Failure:", err);
                 
-                // FORCE CLEANUP: If the auth exchange fails, wipe any corrupted state to prevent loops
                 try {
                     for (let i = 0; i < localStorage.length; i++) {
                         const key = localStorage.key(i);
-                        if (key && key.startsWith('sb-') && key.includes('auth-token')) {
-                            localStorage.removeItem(key);
-                        }
+                        if (key && key.startsWith('sb-') && key.includes('auth-token')) localStorage.removeItem(key);
                     }
                 } catch(e) {}
 
-                const errMsg = (err as Error).message || "Unknown auth error";
-                if (errMsg.includes("401") || errMsg.includes("Unauthorized")) {
-                    toast.error("Security session expired or API key invalid. Please login again.");
-                } else if (errMsg.includes("Timeout")) {
-                    toast.error("Authentication timed out. Your connection might be unstable.");
-                } else {
-                    toast.error("Connection failed. Your ISP may be blocking the session. Try a VPN.");
-                }
-                
                 navigate("/login", { replace: true });
             }
         };
@@ -230,9 +206,7 @@ export default function GoogleCallback() {
             </div>
             <div className="text-center">
                 <h2 className="text-lg font-semibold text-foreground">{status}</h2>
-                <p className="text-sm text-muted-foreground animate-pulse">
-                    Please wait...
-                </p>
+                <p className="text-sm text-muted-foreground animate-pulse">Please wait...</p>
                 {showFailsafe && (
                     <div className="mt-8 flex flex-col items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <p className="text-xs text-muted-foreground max-w-xs px-4">
@@ -240,7 +214,7 @@ export default function GoogleCallback() {
                         </p>
                         <button 
                             onClick={() => navigate("/dashboard", { replace: true })}
-                            className="px-6 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-full text-sm font-medium transition-colors border border-primary/20"
+                            className="px-6 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-full text-sm font-medium border border-primary/20"
                         >
                             Skip to Dashboard →
                         </button>
