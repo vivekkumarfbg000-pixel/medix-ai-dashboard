@@ -203,7 +203,15 @@ export function useUserShops(): UserShopsState {
     );
   };
 
-  const currentShop = shops.find((s) => s.id === currentShopId) || null;
+  const currentShop = shops.find((s) => s.id === currentShopId) || (currentShopId ? {
+    id: currentShopId,
+    name: "My Pharmacy (Offline/Syncing)",
+    address: null,
+    phone: null,
+    gst_no: null,
+    dl_number: null,
+    is_primary: true
+  } : null);
 
   return {
     shops,

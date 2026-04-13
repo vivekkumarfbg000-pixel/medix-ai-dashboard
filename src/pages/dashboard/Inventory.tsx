@@ -190,30 +190,22 @@ const Inventory = () => {
 
   // fetchStaging removed
 
-  const shopResolveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useEffect(() => {
-    if (currentShopId) {
-      if (shopResolveTimerRef.current) clearTimeout(shopResolveTimerRef.current);
-      setLoading(true);
-      fetchInventory();
-    } else {
-      setLoading(true);
-      shopResolveTimerRef.current = setTimeout(() => {
-        if (!localStorage.getItem("currentShopId")) {
-          setLoading(false);
-        }
-      }, 5000);
+    if (!currentShopId) {
+      setLoading(false);
+      return;
     }
 
+    setLoading(true);
+    fetchInventory();
+
     const channel = supabase
-      .channel(`inventory-updates-${currentShopId || 'none'}`)
+      .channel(`inventory-updates-${currentShopId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, fetchInventory)
       .subscribe();
 
     return () => { 
       supabase.removeChannel(channel); 
-      if (shopResolveTimerRef.current) clearTimeout(shopResolveTimerRef.current);
     };
   }, [currentShopId]);
 

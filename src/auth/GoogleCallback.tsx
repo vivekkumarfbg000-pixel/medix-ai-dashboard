@@ -39,14 +39,13 @@ export default function GoogleCallback() {
             const startTime = Date.now();
             console.log("🚦 [GoogleCallback] Verification started at:", new Date(startTime).toLocaleTimeString());
 
-            // 1. Setup Timeout Fallback (20 seconds)
+            // 1. Setup Timeout Fallback (30 seconds)
             authTimeoutId = setTimeout(() => {
-                if (!processed.current) return; 
-                console.error("❌ [GoogleCallback] Global Timeout triggered after 20s");
+                console.error("❌ [GoogleCallback] Global Timeout triggered after 30s");
                 setStatus("Verification timed out...");
                 toast.error("Authentication timed out. If this keeps happening, use the 'Bypass Proxy' button on the Login page.");
                 navigate("/login", { replace: true });
-            }, 20000);
+            }, 30000);
 
             const clearAuthTimeout = () => {
                 clearTimeout(authTimeoutId);
