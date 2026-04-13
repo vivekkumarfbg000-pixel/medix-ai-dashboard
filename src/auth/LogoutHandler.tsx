@@ -20,6 +20,8 @@ export default function LogoutHandler() {
         didLogout.current = true;
 
         const doLogout = async () => {
+            console.log("🛠️ [LogoutHandler] Executing logout flow...");
+            // signOut is now optimistic + has timeout protection in AuthProvider
             await signOut();
             toast.success("You have been logged out.");
             navigate("/login", { replace: true });

@@ -203,11 +203,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // ─── Sign out ───────────────────────────────────────────────────────────
     const signOut = useCallback(async () => {
-        await supabase.auth.signOut();
+        console.log("🚪 [AuthProvider] Optimistic SignOut initiated...");
+        
+        // 1. Clear local application state immediately
         localStorage.removeItem("currentShopId");
         localStorage.removeItem("medix_cached_shops");
         localStorage.removeItem("medix_device_id");
         sessionStorage.removeItem("temporary_session");
+        
+        // 2. Clear context state to trigger re-renders
+        setUser(null);
+        setSession(null);
+
+        // 3. Inform Supabase (with timeout guard)
+        // We don't want a slow connection to hang the logout spinner forever.
+        try {
+            await Promise.race([
+                supabase.auth.signOut(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("SignOut Timeout")), 3000))
+            ]);
+            console.log("✅ [AuthProvider] Supabase session revoked.");
+        } catch (e) {
+            console.warn("⚠️ [AuthProvider] SignOut server call failed or timed out. Local session cleared anyway.");
+        }
     }, []);
 
     return (

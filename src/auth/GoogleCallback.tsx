@@ -34,6 +34,8 @@ export default function GoogleCallback() {
         processed.current = true;
 
         let authTimeoutId: ReturnType<typeof setTimeout>;
+        let sessionCheckerId: ReturnType<typeof setInterval>;
+        let isDone = false;
 
         const handleCallback = async () => {
             const startTime = Date.now();
@@ -41,18 +43,41 @@ export default function GoogleCallback() {
 
             // 1. Setup Timeout Fallback (30 seconds)
             authTimeoutId = setTimeout(() => {
+                if (isDone) return;
                 console.error("❌ [GoogleCallback] Global Timeout triggered after 30s");
                 setStatus("Verification timed out...");
                 toast.error("Authentication timed out. If this keeps happening, use the 'Bypass Proxy' button on the Login page.");
                 navigate("/login", { replace: true });
             }, 30000);
 
-            const clearAuthTimeout = () => {
+            // 2. Background Session Checker (Self-Healing)
+            // If the official exchange call hangs, this interval will detect if a session
+            // was successfully created in local storage by the Supabase core.
+            sessionCheckerId = setInterval(async () => {
+                if (isDone) return;
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user) {
+                    console.log("🩹 [GoogleCallback] Session found by background checker! Proceeding...");
+                    isDone = true;
+                    clearInterval(sessionCheckerId);
+                    clearTimeout(authTimeoutId);
+                    
+                    // Sync shop if possible
+                    try { await syncUserShop(session.user.id); } catch(e) { console.error(e); }
+                    
+                    toast.success("Login verified (recovered)!");
+                    navigate("/dashboard", { replace: true });
+                }
+            }, 2000);
+
+            const cleanup = () => {
+                isDone = true;
                 clearTimeout(authTimeoutId);
+                clearInterval(sessionCheckerId);
             };
 
             try {
-                // 2. Extract Tokens (Check ALL possible locations)
+                // 3. Extract Tokens (Check ALL possible locations)
                 setStatus("Step 1/3: Parsing security tokens...");
                 
                 // PKCE Search Params
@@ -71,7 +96,7 @@ export default function GoogleCallback() {
                 console.log("🔍 [GoogleCallback] Tokens — PKCE:", finalCode ? "YES" : "NO", "| Hash:", hashParams ? "YES" : "NO");
 
                 if (pkceError || hashError) {
-                    clearAuthTimeout();
+                    cleanup();
                     const desc = pkceError || hashError || "Authorization failed";
                     console.error("❌ [GoogleCallback] OAuth Error:", desc);
                     toast.error(`Auth Error: ${desc}`);
@@ -79,7 +104,7 @@ export default function GoogleCallback() {
                     return;
                 }
 
-                // 3. Establish Session
+                // 4. Establish Session
                 setStatus("Step 2/3: Establishing secure session...");
                 
                 if (finalCode) {
@@ -99,7 +124,10 @@ export default function GoogleCallback() {
                     }
                 }
 
-                // 4. Verify & Sync Profile
+                // If background checker already finished, stop here
+                if (isDone) return;
+
+                // 5. Verify & Sync Profile
                 // FIX BUG-1: Use getSession() instead of getUser().
                 // getUser() makes a live network call to /auth/v1/user through the PHP proxy,
                 // which can return 401 or hang if the proxy strips the Authorization header.
@@ -114,7 +142,7 @@ export default function GoogleCallback() {
                     console.log("⚡ [GoogleCallback] Fetching user shop link...");
                     await syncUserShop(user.id);
                     
-                    clearAuthTimeout();
+                    cleanup();
                     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
                     console.log(`✅ [GoogleCallback] Success! Total time: ${duration}s`);
                     
@@ -126,6 +154,7 @@ export default function GoogleCallback() {
                     const { data: { session: retrySession } } = await supabase.auth.getSession();
                     if (retrySession?.user) {
                         console.log("⚡ [GoogleCallback] Session found on retry. Proceeding.");
+                        cleanup();
                         navigate("/dashboard", { replace: true });
                     } else {
                         throw new Error("No user found in session after verification.");
@@ -133,7 +162,8 @@ export default function GoogleCallback() {
                 }
 
             } catch (err) {
-                clearAuthTimeout();
+                if (isDone) return;
+                cleanup();
                 console.error("❌ [GoogleCallback] Critical Failure:", err);
                 
                 const errMsg = (err as Error).message || "Unknown auth error";
@@ -150,7 +180,9 @@ export default function GoogleCallback() {
         handleCallback();
 
         return () => {
+            isDone = true;
             if (authTimeoutId) clearTimeout(authTimeoutId);
+            if (sessionCheckerId) clearInterval(sessionCheckerId);
         };
     }, [navigate, location.search]);
 
