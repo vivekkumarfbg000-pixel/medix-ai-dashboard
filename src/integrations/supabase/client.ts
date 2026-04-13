@@ -103,7 +103,8 @@ export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON
       }
 
       // Timeout logic
-      const timeoutMatch = options?.signal ? undefined : AbortSignal.timeout(30000);
+      const isLogout = url.toString().includes('/logout');
+      const timeoutMatch = options?.signal ? undefined : AbortSignal.timeout(isLogout ? 2000 : 30000);
       
       return fetch(url, {
         ...options,

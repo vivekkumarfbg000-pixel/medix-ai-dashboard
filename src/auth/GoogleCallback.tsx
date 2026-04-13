@@ -80,20 +80,22 @@ export default function GoogleCallback() {
                 // 3. Extract Tokens (Check ALL possible locations)
                 setStatus("Step 1/3: Parsing security tokens...");
                 
-                // PKCE Search Params
                 const queryParams = new URLSearchParams(location.search);
                 const pkceCode = queryParams.get("code");
                 const pkceError = queryParams.get("error");
-
-                // Implicit Hash Params (using helper for double-hash handling)
                 const hashParams = extractTokensFromHash();
                 const hashError = hashParams?.get("error");
-
-                // Fallback: Check if Search Params are stuck INSIDE the location search (HashRouter quirks)
                 const combinedParams = new URLSearchParams(window.location.search || location.search);
                 const finalCode = pkceCode || combinedParams.get("code");
 
                 console.log("🔍 [GoogleCallback] Tokens — PKCE:", finalCode ? "YES" : "NO", "| Hash:", hashParams ? "YES" : "NO");
+
+                // Immediately wipe the URL search params so a refresh doesn't reuse the spent code
+                if (typeof window !== "undefined" && window.location.search.includes("code=")) {
+                    const urlObj = new URL(window.location.href);
+                    urlObj.search = "";
+                    window.history.replaceState({}, document.title, urlObj.toString());
+                }
 
                 if (pkceError || hashError) {
                     cleanup();
@@ -110,7 +112,18 @@ export default function GoogleCallback() {
                 if (finalCode) {
                     console.log("⚡ [GoogleCallback] Exchanging PKCE code...");
                     const { error } = await supabase.auth.exchangeCodeForSession(finalCode);
-                    if (error) throw error;
+                    if (error) {
+                        // If it's a 400 Bad Request regarding PKCE, it means the code was already used.
+                        if (error.message.includes("invalid_grant") || error.message.includes("PKCE")) {
+                            console.warn("⚠️ PKCE Code already used or invalid. Let's check if session is already active.");
+                            const { data: maybeSession } = await supabase.auth.getSession();
+                            if (!maybeSession?.session) {
+                                throw error;
+                            }
+                        } else {
+                            throw error;
+                        }
+                    }
                 } else if (hashParams) {
                     const accessToken = hashParams.get("access_token");
                     const refreshToken = hashParams.get("refresh_token");
@@ -124,14 +137,9 @@ export default function GoogleCallback() {
                     }
                 }
 
-                // If background checker already finished, stop here
                 if (isDone) return;
 
                 // 5. Verify & Sync Profile
-                // FIX BUG-1: Use getSession() instead of getUser().
-                // getUser() makes a live network call to /auth/v1/user through the PHP proxy,
-                // which can return 401 or hang if the proxy strips the Authorization header.
-                // getSession() reads the locally-cached session token — zero network calls.
                 setStatus("Step 3/3: Synchronizing shop profile...");
                 
                 const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
