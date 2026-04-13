@@ -26,32 +26,51 @@ export const SafetyWidget = () => {
     }, [currentShop]);
 
     const checkLASA = async () => {
-        if (!currentShop?.id) return; // SAFE-001: Prevent crash if shop not loaded
-        setScanning(true);
-
-        // Fetch all medicine names
-        const { data } = await supabase.from('inventory').select('medicine_name').eq('shop_id', currentShop?.id);
-
-        if (data && data.length > 5) {
-            // Simple Levenshtein check for demo/speed 
-            // In production, this might be a DB function or Edge Edge
-            const names = data.map(d => d.medicine_name);
-            let found = null;
-
-            for (let i = 0; i < names.length; i++) {
-                for (let j = i + 1; j < names.length; j++) {
-                    const dist = levenshtein(names[i].toLowerCase(), names[j].toLowerCase());
-                    // Threshold: if length > 4 and distance <= 2, flag it
-                    if (names[i].length > 4 && dist <= 2) {
-                        found = { name1: names[i], name2: names[j] };
-                        break;
-                    }
-                }
-                if (found) break;
-            }
-            setLasaAlert(found);
+        if (!currentShop?.id) {
+            toast.error("Please select a shop first.");
+            return;
         }
-        setScanning(false);
+        
+        setScanning(true);
+        console.log("🛡️ [SafetyWidget] Initiating LASA safety scan for shop:", currentShop.id);
+
+        try {
+            // Fetch all medicine names with timeout safety
+            const { data, error } = await supabase
+                .from('inventory')
+                .select('medicine_name')
+                .eq('shop_id', currentShop.id);
+
+            if (error) throw error;
+
+            if (data && data.length > 1) {
+                const names = data.map(d => d.medicine_name);
+                let found = null;
+
+                // Limit search to prevent UI hang if inventory is massive
+                const limit = Math.min(names.length, 500); 
+                
+                for (let i = 0; i < limit; i++) {
+                    for (let j = i + 1; j < limit; j++) {
+                        const dist = levenshtein(names[i].toLowerCase(), names[j].toLowerCase());
+                        if (names[i].length > 4 && dist <= 2) {
+                            found = { name1: names[i], name2: names[j] };
+                            break;
+                        }
+                    }
+                    if (found) break;
+                }
+                setLasaAlert(found);
+                if (!found) toast.success("Safety Scan Complete: No LASA risks found.");
+            } else {
+                setLasaAlert(null);
+            }
+        } catch (err: any) {
+            console.error("❌ [SafetyWidget] LASA Scan Failed:", err);
+            toast.error("Safety scan failed. Your connection may be unstable.");
+        } finally {
+            setScanning(false);
+        }
     };
 
     // Helper: Levenshtein Distance

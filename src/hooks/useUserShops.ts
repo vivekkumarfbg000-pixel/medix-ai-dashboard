@@ -105,87 +105,87 @@ export function useUserShops(): UserShopsState {
     }
 
     async function fetchShops() {
-      console.log("🏪 [useUserShops] fetchShops triggered for user:", user!.id);
-      try {
-        // OPTIMIZATION: getSession is cached locally, avoids a network call
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
-          setLoading(false);
-          return;
-        }
-
-        // Single efficient query through the junction table
-        const { data: userShops, error } = await supabase
-          .from("user_shops")
-          .select(`
-            shop_id,
-            is_primary,
-            shops (
-              id,
-              name,
-              address,
-              phone,
-              gst_no,
-              dl_number
-            )
-          `)
-          .eq("user_id", session.user.id);
-
-        if (error) {
-          console.error("❌ [useUserShops] Error fetching shops:", error);
-          throw error;
-        }
-
-        let mappedShops: Shop[] = [];
-
-        if (userShops && userShops.length > 0) {
-          // FIX BUG-6: If RLS blocks reading the 'shops' table (e.g. for Staff users),
-          // us.shops will be null. DO NOT filter out the mapping, use us.shop_id instead!
-          mappedShops = userShops.map((us: any) => ({
-            id: us.shops?.id || us.shop_id,
-            name: us.shops?.name || "Assigned Pharmacy",
-            address: us.shops?.address,
-            phone: us.shops?.phone || null,
-            gst_no: us.shops?.gst_no || null,
-            dl_number: us.shops?.dl_number || null,
-            is_primary: us.is_primary,
-          })).filter((shop: Shop) => shop.id);
-        }
-
-        if (mappedShops.length > 0) {
-          setShops(mappedShops);
-          // PERSIST CACHE for offline-first load next time
-          localStorage.setItem("medix_cached_shops", JSON.stringify(mappedShops));
+      const maxAttempts = 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          console.log(`🏪 [useUserShops] fetchShops attempt ${attempt}/${maxAttempts} for user: ${user!.id}`);
           
-          const savedShopId = localStorage.getItem("currentShopId");
-          const isValidSaved = savedShopId && mappedShops.some(s => s.id === savedShopId);
-
-          if (!isValidSaved) {
-            const defaultShopId =
-              mappedShops.find(s => s.is_primary)?.id || mappedShops[0]?.id;
-            if (defaultShopId) {
-              console.log("🏪 [useUserShops] Setting default shop:", defaultShopId);
-              localStorage.setItem("currentShopId", defaultShopId);
-              setCurrentShopId(defaultShopId);
-            }
-          } else if (savedShopId !== currentShopIdRef.current) {
-            setCurrentShopId(savedShopId);
+          // OPTIMIZATION: getSession is cached locally, avoids a network call
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user) {
+            setLoading(false);
+            return;
           }
+
+          // Single efficient query through the junction table
+          const { data: userShops, error } = await supabase
+            .from("user_shops")
+            .select(`
+              shop_id,
+              is_primary,
+              shops (
+                id,
+                name,
+                address,
+                phone,
+                gst_no,
+                dl_number
+              )
+            `)
+            .eq("user_id", session.user.id);
+
+          if (error) throw error;
+
+          let mappedShops: Shop[] = [];
+          if (userShops && userShops.length > 0) {
+            mappedShops = userShops.map((us: any) => ({
+              id: us.shops?.id || us.shop_id,
+              name: us.shops?.name || "Assigned Pharmacy",
+              address: us.shops?.address,
+              phone: us.shops?.phone || null,
+              gst_no: us.shops?.gst_no || null,
+              dl_number: us.shops?.dl_number || null,
+              is_primary: us.is_primary,
+            })).filter((shop: Shop) => shop.id);
+          }
+
+          if (mappedShops.length > 0) {
+            setShops(mappedShops);
+            localStorage.setItem("medix_cached_shops", JSON.stringify(mappedShops));
+            
+            const savedShopId = localStorage.getItem("currentShopId");
+            const isValidSaved = savedShopId && mappedShops.some(s => s.id === savedShopId);
+
+            if (!isValidSaved) {
+              const defaultShopId = mappedShops.find(s => s.is_primary)?.id || mappedShops[0]?.id;
+              if (defaultShopId) {
+                localStorage.setItem("currentShopId", defaultShopId);
+                setCurrentShopId(defaultShopId);
+              }
+            } else if (savedShopId !== currentShopIdRef.current) {
+              setCurrentShopId(savedShopId);
+            }
+          }
+          
           console.log(`✅ [useUserShops] Loaded ${mappedShops.length} shop(s)`);
-        } else {
-            console.warn("⚠️ [useUserShops] No shops found on server.");
-            // If the server explicitly returns empty, we should probably clear the cache
-            // But only if we are SURE it's not a temporary error. 
-            // For now, we keep the cache to be safe.
+          setLoading(false);
+          return; // SUCCESS - Exit loop
+
+        } catch (err: any) {
+          console.error(`❌ [useUserShops] Shop load failed (attempt ${attempt}):`, err);
+          
+          if (attempt < maxAttempts) {
+            const delay = attempt * 2000;
+            console.warn(`⏳ [useUserShops] Retrying in ${delay}ms...`);
+            await new Promise(r => setTimeout(r, delay));
+          } else {
+            // ALL RETRIES FAILED
+            if (!localStorage.getItem("medix_cached_shops")) {
+              toast.error("Network timeout. Your connection or proxy is unstable. Please refresh or use Bypass Proxy.", { duration: 10000 });
+            }
+            setLoading(false);
+          }
         }
-      } catch (err: any) {
-        console.error("❌ [useUserShops] Shop Load Error (Background):", err);
-        // If we don't have a cache, and the network timed out, let the user know.
-        if (!localStorage.getItem("medix_cached_shops")) {
-            toast.error("Network timeout. Your connection or proxy is unstable. Please refresh or use Bypass Proxy.", { duration: 10000 });
-        }
-      } finally {
-        setLoading(false);
       }
     }
 

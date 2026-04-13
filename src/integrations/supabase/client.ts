@@ -83,26 +83,37 @@ export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON
   global: {
     headers: { 'x-application-name': 'medix-ai-dashboard' },
     fetch: (url, options) => {
-      // FIX BUG: Proxy Header Hardening. Ensure 'apikey' is ALWAYS present.
-      // Often proxies or browser extensions strip headers. Explicitly merging solves this.
       const headers = new Headers(options?.headers || {});
       if (!headers.has('apikey')) {
         headers.set('apikey', SUPABASE_ANON_KEY);
       }
-
-      // Connectivity / Timeout logic
-      // This prevents the UI from hanging forever (e.g. on "Signing in...")
-      // if the user's ISP drops connections silently.
-      const timeoutMatch = options?.signal ? undefined : AbortSignal.timeout(30000); // 30s timeout for slow proxies
       
-      if (url.toString().includes('supabase-proxy')) {
-          console.log(`📡 [Proxy Request] ${url.toString().split('?')[0]}`);
+      // Add trace ID for debugging proxy stalls
+      const traceId = Math.random().toString(36).substring(7);
+      headers.set('x-medix-trace', traceId);
+
+      const isProxy = url.toString().includes('supabase-proxy');
+      if (isProxy) {
+          console.log(`📡 [Proxy Request][${traceId}] ${url.toString().split('?')[0]}`);
       }
 
+      // Timeout logic
+      const timeoutMatch = options?.signal ? undefined : AbortSignal.timeout(30000);
+      
       return fetch(url, {
         ...options,
         headers,
         signal: options?.signal || timeoutMatch
+      }).then(res => {
+          if (isProxy && !res.ok) {
+              console.warn(`⚠️ [Proxy Response][${traceId}] Status: ${res.status}`);
+          }
+          return res;
+      }).catch(err => {
+          if (isProxy) {
+              console.error(`❌ [Proxy Error][${traceId}]`, err.message || err);
+          }
+          throw err;
       });
     }
   },
