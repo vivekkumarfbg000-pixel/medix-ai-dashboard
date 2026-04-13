@@ -44,13 +44,20 @@ export function useUserShops(): UserShopsState {
   const [currentShopId, setCurrentShopId] = useState<string | null>(() => {
     return localStorage.getItem("currentShopId");
   });
-  const [loading, setLoading] = useState(() => {
-    // If we have cached shops AND a current shop ID, we can start with loading=false
-    const cached = localStorage.getItem("medix_cached_shops");
-    const currentId = localStorage.getItem("currentShopId");
-    return !(cached && currentId);
-  });
+  const [loading, setLoading] = useState(true); // Always start with loading true if user but no shops
   const [refetchTrigger, setRefetchTrigger] = useState(0);
+
+  // STALE CACHE PROTECTION: If the user changed, clear the cache state immediately
+  const lastUserId = useRef<string | undefined>(user?.id);
+  useEffect(() => {
+    if (user?.id !== lastUserId.current) {
+      console.log("👤 [useUserShops] User changed, clearing stale cache.");
+      setShops([]);
+      setCurrentShopId(null);
+      setLoading(true);
+      lastUserId.current = user?.id;
+    }
+  }, [user?.id]);
 
   // FIX C: Use a ref to hold the latest currentShopId so event listeners
   // never capture a stale closure value. The listener effect runs ONCE (empty deps).
@@ -182,6 +189,9 @@ export function useUserShops(): UserShopsState {
           return; // SUCCESS - Exit loop
 
         } catch (err: any) {
+          // If we have cached data, don't show a full-page loading/error state
+          if (shops.length > 0) setLoading(false);
+          
           console.error(`❌ [useUserShops] Shop load failed (attempt ${attempt}):`, err);
           
           if (attempt < maxAttempts) {

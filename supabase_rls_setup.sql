@@ -31,6 +31,7 @@ ALTER TABLE public.restock_predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ledger_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 
 -- ── 2. HELPER FUNCTION: Get user's shop IDs ─────────────────────────────────
 -- This is used in all RLS policies to check shop membership via user_shops table.
@@ -174,6 +175,18 @@ CREATE POLICY "Team access ledger" ON ledger_entries
     FOR ALL TO authenticated
     USING (shop_id IN (SELECT public.get_user_shop_ids()));
 
+-- USER_ROLES: Users can see their own roles
+DROP POLICY IF EXISTS "Users see own roles" ON user_roles;
+CREATE POLICY "Users see own roles" ON user_roles
+    FOR SELECT TO authenticated
+    USING (user_id = auth.uid());
+
+-- USER_ROLES: Allow owner to insert their own initial role (fallback)
+DROP POLICY IF EXISTS "Users can insert own roles" ON user_roles;
+CREATE POLICY "Users can insert own roles" ON user_roles
+    FOR INSERT TO authenticated
+    WITH CHECK (user_id = auth.uid());
+
 -- ── 4. AUTO-ONBOARDING TRIGGER ──────────────────────────────────────────────
 -- Creates shop, profile, AND user_shops entry for new signups.
 
@@ -181,37 +194,83 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
     new_shop_id UUID;
+    final_shop_name TEXT;
+    final_user_name TEXT;
 BEGIN
-    -- 1. Create Default Shop
-    INSERT INTO public.shops (name, owner_id)
-    VALUES (
-        COALESCE(new.raw_user_meta_data->>'shop_name', 'My Medical Shop'),
-        new.id
-    )
-    RETURNING id INTO new_shop_id;
-
-    -- 2. Create Profile
-    INSERT INTO public.profiles (user_id, full_name, role, shop_id)
-    VALUES (
-        new.id,
-        COALESCE(new.raw_user_meta_data->>'full_name', 'New User'),
-        'admin',
-        new_shop_id
+    -- Extract display name from metadata (Google / Email)
+    final_shop_name := COALESCE(
+        NULLIF(TRIM(new.raw_user_meta_data->>'shop_name'), ''),
+        'My Medical Shop'
     );
 
-    -- 3. Create user_shops link (CRITICAL — this is what useUserShops reads)
-    INSERT INTO public.user_shops (user_id, shop_id, is_primary)
-    VALUES (new.id, new_shop_id, TRUE);
+    final_user_name := COALESCE(
+        NULLIF(TRIM(new.raw_user_meta_data->>'full_name'), ''),
+        NULLIF(TRIM(new.raw_user_meta_data->>'name'), ''),
+        'Pharmacist'
+    );
+
+    BEGIN
+        -- A. Create/Resolve Shop 
+        INSERT INTO public.shops (name, owner_id)
+        VALUES (final_shop_name, new.id)
+        ON CONFLICT (owner_id) DO UPDATE 
+        SET name = EXCLUDED.name,
+            updated_at = NOW()
+        RETURNING id INTO new_shop_id;
+
+        IF new_shop_id IS NULL THEN
+            SELECT id INTO new_shop_id FROM public.shops WHERE owner_id = new.id LIMIT 1;
+        END IF;
+
+        -- B. Upsert profile
+        INSERT INTO public.profiles (user_id, shop_id, full_name, role)
+        VALUES (new.id, new_shop_id, final_user_name, 'owner')
+        ON CONFLICT (user_id) DO UPDATE
+            SET shop_id = EXCLUDED.shop_id,
+                full_name = EXCLUDED.full_name,
+                updated_at = NOW();
+
+        -- C. Junction link
+        INSERT INTO public.user_shops (user_id, shop_id, is_primary)
+        VALUES (new.id, new_shop_id, true)
+        ON CONFLICT (user_id, shop_id) DO NOTHING;
+
+        -- D. Role assignment
+        INSERT INTO public.user_roles (user_id, shop_id, role)
+        VALUES (new.id, new_shop_id, 'admin')
+        ON CONFLICT (user_id, shop_id) DO NOTHING;
+
+    EXCEPTION WHEN OTHERS THEN
+        RAISE WARNING '[handle_new_user] Provisioning failed for user %: %', new.id, SQLERRM;
+    END;
 
     RETURN new;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Trigger
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- SHOPS: Insert policy for fallback
+DROP POLICY IF EXISTS "Owner can insert own shop" ON public.shops;
+CREATE POLICY "Owner can insert own shop" ON public.shops
+    FOR INSERT TO authenticated
+    WITH CHECK (owner_id = auth.uid());
+
+-- USER_SHOPS: Insert policy for fallback
+DROP POLICY IF EXISTS "Users can insert own shop links" ON user_shops;
+CREATE POLICY "Users can insert own shop links" ON user_shops
+    FOR INSERT TO authenticated
+    WITH CHECK (user_id = auth.uid());
+
+-- PROFILES: Insert policy for fallback
+DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
+CREATE POLICY "Users can insert own profile" ON profiles
+    FOR INSERT TO authenticated
+    WITH CHECK (user_id = auth.uid());
 
 -- ── 5. STORAGE POLICIES ─────────────────────────────────────────────────────
 

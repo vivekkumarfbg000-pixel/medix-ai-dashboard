@@ -87,41 +87,47 @@ export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON
   db: { schema: 'public' },
   global: {
     headers: { 'x-application-name': 'medix-ai-dashboard' },
-    fetch: (url, options) => {
+    fetch: async (url, options) => {
       const headers = new Headers(options?.headers || {});
       if (!headers.has('apikey')) {
         headers.set('apikey', SUPABASE_ANON_KEY);
       }
       
-      // Add trace ID for debugging proxy stalls
       const traceId = Math.random().toString(36).substring(7);
       headers.set('x-medix-trace', traceId);
 
       const isProxy = url.toString().includes('supabase-proxy');
-      if (isProxy) {
-          console.log(`📡 [Proxy Request][${traceId}] ${url.toString().split('?')[0]}`);
-      }
-
-      // Timeout logic
       const isLogout = url.toString().includes('/logout');
-      const timeoutMatch = options?.signal ? undefined : AbortSignal.timeout(isLogout ? 2000 : 30000);
-      
-      return fetch(url, {
-        ...options,
-        headers,
-        credentials: 'omit', // CRITICAL: Prevents PHP proxies from deadlocking on session_start()
-        signal: options?.signal || timeoutMatch
-      }).then(res => {
-          if (isProxy && !res.ok) {
-              console.warn(`⚠️ [Proxy Response][${traceId}] Status: ${res.status}`);
+
+      const fetchWithRetry = async (attempt = 1): Promise<Response> => {
+        try {
+          const timeoutMatch = options?.signal ? undefined : AbortSignal.timeout(isLogout ? 2000 : 30000);
+          
+          const res = await fetch(url, {
+            ...options,
+            headers,
+            credentials: 'omit',
+            signal: options?.signal || timeoutMatch
+          });
+
+          if (isProxy && res.status >= 500 && attempt < 3) {
+            console.warn(`⚠️ [Proxy Retry][${traceId}] Attempt ${attempt} failed with ${res.status}. Retrying...`);
+            await new Promise(r => setTimeout(r, attempt * 1000));
+            return fetchWithRetry(attempt + 1);
           }
           return res;
-      }).catch(err => {
-          if (isProxy) {
-              console.error(`❌ [Proxy Error][${traceId}]`, err.message || err);
+        } catch (err: any) {
+          const isNetworkError = err.name === 'TypeError' || err.message?.includes('fetch') || err.name === 'AbortError';
+          if (isProxy && isNetworkError && attempt < 3) {
+            console.warn(`⚠️ [Proxy Retry][${traceId}] Network error on attempt ${attempt}. Retrying...`);
+            await new Promise(r => setTimeout(r, attempt * 1000));
+            return fetchWithRetry(attempt + 1);
           }
           throw err;
-      });
+        }
+      };
+
+      return fetchWithRetry();
     }
   },
 });

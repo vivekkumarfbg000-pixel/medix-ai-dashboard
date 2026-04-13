@@ -109,7 +109,12 @@ export default function GoogleCallback() {
                 // 4. Establish Session
                 setStatus("Step 2/3: Establishing secure session...");
                 
-                if (finalCode) {
+                // PRE-CHECK: If we already have a session (e.g. background sync or redirect retry),
+                // don't try to exchange the code again (which would cause a 400).
+                const { data: { session: existingSession } } = await supabase.auth.getSession();
+                if (existingSession?.user) {
+                    console.log("⚡ [GoogleCallback] Valid session already exists. Skipping exchange.");
+                } else if (finalCode) {
                     console.log("⚡ [GoogleCallback] Exchanging PKCE code...");
                     
                     // Failsafe: Hard timeout for the exchange call to prevent complete freeze
@@ -123,7 +128,7 @@ export default function GoogleCallback() {
                     
                     if (error) {
                         // If it's a 400 Bad Request regarding PKCE, it means the code was already used.
-                        if (error.message.includes("invalid_grant") || error.message.includes("PKCE")) {
+                        if (error.message.includes("invalid_grant") || error.message.includes("PKCE") || (error as any).status === 400) {
                             console.warn("⚠️ PKCE Code already used or invalid. Let's check if session is already active.");
                             const { data: maybeSession } = await supabase.auth.getSession();
                             if (!maybeSession?.session) {

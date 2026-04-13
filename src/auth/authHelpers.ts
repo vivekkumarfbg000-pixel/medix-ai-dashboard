@@ -121,55 +121,51 @@ export const checkSupabaseConnectivity = async (
  * have committed the `user_shops` row by the time this runs immediately after SIGNED_IN.
  * Retrying gives the DB trigger time to complete before we give up.
  */
-export const syncUserShop = async (userId: string, maxRetries = 3): Promise<string | null> => {
+export const syncUserShop = async (userId: string, maxRetries = 5): Promise<string | null> => {
+    // Increase retries to 5 for high-latency mobile networks
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             console.log(`🔄 [AuthHelpers] Synchronizing Shop ID for user: ${userId} (attempt ${attempt}/${maxRetries})`);
             
-            const { data: userShops, error } = await supabase
-                .from("user_shops")
-                .select("shop_id, is_primary")
-                .eq("user_id", userId);
+            // CRITICAL: Ensure we have a fresh session context
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.user) {
+                console.warn("⚠️ [AuthHelpers] No active session during sync retry. Waiting...");
+            } else {
+                const { data: userShops, error } = await supabase
+                    .from("user_shops")
+                    .select("shop_id, is_primary")
+                    .eq("user_id", userId);
 
-            if (error) {
-                console.error("❌ [AuthHelpers] Shop sync fetch error:", error);
-                // Don't retry on permission errors
-                if (error.code === 'PGRST301' || error.message?.includes('JWT')) return null;
-            } else if (userShops && userShops.length > 0) {
-                // Priority: Primary Shop -> First Shop
-                const primaryShop = userShops.find(s => s.is_primary) || userShops[0];
-                const shopId = primaryShop.shop_id;
-                
-                if (shopId) {
-                    localStorage.setItem("currentShopId", shopId);
+                if (error) {
+                    console.error("❌ [AuthHelpers] Shop sync fetch error:", error);
+                } else if (userShops && userShops.length > 0) {
+                    const primaryShop = userShops.find(s => s.is_primary) || userShops[0];
+                    const shopId = primaryShop.shop_id;
                     
-                    // Prime shops cache for faster dashboard load
-                    const { data: fullShops } = await supabase.from('shops').select('id, name').in('id', userShops.map(s => s.shop_id));
-                    if (fullShops) {
+                    if (shopId) {
+                        localStorage.setItem("currentShopId", shopId);
+                        
+                        // Cache shops for instant UI response next time
+                        const { data: fullShops } = await supabase.from('shops').select('id, name').in('id', userShops.map(s => s.shop_id));
                         const mapped = userShops.map(us => {
-                             const s = fullShops.find(fs => fs.id === us.shop_id);
+                             const s = fullShops?.find(fs => fs.id === us.shop_id);
                              return { id: us.shop_id, name: s?.name || "My Pharmacy", is_primary: us.is_primary };
                         });
                         localStorage.setItem("medix_cached_shops", JSON.stringify(mapped));
-                    }
 
-                    // DISPATCH CUSTOM EVENT for same-window reactivity
-                    window.dispatchEvent(new CustomEvent("medix_shop_sync", { detail: { shopId } }));
-                    
-                    console.log(`✅ [AuthHelpers] Shop ID synchronized on attempt ${attempt}:`, shopId);
-                    return shopId;
+                        window.dispatchEvent(new CustomEvent("medix_shop_sync", { detail: { shopId } }));
+                        console.log(`✅ [AuthHelpers] Shop ID synchronized on attempt ${attempt}:`, shopId);
+                        return shopId;
+                    }
                 }
-            } else {
-                console.warn(`⚠️ [AuthHelpers] No shops found on attempt ${attempt} for user:`, userId);
             }
         } catch (err) {
             console.error(`❌ [AuthHelpers] Shop sync exception on attempt ${attempt}:`, err);
         }
 
-        // Wait before next retry (1s, 2s, 3s...)
         if (attempt < maxRetries) {
-            const delay = attempt * 1000;
-            console.log(`⏳ [AuthHelpers] Retrying shop sync in ${delay}ms...`);
+            const delay = Math.min(attempt * 1000, 3000); // 1s, 2s, 3s, 3s...
             await new Promise(r => setTimeout(r, delay));
         }
     }
@@ -177,53 +173,54 @@ export const syncUserShop = async (userId: string, maxRetries = 3): Promise<stri
     console.warn("⚠️ [AuthHelpers] All shop sync retries exhausted. Attempting client-side fallback provisioning...");
     
     try {
-        // FALLBACK: Auto-provision shop if trigger failed or user is legacy
-        const { data: userProfile } = await supabase.from('profiles').select('full_name, email').eq('user_id', userId).maybeSingle();
-        const fallbackName = userProfile?.full_name ? `${userProfile.full_name}'s Pharmacy` : "My Medical Shop";
+        // Double check session one last time
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return null;
 
+        const fallbackName = session.user.user_metadata?.shop_name || "My Medical Shop";
         console.log(`[AuthHelpers] Creating fallback shop: ${fallbackName}`);
         
-        // 1. Create Shop
+        // 1. Create Shop (Allowed by new RLS 'Owner can insert own shop')
         const { data: newShop, error: createErr } = await supabase
             .from("shops")
             .insert({ name: fallbackName, owner_id: userId })
             .select("id")
             .single();
 
-            if (newShop?.id && !createErr) {
-                console.log(`[AuthHelpers] Fallback shop record created: ${newShop.id}. Linking...`);
-                
-                // 2. Link Profile
-                const { error: profileErr } = await supabase.from("profiles").upsert({ user_id: userId, shop_id: newShop.id, role: 'owner' });
-                if (profileErr) console.error("❌ [AuthHelpers] Fallback profile link failed:", profileErr.code, profileErr.message, profileErr);
-                
-                // 3. Link User Shops (Junction)
-                // Check if already exists first (maybe trigger just finished)
-                const { data: existingLink } = await supabase.from("user_shops").select("shop_id").eq("user_id", userId).eq("shop_id", newShop.id).maybeSingle();
-                
-                if (!existingLink) {
-                    const { error: junctionErr } = await supabase.from("user_shops").insert({ user_id: userId, shop_id: newShop.id, is_primary: true });
-                    if (junctionErr) {
-                        console.error("❌ [AuthHelpers] Fallback junction link failed (Check RLS!):", junctionErr.code, junctionErr.message, junctionErr);
-                    } else {
-                        console.log(`✅ [AuthHelpers] Fallback junction link success`);
-                    }
-                } else {
-                    console.log(`ℹ️ [AuthHelpers] Junction link already exists, skipping insert.`);
-                }
+        let shopId = newShop?.id;
 
-                localStorage.setItem("currentShopId", newShop.id);
-                // DISPATCH EVENT so hooks can pick it up immediately
-                window.dispatchEvent(new CustomEvent("medix_shop_sync", { detail: { shopId: newShop.id } }));
-                
-                console.log(`✅ [AuthHelpers] Fallback shop provisioned automatically:`, newShop.id);
-                return newShop.id;
-            } else if (createErr) {
-                console.error("❌ [AuthHelpers] Fallback shop creation failed (Check RLS!):", createErr.code, createErr.message, createErr);
+        if (createErr) {
+            // If it failed because a shop already exists for this owner (conflict), fetch it
+            if (createErr.code === '23505') {
+                const { data: existing } = await supabase.from('shops').select('id').eq('owner_id', userId).maybeSingle();
+                shopId = existing?.id;
+            } else {
+                console.error("❌ [AuthHelpers] Fallback shop creation failed:", createErr.message);
             }
-        } catch (fallbackErr) {
-            console.error("❌ [AuthHelpers] Fallback provisioning exception:", fallbackErr);
         }
+
+        if (shopId) {
+            // 2. Link User Shops (Allowed by new RLS 'Users can insert own shop links')
+            await supabase.from("user_shops").upsert({ 
+                user_id: userId, 
+                shop_id: shopId, 
+                is_primary: true 
+            }, { onConflict: 'user_id, shop_id' });
+            
+            // 3. Update Profile (Allowed by RLS 'Users can update own profile')
+            await supabase.from("profiles").upsert({ 
+                user_id: userId, 
+                shop_id: shopId,
+                full_name: session.user.user_metadata?.full_name || "Pharmacist"
+            }, { onConflict: 'user_id' });
+
+            localStorage.setItem("currentShopId", shopId);
+            window.dispatchEvent(new CustomEvent("medix_shop_sync", { detail: { shopId } }));
+            return shopId;
+        }
+    } catch (fallbackErr) {
+        console.error("❌ [AuthHelpers] Fallback provisioning exception:", fallbackErr);
+    }
 
     return null;
 };

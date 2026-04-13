@@ -117,8 +117,9 @@ const queryClient = new QueryClient({
       
       // Handle Unauthorized/Forbidden
       if (error?.status === 401 || error?.status === 403 || error?.message?.includes("401") || error?.message?.includes("403")) {
-        toast.error("Session Expired or Access Denied. Logging out...");
-        window.location.hash = "#/logout";
+        console.warn("🔐 [QueryCache] Possible session expiration detected. Verification recommended.");
+        // We no longer forcefully logout on a single 401, as it could be a proxy glitch.
+        // Instead, we just log it. The next manual action or token refresh will confirm if the session is dead.
         return;
       }
 
@@ -132,8 +133,7 @@ const queryClient = new QueryClient({
       console.error("Global Mutation Error:", error);
 
       if (error?.status === 401 || error?.status === 403) {
-        toast.error("Permission Denied. Please log in again.");
-        window.location.hash = "#/logout";
+        console.warn("🔐 [MutationCache] Permission Denied or Session Expired.");
         return;
       }
 

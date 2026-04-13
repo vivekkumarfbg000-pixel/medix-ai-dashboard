@@ -52,14 +52,19 @@ export const useSessionEnforcement = () => {
                     .on(
                         'postgres_changes',
                         {
-                            event: 'UPDATE',
+                            event: '*', // Listen for all events (INSERT/UPDATE/DELETE)
                             schema: 'public',
                             table: 'active_sessions',
                             filter: `user_id=eq.${user.id}`
                         },
                         (payload: any) => {
                             const remoteSessionId = payload.new.session_id;
-                            if (remoteSessionId && remoteSessionId !== deviceId) {
+                            const eventType = payload.eventType;
+
+                            // In DUAL LOGIN mode, we only care if OUR session was explicitly deleted
+                            // or if another device took our specific session ID (unlikely).
+                            if (eventType === 'DELETE' && payload.old.session_id === deviceId) {
+                                console.warn("🔐 [SessionGuard] This specific session was revoked.");
                                 handleLogout();
                             }
                         }
