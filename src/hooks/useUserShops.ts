@@ -191,10 +191,11 @@ export function useUserShops(): UserShopsState {
           } else {
             // ALL RETRIES FAILED
             if (!localStorage.getItem("medix_cached_shops")) {
-              toast.error("Network timeout. Your connection or proxy is unstable.", { 
+              const errMsg = err?.message || err?.details || String(err);
+              toast.error(`Connection Error: ${errMsg}`, { 
                 duration: 15000,
                 action: {
-                    label: "Retry Connection",
+                    label: "Retry",
                     onClick: () => setRefetchTrigger(prev => prev + 1)
                 }
               });
