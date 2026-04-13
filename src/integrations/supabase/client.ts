@@ -41,12 +41,17 @@ function getSupabaseUrl(): string {
 const SUPABASE_URL = getSupabaseUrl();
 
 // ─── Proxy Management ────────────────────────────────────────────────────────
+export const clearNoProxy = () => {
+  localStorage.removeItem('medix_force_no_proxy');
+  window.location.reload();
+};
+
 const getFinalUrl = () => {
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
     const forceNoProxy = localStorage.getItem('medix_force_no_proxy') === 'true';
     if (params.get('no_proxy') === 'true' || forceNoProxy) {
-      console.warn('⚠️ [Supabase] Failsafe: Connecting DIRECTLY to supabase.co');
+      console.warn('⚠️ [Supabase] Failsafe: Connecting DIRECTLY to supabase.co. If you are in India (Jio/Airtel), this will likely fail!');
       return SUPABASE_URL_RAW;
     }
   }

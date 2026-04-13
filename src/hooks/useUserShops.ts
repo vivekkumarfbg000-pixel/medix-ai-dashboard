@@ -110,43 +110,53 @@ export function useUserShops(): UserShopsState {
         try {
           console.log(`🏪 [useUserShops] fetchShops attempt ${attempt}/${maxAttempts} for user: ${user!.id}`);
           
-          // OPTIMIZATION: getSession is cached locally, avoids a network call
           const { data: { session } } = await supabase.auth.getSession();
           if (!session?.user) {
             setLoading(false);
             return;
           }
 
-          // Single efficient query through the junction table
-          const { data: userShops, error } = await supabase
+          // PHASE A: Fetch Junction IDs (Simple query)
+          const { data: userShops, error: linkError } = await supabase
             .from("user_shops")
-            .select(`
-              shop_id,
-              is_primary,
-              shops (
-                id,
-                name,
-                address,
-                phone,
-                gst_no,
-                dl_number
-              )
-            `)
+            .select("shop_id, is_primary")
             .eq("user_id", session.user.id);
 
-          if (error) throw error;
+          if (linkError) throw linkError;
 
           let mappedShops: Shop[] = [];
           if (userShops && userShops.length > 0) {
-            mappedShops = userShops.map((us: any) => ({
-              id: us.shops?.id || us.shop_id,
-              name: us.shops?.name || "Assigned Pharmacy",
-              address: us.shops?.address,
-              phone: us.shops?.phone || null,
-              gst_no: us.shops?.gst_no || null,
-              dl_number: us.shops?.dl_number || null,
-              is_primary: us.is_primary,
-            })).filter((shop: Shop) => shop.id);
+            // PHASE B: Fetch Detail Metadata (Simple query, no joins)
+            const { data: shopsData, error: shopsError } = await supabase
+              .from("shops")
+              .select("id, name, address, phone, gst_no, dl_number")
+              .in("id", userShops.map(us => us.shop_id));
+
+            if (shopsError) {
+                console.warn("⚠️ [useUserShops] Detail fetch failed (likely RLS), using fallbacks.");
+                mappedShops = userShops.map(us => ({
+                    id: us.shop_id,
+                    name: "Assigned Pharmacy",
+                    address: null,
+                    phone: null,
+                    gst_no: null,
+                    dl_number: null,
+                    is_primary: us.is_primary,
+                }));
+            } else {
+                mappedShops = userShops.map(us => {
+                    const s = shopsData?.find(fs => fs.id === us.shop_id);
+                    return {
+                        id: us.shop_id,
+                        name: s?.name || "Assigned Pharmacy",
+                        address: s?.address || null,
+                        phone: s?.phone || null,
+                        gst_no: s?.gst_no || null,
+                        dl_number: s?.dl_number || null,
+                        is_primary: us.is_primary,
+                    };
+                });
+            }
           }
 
           if (mappedShops.length > 0) {
@@ -167,7 +177,7 @@ export function useUserShops(): UserShopsState {
             }
           }
           
-          console.log(`✅ [useUserShops] Loaded ${mappedShops.length} shop(s)`);
+          console.log(`✅ [useUserShops] Loaded ${mappedShops.length} shop(s). Sync complete.`);
           setLoading(false);
           return; // SUCCESS - Exit loop
 
@@ -175,13 +185,19 @@ export function useUserShops(): UserShopsState {
           console.error(`❌ [useUserShops] Shop load failed (attempt ${attempt}):`, err);
           
           if (attempt < maxAttempts) {
-            const delay = attempt * 2000;
+            const delay = attempt * 1500;
             console.warn(`⏳ [useUserShops] Retrying in ${delay}ms...`);
             await new Promise(r => setTimeout(r, delay));
           } else {
             // ALL RETRIES FAILED
             if (!localStorage.getItem("medix_cached_shops")) {
-              toast.error("Network timeout. Your connection or proxy is unstable. Please refresh or use Bypass Proxy.", { duration: 10000 });
+              toast.error("Network timeout. Your connection or proxy is unstable.", { 
+                duration: 15000,
+                action: {
+                    label: "Retry Connection",
+                    onClick: () => setRefetchTrigger(prev => prev + 1)
+                }
+              });
             }
             setLoading(false);
           }
