@@ -111,7 +111,16 @@ export default function GoogleCallback() {
                 
                 if (finalCode) {
                     console.log("⚡ [GoogleCallback] Exchanging PKCE code...");
-                    const { error } = await supabase.auth.exchangeCodeForSession(finalCode);
+                    
+                    // Failsafe: Hard timeout for the exchange call to prevent complete freeze
+                    const MAX_TIMEOUT = 12000;
+                    const exchangePromise = supabase.auth.exchangeCodeForSession(finalCode);
+                    const timeoutPromise = new Promise<{error: Error}>((_, reject) => 
+                        setTimeout(() => reject(new Error(`Timeout: PKCE exchange took longer than ${MAX_TIMEOUT}ms.`)), MAX_TIMEOUT)
+                    );
+
+                    const { error } = await Promise.race([exchangePromise, timeoutPromise]);
+                    
                     if (error) {
                         // If it's a 400 Bad Request regarding PKCE, it means the code was already used.
                         if (error.message.includes("invalid_grant") || error.message.includes("PKCE")) {
@@ -174,9 +183,21 @@ export default function GoogleCallback() {
                 cleanup();
                 console.error("❌ [GoogleCallback] Critical Failure:", err);
                 
+                // FORCE CLEANUP: If the auth exchange fails, wipe any corrupted state to prevent loops
+                try {
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && key.startsWith('sb-') && key.includes('auth-token')) {
+                            localStorage.removeItem(key);
+                        }
+                    }
+                } catch(e) {}
+
                 const errMsg = (err as Error).message || "Unknown auth error";
                 if (errMsg.includes("401") || errMsg.includes("Unauthorized")) {
                     toast.error("Security session expired or API key invalid. Please login again.");
+                } else if (errMsg.includes("Timeout")) {
+                    toast.error("Authentication timed out. Your connection might be unstable.");
                 } else {
                     toast.error("Connection failed. Your ISP may be blocking the session. Try a VPN.");
                 }
