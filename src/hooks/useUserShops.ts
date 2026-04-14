@@ -20,6 +20,7 @@ interface Shop {
   phone: string | null;
   gst_no: string | null;
   dl_number: string | null;
+  license_number: string | null;
   is_primary: boolean;
 }
 
@@ -143,7 +144,7 @@ export function useUserShops(): UserShopsState {
             // PHASE B: Fetch Detail Metadata (Simple query, no joins)
             const { data: shopsData, error: shopsError } = await supabase
               .from("shops")
-              .select("id, name, address, phone, gst_no, dl_number")
+              .select("id, name, address, phone, license_number")
               .in("id", userShops.map(us => us.shop_id));
 
             if (shopsError) {
@@ -165,8 +166,9 @@ export function useUserShops(): UserShopsState {
                         name: s?.name || "Assigned Pharmacy",
                         address: s?.address || null,
                         phone: s?.phone || null,
-                        gst_no: s?.gst_no || null,
-                        dl_number: s?.dl_number || null,
+                        gst_no: null, // GST information is in shop_settings
+                        dl_number: s?.license_number || null, // Map license_number to dl_number for UI
+                        license_number: s?.license_number || null,
                         is_primary: us.is_primary,
                     };
                 });
