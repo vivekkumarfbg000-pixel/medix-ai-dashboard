@@ -30,6 +30,43 @@
     <meta name="twitter:site" content="@MedixAI" />
     <meta name="twitter:image" content="/medix-logo.jpg" />
 
+    <script>
+        // ─── NUCLEAR VERSION LOCK ──────────────────────────────────────────
+        // This script MUST run before any module imports or PWA registration.
+        // It forcibly invalidates stale caches if the build version changes.
+        (function() {
+            const LATEST_BUILD = "2024-04-14-ELITE-V1";
+            const storedVer = localStorage.getItem('medix_ver');
+            
+            if (storedVer !== LATEST_BUILD) {
+                console.warn('[MedixAI] Stale build detected. Executing Nuclear Cache Reset...');
+                // Define the reset function early if not exists
+                window.medixFactoryReset = async function() {
+                    try {
+                        localStorage.clear();
+                        sessionStorage.clear();
+                        if ('caches' in window) {
+                            const keys = await caches.keys();
+                            await Promise.all(keys.map(key => caches.delete(key)));
+                        }
+                        if ('serviceWorker' in navigator) {
+                            const registrations = await navigator.serviceWorker.getRegistrations();
+                            await Promise.all(registrations.map(r => r.unregister()));
+                        }
+                        localStorage.setItem('medix_ver', LATEST_BUILD);
+                        window.location.reload();
+                    } catch (e) {
+                         // Fallback: just try to set version and reload
+                         localStorage.setItem('medix_ver', LATEST_BUILD);
+                         window.location.reload();
+                    }
+                };
+                window.medixFactoryReset();
+            }
+        })();
+        // ───────────────────────────────────────────────────────────────────
+    </script>
+
     <!-- Performance Hints -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

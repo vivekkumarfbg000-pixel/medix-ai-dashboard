@@ -64,10 +64,10 @@ export default defineConfig(({ mode }) => {
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt', // Changed from autoUpdate to prompt to force user awareness if a cache is stubborn
       includeAssets: ['favicon.ico', 'robots.txt', 'placeholder.svg'],
       manifest: {
-        name: 'MedixAI',
+        name: 'MedixAI (v1.2)', // Versioned manifest name
         short_name: 'MedixAI',
         description: 'AI-Powered Manager for Medical Shops',
         theme_color: '#0ea5e9',
@@ -99,8 +99,15 @@ export default defineConfig(({ mode }) => {
         clientsClaim: true,
         // CRITICAL: Prevent the Service Worker from intercepting OAuth redirects via proxy
         navigateFallbackDenylist: [/^\/supabase-proxy/],
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'], // REMOVED .html to prevent it from being cached as a shell
         runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname === '/' || url.pathname.endsWith('index.html'),
+            handler: 'NetworkFirst', // FORCE NetworkFirst for index.html
+            options: {
+              cacheName: 'html-cache',
+            }
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
@@ -108,7 +115,7 @@ export default defineConfig(({ mode }) => {
               cacheName: 'google-fonts-cache',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // <== 365 days
+                maxAgeSeconds: 60 * 60 * 24 * 365
               },
               cacheableResponse: {
                 statuses: [0, 200]
@@ -122,7 +129,7 @@ export default defineConfig(({ mode }) => {
               cacheName: 'gstatic-fonts-cache',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // <== 365 days
+                maxAgeSeconds: 60 * 60 * 24 * 365
               },
               cacheableResponse: {
                 statuses: [0, 200]
@@ -130,15 +137,13 @@ export default defineConfig(({ mode }) => {
             }
           },
           {
-            // API calls should generally be NetworkFirst or NetworkOnly
-            // since we use React Query for caching state.
             urlPattern: ({ url }) => url.pathname.startsWith('/rest/v1/'),
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
               expiration: {
                 maxEntries: 100,
-                maxAgeSeconds: 60 * 5 // 5 minutes
+                maxAgeSeconds: 60 * 5 
               },
               cacheableResponse: {
                 statuses: [0, 200]
