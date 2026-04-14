@@ -22,12 +22,7 @@ export default function GoogleCallback() {
     const location = useLocation();
     const processed = useRef(false);
     const [status, setStatus] = useState("Verifying login...");
-    const [showFailsafe, setShowFailsafe] = useState(false);
 
-    useEffect(() => {
-        const timer = setTimeout(() => setShowFailsafe(true), 6000);
-        return () => clearTimeout(timer);
-    }, []);
 
     useEffect(() => {
         if (processed.current) return;
@@ -39,17 +34,15 @@ export default function GoogleCallback() {
 
         const handleCallback = async () => {
             const startTime = Date.now();
+            let finalSession: any = null;
             console.log("🚦 [GoogleCallback] Verification started at:", new Date(startTime).toLocaleTimeString());
 
             // 1. Setup Timeout Fallback (30 seconds)
             authTimeoutId = setTimeout(() => {
                 if (isDone) return;
-                console.error("❌ [GoogleCallback] Global Timeout triggered after 30s");
-                setStatus("Verification timed out...");
-                toast.dismiss(); // Clear any "Parsing..." toasts
-                toast.error("Connecting... If loading takes too long, you can skip from the dashboard screen.");
-                navigate("/dashboard", { replace: true }); // Fallback to Dashboard instead of Login
-            }, 30000);
+                console.log("⏱️ [GoogleCallback] Safety Timeout — Redirecting to Dashboard");
+                navigate("/dashboard", { replace: true });
+            }, 12000);
 
             // 2. Background Session Checker (Self-Healing)
             sessionCheckerId = setInterval(async () => {
@@ -219,19 +212,6 @@ export default function GoogleCallback() {
             <div className="text-center">
                 <h2 className="text-lg font-semibold text-foreground">{status}</h2>
                 <p className="text-sm text-muted-foreground animate-pulse">Please wait...</p>
-                {showFailsafe && (
-                    <div className="mt-8 flex flex-col items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                        <p className="text-xs text-muted-foreground max-w-xs px-4">
-                            ISP or Proxy slow? If your login with Google was already successful, you can try entering the dashboard directly.
-                        </p>
-                        <button 
-                            onClick={() => navigate("/dashboard", { replace: true })}
-                            className="px-6 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-full text-sm font-medium border border-primary/20"
-                        >
-                            Skip to Dashboard →
-                        </button>
-                    </div>
-                )}
             </div>
         </div>
     );

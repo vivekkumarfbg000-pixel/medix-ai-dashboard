@@ -157,13 +157,15 @@ export function DashboardLayout() {
   const { loading: shopsLoading, currentShopId } = useUserShops();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [showFailsafe, setShowFailsafe] = useState(false);
 
   useEffect(() => {
-    // 8-second safety timer: show 'Proceed Anyway' if network is slow
+    // 12-second safety timer: Force enter dashboard if sync is taking too long
     const timer = setTimeout(() => {
-      if (loading) setShowFailsafe(true);
-    }, 8000);
+      if (loading) {
+        console.log("⏱️ [DashboardLayout] Safety Timeout — Proceeding to Dashboard");
+        setLoading(false);
+      }
+    }, 12000);
 
     return () => clearTimeout(timer);
   }, [loading]);
@@ -190,29 +192,6 @@ export function DashboardLayout() {
           <h2 className="text-lg font-semibold text-foreground">Loading MedixAI.Shop...</h2>
           <p className="text-sm text-muted-foreground animate-pulse mb-8">Initializing Secure Dashboard</p>
           
-          {showFailsafe && (
-             <div className="mt-8 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <p className="text-xs text-muted-foreground max-w-xs">
-                    Your ISP connection seems slow. You can enter the dashboard now; data will continue to sync in the background.
-                </p>
-                <div className="flex flex-col gap-2">
-                    <Button 
-                        onClick={() => setLoading(false)}
-                        className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-full"
-                    >
-                        Proceed to Dashboard (Syncing) →
-                    </Button>
-                    <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => navigate("/login")}
-                        className="text-xs text-muted-foreground"
-                    >
-                        Back to Login
-                    </Button>
-                </div>
-             </div>
-          )}
         </div>
       </div>
     );
