@@ -60,7 +60,14 @@ export const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(() => {
+        // OPTIMISTIC: If we have an auth-token marker in localStorage, 
+        // assume we are authenticated until getSession() proves otherwise.
+        if (typeof window !== "undefined") {
+            return !Object.keys(localStorage).some(key => key.startsWith('sb-') && key.includes('-auth-token'));
+        }
+        return true;
+    });
 
     // Bootstrap — check for existing session on mount
     useEffect(() => {
@@ -129,9 +136,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 sessionStorage.removeItem("temporary_session");
             }
 
-            // GUARANTEE SHOP SYNC BEFORE RETURNING
+            // OPTIMIZED: We no longer await shop sync here to provide "instant" dashboard access.
+            // The sync will happen in the background or via the useUserShops hook.
             if (data?.user) {
-                await syncUserShop(data.user.id);
+                syncUserShop(data.user.id).catch(err => {
+                    console.error("❌ [AuthProvider] Background shop sync failed:", err);
+                });
             }
 
             return null; // success
@@ -179,9 +189,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 return "verify"; // caller should show a "check your inbox" message
             }
 
-            // AUTO-PROVISIONING is handled securely by Postgres trigger
+            // OPTIMIZED: Background sync
             if (data?.user?.id) {
-                await syncUserShop(data.user.id);
+                syncUserShop(data.user.id).catch(console.error);
             }
 
             // Instant sign-up (verification disabled or auto-confirmed)

@@ -45,7 +45,12 @@ export function useUserShops(): UserShopsState {
   const [currentShopId, setCurrentShopId] = useState<string | null>(() => {
     return localStorage.getItem("currentShopId");
   });
-  const [loading, setLoading] = useState(true); // Always start with loading true if user but no shops
+  const [loading, setLoading] = useState(() => {
+    // OPTIMIZED: If we have cached data, don't show the skeleton/loading screen
+    const cachedShops = localStorage.getItem("medix_cached_shops");
+    const cachedId = localStorage.getItem("currentShopId");
+    return !(cachedShops && cachedId);
+  });
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   // STALE CACHE PROTECTION: If the user changed, clear the cache state immediately

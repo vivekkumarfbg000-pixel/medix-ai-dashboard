@@ -156,8 +156,9 @@ export function DashboardLayout() {
   useSessionEnforcement(); // Enforce single device login
   const { loading: shopsLoading, currentShopId } = useUserShops();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(shopsLoading);
   const [showReset, setShowReset] = useState(false);
-  const loadingRef = useRef(loading);
+  const loadingRef = useRef(shopsLoading);
 
   useEffect(() => {
     loadingRef.current = loading;
