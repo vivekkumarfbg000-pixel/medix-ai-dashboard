@@ -2,14 +2,20 @@ import { createRoot } from "react-dom/client";
 
 // PWA Service Worker: Let VitePWA manage registration.
 // Only clear stale caches from previous buggy builds (one-time cleanup).
-if ('caches' in window && sessionStorage.getItem('medix_cache_v2_cleaned') !== '1') {
+if ('caches' in window && sessionStorage.getItem('medix_cache_v3_cleaned') !== '1') {
     caches.keys().then((keyList) => {
-        // Only purge legacy caches, not workbox-managed ones
-        const legacyKeys = keyList.filter(k => !k.startsWith('workbox-') && !k.startsWith('google-fonts') && !k.startsWith('gstatic-fonts') && !k.startsWith('api-cache'));
-        if (legacyKeys.length > 0) {
-            Promise.all(legacyKeys.map(k => caches.delete(k)));
+        // Purge almost everything to ensure a fresh build is pulled.
+        // We only keep google-fonts to save bandwidth.
+        const staleKeys = keyList.filter(k => 
+            !k.startsWith('google-fonts') && 
+            !k.startsWith('gstatic-fonts')
+        );
+        
+        if (staleKeys.length > 0) {
+            console.warn('[Bootstrap] Purging all caches (v3 reset):', staleKeys);
+            Promise.all(staleKeys.map(k => caches.delete(k)));
         }
-        sessionStorage.setItem('medix_cache_v2_cleaned', '1');
+        sessionStorage.setItem('medix_cache_v3_cleaned', '1');
     });
 }
 
