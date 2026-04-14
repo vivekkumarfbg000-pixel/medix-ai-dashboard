@@ -213,22 +213,31 @@ export default function GoogleCallback() {
     }, [navigate, location.search]);
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-medical-canvas space-y-4">
-            <div className="relative">
-                <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xl font-bold text-primary">M</span>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-medical-canvas p-6 relative overflow-hidden">
+            {/* Background decorative glows */}
+            <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/10 rounded-full blur-3xl animate-pulse" />
+            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse delay-700" />
+
+            <div className="relative z-10 w-full max-w-sm card-glass p-12 shadow-2xl animate-in fade-in zoom-in duration-700 text-center space-y-8">
+                <div className="relative inline-block">
+                    <div className="w-20 h-20 border-b-2 border-primary rounded-full animate-spin duration-[1500ms]" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-glow flex items-center justify-center">
+                            <span className="text-xl font-black text-white">M</span>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div className="text-center px-6">
-                <h2 className="text-lg font-semibold text-foreground">{status}</h2>
-                <p className="text-sm text-muted-foreground animate-pulse mb-8">Please wait...</p>
+
+                <div className="space-y-2">
+                    <h2 className="text-xl font-bold text-foreground tracking-tight">{status}</h2>
+                    <p className="text-xs text-muted-foreground font-medium animate-pulse">Finalizing secure session...</p>
+                </div>
                 
                 {showReset && (
-                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-xs mx-auto">
-                        <p className="text-xs text-muted-foreground mb-4">Verification taking too long? This can happen on slow networks.</p>
+                    <div className="pt-4 animate-in slide-in-from-bottom-2 duration-500">
+                        <p className="text-[10px] text-muted-foreground mb-4 leading-relaxed px-4">Verification is taking longer than usual. This may be due to a slow ISP or proxy.</p>
                         <button 
-                            className="w-full py-2 px-4 bg-destructive text-destructive-foreground rounded-md text-sm font-medium shadow-glow-destructive transition-all hover:bg-destructive/90"
+                            className="w-full py-2.5 px-4 bg-destructive text-destructive-foreground rounded-xl text-xs font-bold shadow-lg shadow-destructive/20 transition-all active:scale-95"
                             onClick={() => (window as any).medixFactoryReset?.()}
                         >
                             Emergency Factory Reset

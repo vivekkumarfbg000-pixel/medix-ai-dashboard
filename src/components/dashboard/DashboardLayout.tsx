@@ -196,24 +196,33 @@ export function DashboardLayout() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-medical-canvas space-y-4">
-        <div className="relative text-center">
-          <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-xl font-bold text-primary">M</span>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-medical-canvas p-6 relative overflow-hidden">
+        {/* Abstract background glow */}
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse delay-700" />
+
+        <div className="relative z-10 w-full max-w-sm card-glass p-12 rounded-3xl shadow-2xl border border-white/20 backdrop-blur-2xl text-center space-y-8 animate-in fade-in zoom-in duration-700">
+          <div className="relative inline-block">
+            <div className="w-24 h-24 border-b-2 border-primary rounded-full animate-spin duration-[2000ms]" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-glow flex items-center justify-center">
+                <span className="text-2xl font-black text-white tracking-widest">M</span>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="text-center px-6">
-          <h2 className="text-lg font-semibold text-foreground">Preparing MedixAI...</h2>
-          <p className="text-sm text-muted-foreground animate-pulse mb-8">Finalizing secure session</p>
-          
+
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-foreground tracking-tight">Syncing MedixAI</h2>
+            <p className="text-xs text-muted-foreground font-medium animate-pulse">Establishing secure health environment...</p>
+          </div>
+
           {showReset && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-xs mx-auto">
-              <p className="text-xs text-muted-foreground mb-4">Still taking too long? This may be caused by a corrupted browser cache.</p>
+            <div className="pt-4 animate-in slide-in-from-bottom-2 duration-500">
+              <p className="text-[10px] text-muted-foreground mb-4 leading-relaxed px-4">Synchronizing large datasets or slow network detected.</p>
               <Button 
                 variant="destructive" 
                 size="sm" 
-                className="w-full gap-2 shadow-glow-destructive"
+                className="w-full text-xs font-bold rounded-xl shadow-lg shadow-destructive/20 active:scale-95 transition-all"
                 onClick={() => (window as any).medixFactoryReset?.()}
               >
                 Emergency Factory Reset

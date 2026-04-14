@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import "./index.css"; 
 
 // PWA Service Worker: Let VitePWA manage registration.
 // Only clear stale caches from previous buggy builds (one-time cleanup).
@@ -214,20 +215,19 @@ const bootstrap = async () => {
         console.log("📦 Starting Application Bootstrap...");
         updateLoadingStatus("Initializing Bootstrap...");
 
-        // Safety Timeout: If app doesn't load in 10s, throw error
+        // Parallelized Loading Strategy: Fetch all critical components at once
         const activeLoad = (async () => {
-            // Dynamically import dependencies to isolate crashes
-            updateLoadingStatus("Importing Themes...");
-            const { ThemeProvider } = await import("next-themes");
-
-            updateLoadingStatus("Importing App Component...");
-            const { default: App } = await import("./App.tsx");
-
-            updateLoadingStatus("Importing Error Boundary...");
-            const { default: ErrorBoundary } = await import("./components/ErrorBoundary.tsx");
-
-            updateLoadingStatus("Importing Styles...");
-            await import("./index.css");
+            updateLoadingStatus("Importing Core Modules...");
+            
+            const [
+                { ThemeProvider },
+                { default: App },
+                { default: ErrorBoundary }
+            ] = await Promise.all([
+                import("next-themes"),
+                import("./App.tsx"),
+                import("./components/ErrorBoundary.tsx")
+            ]);
 
             console.log("✅ Modules Loaded. Mounting React Root...");
             updateLoadingStatus("Mounting React Application...");

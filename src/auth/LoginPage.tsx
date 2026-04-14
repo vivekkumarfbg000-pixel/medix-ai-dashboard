@@ -202,8 +202,12 @@ export default function LoginPage() {
             </div>
 
             {/* ── Right Panel — Login Form ────────────────────────────────────── */}
-            <div className="flex-1 flex items-center justify-center p-8 bg-background">
-                <div className="w-full max-w-md">
+            <div className="flex-1 flex items-center justify-center p-8 bg-background relative overflow-hidden">
+                {/* Background decorative glows */}
+                <div className="absolute -top-[10%] -right-[10%] w-1/2 h-1/2 bg-primary/5 rounded-full blur-[120px] animate-pulse" />
+                <div className="absolute -bottom-[10%] -left-[10%] w-1/2 h-1/2 bg-primary/5 rounded-full blur-[120px] animate-pulse delay-1000" />
+                
+                <div className="w-full max-w-md relative z-10">
                     {/* Mobile Logo */}
                     <div className="lg:hidden flex flex-col items-center gap-4 mb-8 justify-center">
                         <div className="w-16 h-16 rounded-xl bg-primary/5 flex items-center justify-center overflow-hidden border border-primary/10 shadow-lg">
@@ -218,78 +222,59 @@ export default function LoginPage() {
                         </h1>
                     </div>
 
-                    {/* ── Connectivity Banner ─────────────────────────────────── */}
-                    {isCheckingConnection && (
-                        <div className="mb-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/40 px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
-                            <RefreshCw className="h-4 w-4 animate-spin flex-shrink-0" />
-                            <span>Checking server connectivity…</span>
-                        </div>
-                    )}
-                    {isOffline && !isCheckingConnection && (
-                        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300">
-                            <div className="flex items-center gap-2 mb-2">
-                                <WifiOff className="h-4 w-4 flex-shrink-0" />
-                                <span className="font-semibold">Cannot reach authentication server</span>
-                            </div>
-                            <p className="mb-2 text-xs leading-relaxed">
-                                {connectivity?.error || "The server is unreachable."}{" "}
-                                You might be experiencing network restrictions. Try switching to a <strong>mobile hotspot</strong> or check your internet settings.
-                            </p>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 text-xs border-red-300 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/40"
-                                    onClick={retryConnection}
-                                    disabled={isCheckingConnection}
-                                >
-                                    <RefreshCw className={`h-3 w-3 mr-1 ${isCheckingConnection ? 'animate-spin' : ''}`} />
-                                    Retry Connection
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                    {connectivity?.reachable && !isCheckingConnection && (
-                        <div className="mb-4 flex flex-col gap-2 rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/40 px-4 py-3 text-sm text-green-700 dark:text-green-300">
-                            <div className="flex items-center gap-2">
-                                <Wifi className="h-4 w-4 flex-shrink-0" />
-                                <span>Connected to server ({connectivity.latencyMs}ms)</span>
-                            </div>
+                    {/* Subtle Connectivity Indicator (Silent by default) */}
+                    {!isCheckingConnection && isOffline && (
+                        <div className="mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                             <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm p-4 rounded-xl flex items-start gap-4 backdrop-blur-md">
+                                <WifiOff className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                                <div>
+                                    <p className="font-semibold">Connection Issue</p>
+                                    <p className="text-xs opacity-90 leading-relaxed">It seems we can't reach the server. Please check your internet or try again in a moment.</p>
+                                    <button 
+                                        onClick={retryConnection}
+                                        className="mt-2 text-xs font-bold underline hover:opacity-80 flex items-center gap-1"
+                                    >
+                                        <RefreshCw className={`w-3 h-3 ${isCheckingConnection ? 'animate-spin' : ''}`} />
+                                        Try again
+                                    </button>
+                                </div>
+                             </div>
                         </div>
                     )}
 
-                    {/* Always show the proxy bypass toggle as an advanced fallback explicitly */}
-                    <div className="mb-4 flex justify-end">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs border-orange-300 bg-orange-50/50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-300 hover:bg-orange-100"
-                            onClick={isProxyBypassed ? handleRestoreProxy : handleBypassProxy}
-                            title={isProxyBypassed ? "Restore to default connectivity settings" : "Try if your ISP is not blocking Supabase but the proxy is slow"}
-                        >
-                            <Wifi className="h-3 w-3 mr-1" />
-                            {isProxyBypassed ? "Restore Proxy" : "Bypass Proxy & Try Direct"}
-                        </Button>
-                    </div>
+                    {/* Advanced: Proxy Toggle (Discreetly at the bottom or hidden) */}
+                    {isOffline && (
+                        <div className="mb-4 flex justify-end text-muted-foreground/40 italic">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-[10px] hover:text-foreground p-0 px-2"
+                                onClick={isProxyBypassed ? handleRestoreProxy : handleBypassProxy}
+                            >
+                                {isProxyBypassed ? "Using Direct Connection" : "Attempt Direct Connection"}
+                            </Button>
+                        </div>
+                    )}
 
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="space-y-1 pb-4">
-                            <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-                            <CardDescription>
-                                Sign in to your account to continue
+                    <Card className="card-glass shadow-2xl animate-in zoom-in-95 duration-700">
+                        <CardHeader className="space-y-1 pb-4 text-center">
+                            <CardTitle className="text-3xl font-bold tracking-tight">Welcome Back</CardTitle>
+                            <CardDescription className="text-sm">
+                                Access your medical dashboard
                             </CardDescription>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-6">
                             <div className="space-y-4">
                                 {/* Google sign-in button */}
                                 <Button
                                     variant="outline"
-                                    className="w-full h-11 font-medium border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                    className="w-full h-12 font-medium border-border/50 bg-background/50 hover:bg-accent transition-all duration-300 gap-3 group relative overflow-hidden"
                                     onClick={handleGoogleLogin}
-                                    disabled={isLoading || isOffline}
+                                    disabled={isLoading}
                                 >
+                                    <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                     <svg
-                                        className="mr-2 h-4 w-4"
+                                        className="h-5 w-5"
                                         aria-hidden="true"
                                         focusable="false"
                                         viewBox="0 0 488 512"
@@ -299,37 +284,37 @@ export default function LoginPage() {
                                             d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"
                                         />
                                     </svg>
-                                    Sign in with Google
+                                    Continue with Google
                                 </Button>
-
+                                
                                 {/* Divider */}
                                 <div className="relative">
                                     <div className="absolute inset-0 flex items-center">
-                                        <span className="w-full border-t" />
+                                        <span className="w-full border-t border-border/50" />
                                     </div>
-                                    <div className="relative flex justify-center text-xs uppercase">
-                                        <span className="bg-background px-2 text-muted-foreground">
-                                            Or continue with email
+                                    <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">
+                                        <span className="bg-background/80 backdrop-blur-sm px-4">
+                                            Or Secure Email
                                         </span>
                                     </div>
                                 </div>
 
                                 {/* Email / Password form */}
                                 <form onSubmit={handleLogin} className="space-y-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="login-email">Email</Label>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="login-email" className="text-xs font-semibold ml-1">Email</Label>
                                         <Input
                                             id="login-email"
                                             type="email"
-                                            placeholder="you@example.com"
+                                            placeholder="doctor@medixai.shop"
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             required
-                                            className="h-11"
+                                            className="h-11 bg-background/50 border-border/50 focus:bg-background transition-all"
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="login-password">Password</Label>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="login-password" title="Password" className="text-xs font-semibold ml-1">Password</Label>
                                         <Input
                                             id="login-password"
                                             type="password"
@@ -337,43 +322,46 @@ export default function LoginPage() {
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
                                             required
-                                            className="h-11"
+                                            className="h-11 bg-background/50 border-border/50 focus:bg-background transition-all"
                                         />
                                     </div>
-                                    <div className="flex items-center space-x-2">
+                                    <div className="flex items-center space-x-2 pb-2">
                                         <Checkbox
                                             id="remember-me"
                                             checked={rememberMe}
                                             onCheckedChange={(checked) =>
                                                 setRememberMe(checked === true)
                                             }
+                                            className="border-primary/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                                         />
                                         <label
                                             htmlFor="remember-me"
-                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-muted-foreground"
+                                            className="text-[12px] font-medium leading-none text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
                                         >
-                                            Remember me on this device
+                                            Remember this device for 30 days
                                         </label>
                                     </div>
                                     <Button
                                         type="submit"
-                                        className="w-full h-11 font-medium"
-                                        disabled={isLoading || isOffline}
+                                        className="w-full h-12 font-bold shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all duration-500 active:scale-[0.98]"
+                                        disabled={isLoading}
                                     >
-                                        {isLoading ? "Signing in..." : isOffline ? "Server Unreachable" : "Sign In"}
+                                        {isLoading ? (
+                                            <RefreshCw className="h-4 w-4 animate-spin" />
+                                        ) : "Sign In to MedixAI"}
                                     </Button>
                                 </form>
 
                                 {/* Link to Sign Up */}
-                                <p className="text-center text-sm text-muted-foreground">
-                                    Don&apos;t have an account?{" "}
+                                <div className="pt-2 text-center text-sm">
+                                    <span className="text-muted-foreground">New to MedixAI? </span>
                                     <Link
                                         to="/signup"
-                                        className="text-primary font-medium hover:underline"
+                                        className="text-primary font-bold hover:underline underline-offset-4 decoration-2"
                                     >
-                                        Create one
+                                        Create your shop
                                     </Link>
-                                </p>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
