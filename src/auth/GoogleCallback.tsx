@@ -16,6 +16,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { extractTokensFromHash, syncUserShop } from "./authHelpers";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { RefreshCw, LayoutDashboard } from "lucide-react";
 
 export default function GoogleCallback() {
     const navigate = useNavigate();
@@ -23,14 +25,24 @@ export default function GoogleCallback() {
     const processed = useRef(false);
     const [status, setStatus] = useState("Initializing...");
     const [showReset, setShowReset] = useState(false);
+    const [showSkip, setShowSkip] = useState(false);
     const isDoneRef = useRef(false);
 
     useEffect(() => {
+        // Show skip button after 5s
+        const skipTimer = setTimeout(() => {
+            if (!isDoneRef.current) setShowSkip(true);
+        }, 5000);
+
         // Show emergency reset if we're stuck for 15s
-        const timer = setTimeout(() => {
+        const resetTimer = setTimeout(() => {
             if (!isDoneRef.current) setShowReset(true);
         }, 15000);
-        return () => clearTimeout(timer);
+
+        return () => {
+            clearTimeout(skipTimer);
+            clearTimeout(resetTimer);
+        };
     }, []);
 
     useEffect(() => {
@@ -229,9 +241,25 @@ export default function GoogleCallback() {
                 </div>
 
                 <div className="space-y-2">
+                    <div className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-1">Step 2/3</div>
                     <h2 className="text-xl font-bold text-foreground tracking-tight">{status}</h2>
-                    <p className="text-xs text-muted-foreground font-medium animate-pulse">Finalizing secure session...</p>
+                    <p className="text-xs text-muted-foreground font-medium animate-pulse">Establishing secure session...</p>
                 </div>
+                
+                {showSkip && (
+                    <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-500">
+                        <p className="text-[10px] text-muted-foreground mb-3 leading-relaxed px-4">
+                            ISP or Proxy slow? If your login with Google was already successful, you can try entering the dashboard directly.
+                        </p>
+                        <Button 
+                            variant="outline"
+                            className="w-full py-2 h-9 text-xs font-bold border-primary/20 hover:bg-primary/5 transition-all text-primary flex items-center justify-center gap-2"
+                            onClick={() => navigate("/dashboard", { replace: true })}
+                        >
+                            Skip to Dashboard <span className="text-lg">→</span>
+                        </Button>
+                    </div>
+                )}
                 
                 {showReset && (
                     <div className="pt-4 animate-in slide-in-from-bottom-2 duration-500">

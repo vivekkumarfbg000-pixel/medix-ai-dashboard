@@ -158,6 +158,7 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(shopsLoading);
   const [showReset, setShowReset] = useState(false);
+  const [showSkip, setShowSkip] = useState(false);
   const loadingRef = useRef(shopsLoading);
 
   useEffect(() => {
@@ -165,6 +166,13 @@ export function DashboardLayout() {
   }, [loading]);
 
   useEffect(() => {
+    // 5-second skip timer: Show 'Skip to Dashboard' button early
+    const skipTimer = setTimeout(() => {
+      if (loadingRef.current) {
+        setShowSkip(true);
+      }
+    }, 5000);
+
     // 12-second safety timer: Force enter dashboard if sync is taking too long
     const safetyTimer = setTimeout(() => {
       if (loadingRef.current) {
@@ -181,6 +189,7 @@ export function DashboardLayout() {
     }, 15000);
 
     return () => {
+      clearTimeout(skipTimer);
       clearTimeout(safetyTimer);
       clearTimeout(resetTimer);
     };
@@ -216,6 +225,22 @@ export function DashboardLayout() {
             <h2 className="text-xl font-bold text-foreground tracking-tight">Syncing MedixAI</h2>
             <p className="text-xs text-muted-foreground font-medium animate-pulse">Establishing secure health environment...</p>
           </div>
+
+          {showSkip && (
+            <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-500">
+              <p className="text-[10px] text-muted-foreground mb-3 leading-relaxed px-4">
+                Shop sync is taking longer than usual. You can try entering anyway.
+              </p>
+              <Button 
+                variant="outline"
+                size="sm"
+                className="w-full text-xs font-bold border-primary/20 hover:bg-primary/5 transition-all text-primary flex items-center justify-center gap-2"
+                onClick={() => setLoading(false)}
+              >
+                Skip to Dashboard <span className="text-lg">→</span>
+              </Button>
+            </div>
+          )}
 
           {showReset && (
             <div className="pt-4 animate-in slide-in-from-bottom-2 duration-500">
