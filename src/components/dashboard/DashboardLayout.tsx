@@ -156,19 +156,34 @@ export function DashboardLayout() {
   useSessionEnforcement(); // Enforce single device login
   const { loading: shopsLoading, currentShopId } = useUserShops();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const [showReset, setShowReset] = useState(false);
+  const loadingRef = useRef(loading);
+
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
 
   useEffect(() => {
     // 12-second safety timer: Force enter dashboard if sync is taking too long
-    const timer = setTimeout(() => {
-      if (loading) {
+    const safetyTimer = setTimeout(() => {
+      if (loadingRef.current) {
         console.log("⏱️ [DashboardLayout] Safety Timeout — Proceeding to Dashboard");
         setLoading(false);
       }
     }, 12000);
 
-    return () => clearTimeout(timer);
-  }, [loading]);
+    // 15-second reset timer: Offer a way to clear absolute gridlocks
+    const resetTimer = setTimeout(() => {
+      if (loadingRef.current) {
+        setShowReset(true);
+      }
+    }, 15000);
+
+    return () => {
+      clearTimeout(safetyTimer);
+      clearTimeout(resetTimer);
+    };
+  }, []);
 
   useEffect(() => {
     // With offline-first sync, useUserShops loads from cache instantly.
@@ -192,6 +207,19 @@ export function DashboardLayout() {
           <h2 className="text-lg font-semibold text-foreground">Preparing MedixAI...</h2>
           <p className="text-sm text-muted-foreground animate-pulse mb-8">Finalizing secure session</p>
           
+          {showReset && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-xs mx-auto">
+              <p className="text-xs text-muted-foreground mb-4">Still taking too long? This may be caused by a corrupted browser cache.</p>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                className="w-full gap-2 shadow-glow-destructive"
+                onClick={() => (window as any).medixFactoryReset?.()}
+              >
+                Emergency Factory Reset
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );

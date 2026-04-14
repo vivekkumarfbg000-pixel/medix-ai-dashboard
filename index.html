@@ -65,6 +65,34 @@
     });
     </script>
     <script>
+        // EMERGENCY FACTORY RESET FUNCTION
+        window.medixFactoryReset = async function() {
+            console.warn('[MedixAI] Triggering Emergency Factory Reset...');
+            try {
+                // 1. Clear Storage
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // 2. Clear Caches
+                if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(key => caches.delete(key)));
+                }
+                
+                // 3. Unregister Service Workers
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(registrations.map(r => r.unregister()));
+                }
+                
+                // 4. Force Reload
+                window.location.href = window.location.origin + window.location.pathname + '?reset=' + Date.now();
+            } catch (err) {
+                console.error('Reset failed:', err);
+                alert('Reset failed. Please clear browsing data manually.');
+            }
+        };
+
         // CRITICAL PWA BYPASS: Kill corrupted Service Workers before module scripts load
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(function (registrations) {

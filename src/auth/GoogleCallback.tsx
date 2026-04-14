@@ -22,11 +22,21 @@ export default function GoogleCallback() {
     const location = useLocation();
     const processed = useRef(false);
     const [status, setStatus] = useState("Initializing...");
+    const [showReset, setShowReset] = useState(false);
+    const isDoneRef = useRef(false);
 
+    useEffect(() => {
+        // Show emergency reset if we're stuck for 15s
+        const timer = setTimeout(() => {
+            if (!isDoneRef.current) setShowReset(true);
+        }, 15000);
+        return () => clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         if (processed.current) return;
         processed.current = true;
+        // ... rest of the auth logic ...
 
         let authTimeoutId: ReturnType<typeof setTimeout>;
         let sessionCheckerId: ReturnType<typeof setInterval>;
@@ -63,6 +73,7 @@ export default function GoogleCallback() {
 
             const cleanup = () => {
                 isDone = true;
+                isDoneRef.current = true;
                 clearTimeout(authTimeoutId);
                 clearInterval(sessionCheckerId);
             };
@@ -209,9 +220,21 @@ export default function GoogleCallback() {
                     <span className="text-xl font-bold text-primary">M</span>
                 </div>
             </div>
-            <div className="text-center">
+            <div className="text-center px-6">
                 <h2 className="text-lg font-semibold text-foreground">{status}</h2>
-                <p className="text-sm text-muted-foreground animate-pulse">Please wait...</p>
+                <p className="text-sm text-muted-foreground animate-pulse mb-8">Please wait...</p>
+                
+                {showReset && (
+                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-xs mx-auto">
+                        <p className="text-xs text-muted-foreground mb-4">Verification taking too long? This can happen on slow networks.</p>
+                        <button 
+                            className="w-full py-2 px-4 bg-destructive text-destructive-foreground rounded-md text-sm font-medium shadow-glow-destructive transition-all hover:bg-destructive/90"
+                            onClick={() => (window as any).medixFactoryReset?.()}
+                        >
+                            Emergency Factory Reset
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
