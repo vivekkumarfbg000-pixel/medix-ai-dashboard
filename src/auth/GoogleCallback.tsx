@@ -21,7 +21,7 @@ export default function GoogleCallback() {
     const navigate = useNavigate();
     const location = useLocation();
     const processed = useRef(false);
-    const [status, setStatus] = useState("Verifying login...");
+    const [status, setStatus] = useState("Initializing...");
 
 
     useEffect(() => {
@@ -69,7 +69,7 @@ export default function GoogleCallback() {
 
             try {
                 // 3. Extract Tokens
-                setStatus("Step 1/3: Parsing security tokens...");
+                setStatus("Securing connection...");
                 
                 const queryParams = new URLSearchParams(location.search);
                 const pkceCode = queryParams.get("code");
@@ -100,7 +100,7 @@ export default function GoogleCallback() {
                 }
 
                 // 4. Establish Session
-                setStatus("Step 2/3: Establishing secure session...");
+                setStatus("Verifying credentials...");
                 
                 const { data: { session: initialSession } } = await supabase.auth.getSession();
                 if (initialSession?.user) {
@@ -147,7 +147,7 @@ export default function GoogleCallback() {
 
                 // 5. Verify & Sync Profile
                 if (!finalSession) {
-                    setStatus("Step 3/3: Synchronizing shop profile...");
+                    setStatus("Preparing your dashboard...");
                     let pollCount = 0;
                     while (pollCount < 6 && !isDone) {
                         const { data: { session } } = await supabase.auth.getSession();

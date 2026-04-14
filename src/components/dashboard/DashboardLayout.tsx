@@ -189,8 +189,8 @@ export function DashboardLayout() {
           </div>
         </div>
         <div className="text-center px-6">
-          <h2 className="text-lg font-semibold text-foreground">Loading MedixAI.Shop...</h2>
-          <p className="text-sm text-muted-foreground animate-pulse mb-8">Initializing Secure Dashboard</p>
+          <h2 className="text-lg font-semibold text-foreground">Preparing MedixAI...</h2>
+          <p className="text-sm text-muted-foreground animate-pulse mb-8">Finalizing secure session</p>
           
         </div>
       </div>
