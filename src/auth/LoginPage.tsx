@@ -233,8 +233,7 @@ export default function LoginPage() {
                             </div>
                             <p className="mb-2 text-xs leading-relaxed">
                                 {connectivity?.error || "The server is unreachable."}{" "}
-                                Your ISP may be blocking the service. Try using a <strong>VPN</strong> or
-                                switching to a <strong>mobile hotspot</strong>.
+                                You might be experiencing network restrictions. Try switching to a <strong>mobile hotspot</strong> or check your internet settings.
                             </p>
                             <div className="flex flex-wrap gap-2 mt-2">
                                 <Button

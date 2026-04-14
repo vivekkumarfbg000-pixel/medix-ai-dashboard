@@ -18,17 +18,17 @@ export const getAuthErrorMessage = (error: unknown): string => {
 
     // ── Proxy / network failures ────────────────────────────────────────
     if (msg.includes("unexpected end of json") || msg.includes("unexpected token"))
-        return "Connection Error: Cannot reach authentication server. Your ISP may be blocking the service. Try using a VPN or a different network.";
+        return "Connection Error: Cannot reach authentication server. Please check your network or try a different connection.";
     if (msg.includes("is not valid json"))
         return "Server Configuration Error: The Supabase proxy returned an invalid response. Please contact support.";
     if (msg.includes("failed to fetch") || msg.includes("networkerror") || msg.includes("network error"))
         return "Network Error: Unable to connect. Please check your internet connection or try a VPN.";
     if (msg.includes("load failed"))
-        return "Connection Failed: The authentication server is unreachable. Your ISP may be blocking it — try a VPN or mobile hotspot.";
+        return "Connection Failed: The authentication server is unreachable. Check your internet or try a mobile hotspot.";
     if (status === 500 || msg.includes("500") || msg.includes("internal server error"))
         return "Critical Error (500): The authentication proxy or database trigger failed. If using localhost, ensure your proxy bypass (Cloudflare/Production) is reachable. Check console for details.";
     if (msg.includes("timeout") || msg.includes("timed out") || msg.includes("aborted"))
-        return "Connection Timeout: The server took too long to respond. Your ISP may be blocking the service.";
+        return "Connection Timeout: The server took too long to respond. Please check your internet connection.";
 
     // ── Standard Supabase auth errors ───────────────────────────────────
     if (msg.includes("invalid login credentials"))
@@ -106,7 +106,7 @@ export const checkSupabaseConnectivity = async (
             latencyMs: Date.now() - start,
             error:
                 err instanceof DOMException && err.name === "AbortError"
-                    ? `Connection timed out after ${Date.now() - start}ms. Your ISP or proxy might be slow.`
+                    ? `Connection timed out after ${Date.now() - start}ms. Your network connection might be slow.`
                     : (err as Error).message || "Network error",
         };
     }
