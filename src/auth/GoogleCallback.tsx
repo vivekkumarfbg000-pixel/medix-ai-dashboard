@@ -78,7 +78,6 @@ export default function GoogleCallback() {
                     
                     try { await syncUserShop(session.user.id); } catch(e) { console.error(e); }
                     
-                    toast.success("Login verified (recovered)!");
                     navigate("/dashboard", { replace: true });
                 }
             }, 1000); // 1s interval for faster recovery
@@ -117,7 +116,7 @@ export default function GoogleCallback() {
                     cleanup();
                     const desc = pkceError || hashError || "Authorization failed";
                     console.error("❌ [GoogleCallback] OAuth Error:", desc);
-                    toast.error(`Auth Error: ${desc}`);
+                    toast.error(`Authentication Failed: ${desc}`);
                     navigate("/login", { replace: true });
                     return;
                 }
@@ -193,7 +192,6 @@ export default function GoogleCallback() {
                     });
 
                     cleanup();
-                    toast.success("Login verified successfully!");
                     navigate("/dashboard", { replace: true });
                 } else {
                     throw new Error("Session verification failed. Your connection might be too slow.");
@@ -225,54 +223,45 @@ export default function GoogleCallback() {
     }, [navigate, location.search]);
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-medical-canvas p-6 relative overflow-hidden">
-            {/* Background decorative glows */}
-            <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/10 rounded-full blur-3xl animate-pulse" />
-            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse delay-700" />
-
-            <div className="relative z-10 w-full max-w-sm card-glass p-12 shadow-2xl animate-in fade-in zoom-in duration-700 text-center space-y-8">
-                <div className="relative inline-block">
-                    <div className="w-20 h-20 border-b-2 border-primary rounded-full animate-spin duration-[1500ms]" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-glow flex items-center justify-center">
-                            <span className="text-xl font-black text-white">M</span>
-                        </div>
-                    </div>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-medical-canvas space-y-6 p-6">
+            <div className="relative">
+                <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-xl font-bold text-primary">M</span>
                 </div>
-
-                <div className="space-y-2">
-                    <div className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-1">Step 2/3</div>
-                    <h2 className="text-xl font-bold text-foreground tracking-tight">{status}</h2>
-                    <p className="text-xs text-muted-foreground font-medium animate-pulse">Establishing secure session...</p>
-                </div>
-                
-                {showSkip && (
-                    <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-500">
-                        <p className="text-[10px] text-muted-foreground mb-3 leading-relaxed px-4">
-                            ISP or Proxy slow? If your login with Google was already successful, you can try entering the dashboard directly.
-                        </p>
+            </div>
+            
+            <div className="text-center space-y-2">
+                <h2 className="text-lg font-semibold text-foreground">
+                    Verifying Authentication...
+                </h2>
+                <p className="text-sm text-muted-foreground animate-pulse">
+                    Loading dashboard
+                </p>
+            </div>
+            
+            {(showSkip || showReset) && (
+                <div className="pt-8 animate-in fade-in duration-500 flex flex-col items-center gap-4 w-full max-w-sm">
+                    {showSkip && (
                         <Button 
-                            variant="outline"
-                            className="w-full py-2 h-9 text-xs font-bold border-primary/20 hover:bg-primary/5 transition-all text-primary flex items-center justify-center gap-2"
+                            variant="ghost"
+                            className="text-muted-foreground hover:text-primary transition-colors text-sm w-full"
                             onClick={() => navigate("/dashboard", { replace: true })}
                         >
-                            Skip to Dashboard <span className="text-lg">→</span>
+                            Continue to Dashboard →
                         </Button>
-                    </div>
-                )}
-                
-                {showReset && (
-                    <div className="pt-4 animate-in slide-in-from-bottom-2 duration-500">
-                        <p className="text-[10px] text-muted-foreground mb-4 leading-relaxed px-4">Verification is taking longer than usual. This may be due to a slow ISP or proxy.</p>
-                        <button 
-                            className="w-full py-2.5 px-4 bg-destructive text-destructive-foreground rounded-xl text-xs font-bold shadow-lg shadow-destructive/20 transition-all active:scale-95"
+                    )}
+                    {showReset && (
+                        <Button 
+                            variant="destructive"
+                            className="w-full text-xs"
                             onClick={() => (window as any).medixFactoryReset?.()}
                         >
-                            Emergency Factory Reset
-                        </button>
-                    </div>
-                )}
-            </div>
+                            Reset Connection
+                        </Button>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
