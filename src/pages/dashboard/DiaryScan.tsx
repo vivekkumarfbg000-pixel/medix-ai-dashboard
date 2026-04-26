@@ -241,18 +241,8 @@ export const DiaryScan = () => {
       }
     } catch (error: any) {
       console.error("AI Service Error:", error);
-      toast.error("AI failed. Demo data loaded.");
-      if (scanMode === 'diary') {
-        setExtractedItems([
-          { id: 1, sequence: 1, medication_name: "Dolo 650", strength: "", dosage_frequency: "", duration: "", notes: "cash", quantity: 2, price: 15, total: 30, unit: "strip" },
-          { id: 2, sequence: 2, medication_name: "Crocin Advance", strength: "", dosage_frequency: "", duration: "", notes: "", quantity: 1, price: 25, total: 25, unit: "strip" },
-        ]);
-      } else {
-        setExtractedItems([
-          { id: 1, sequence: 1, medication_name: "Metformin", strength: "500mg", dosage_frequency: "1-0-1", duration: "30 Days", notes: "After food" },
-          { id: 2, sequence: 2, medication_name: "Atorvastatin", strength: "10mg", dosage_frequency: "0-0-1", duration: "30 Days", notes: "Before sleep" }
-        ]);
-      }
+      toast.error("AI Analysis failed. Please try again or add items manually.");
+      setExtractedItems([]); // Do not load misleading demo data
     }
 
     setIsProcessing(false);

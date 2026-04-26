@@ -1007,12 +1007,6 @@ const LitePOS = () => {
             <div className="h-screen w-full bg-slate-950 text-slate-100 flex flex-col font-sans overflow-hidden selection:bg-cyan-500/30 print:hidden">
                 {/* --- HEADER --- */}
                 <div className="h-14 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md flex items-center justify-between px-3 sticky top-0 z-50">
-                    {/* DEMO MODE INDICATOR */}
-                    {typeof window !== 'undefined' && localStorage.getItem("DEMO_MODE") === "true" && (
-                        <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-yellow-500/20 text-yellow-400 text-[10px] px-2 py-0.5 rounded-b-md border border-yellow-500/30 font-mono z-50">
-                            DEMO DATA ACTIVE
-                        </div>
-                    )}
 
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
@@ -1442,9 +1436,7 @@ const LitePOS = () => {
                                             <DialogTitle className="text-red-400 flex items-center gap-2">
                                                 <ShieldAlert className="w-5 h-5" /> 🚫 Khatarnak Interaction Detected
                                             </DialogTitle>
-                                            {typeof window !== 'undefined' && localStorage.getItem("DEMO_MODE") === "true" && (
-                                                <Badge variant="outline" className="text-yellow-500 border-yellow-500/50 mt-1">Mock Data</Badge>
-                                            )}
+
                                         </DialogHeader>
                                         <div className="space-y-3 mt-2">
                                             {interactions.map((msg, idx) => (

@@ -75,13 +75,19 @@ export async function callGeminiVision(prompt: string, base64Image: string, mime
     try {
         checkConnectivity();
 
-        const baseUrl = getGeminiBaseUrl();
+        let endpoint = `${getGeminiBaseUrl()}/v1beta/models/gemini-2.0-flash:generateContent`;
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        const headers: any = { "Content-Type": "application/json" };
         
+        if (apiKey) {
+            endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        }
+
         const response = await fetchWithTimeout(
-            `${baseUrl}/v1beta/models/gemini-2.0-flash:generateContent`,
+            endpoint,
             {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers,
                 body: JSON.stringify({
                     contents: [{
                         parts: [
@@ -121,7 +127,6 @@ export async function callGeminiVision(prompt: string, base64Image: string, mime
 export async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versatile", jsonMode: boolean = false): Promise<string> {
     checkConnectivity();
 
-    const baseUrl = getGroqBaseUrl();
     const payload: any = {
         model: model,
         messages: messages,
@@ -131,11 +136,20 @@ export async function callGroqAI(messages: any[], model: string = "llama-3.3-70b
         payload.response_format = { type: "json_object" };
     }
 
+    let endpoint = `${getGroqBaseUrl()}/openai/v1/chat/completions`;
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    const headers: any = { "Content-Type": "application/json" };
+    
+    if (apiKey) {
+        endpoint = `https://api.groq.com/openai/v1/chat/completions`;
+        headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+
     const response = await fetchWithTimeout(
-        `${baseUrl}/openai/v1/chat/completions`,
+        endpoint,
         {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify(payload)
         },
         20000
@@ -158,11 +172,20 @@ export async function callGroqWhisper(audioBlob: Blob): Promise<string> {
     formData.append("model", "whisper-large-v3-turbo");
     formData.append("response_format", "json");
 
-    const baseUrl = getGroqBaseUrl();
+    let endpoint = `${getGroqBaseUrl()}/openai/v1/audio/transcriptions`;
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    const headers: any = {};
+    
+    if (apiKey) {
+        endpoint = `https://api.groq.com/openai/v1/audio/transcriptions`;
+        headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+
     const response = await fetchWithTimeout(
-        `${baseUrl}/openai/v1/audio/transcriptions`,
+        endpoint,
         {
             method: "POST",
+            headers,
             body: formData
         },
         30000
