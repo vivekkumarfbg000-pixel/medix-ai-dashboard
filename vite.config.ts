@@ -39,8 +39,9 @@ export default defineConfig(({ mode }) => {
         secure: true,
         configure: (proxy, _options) => {
           proxy.on('proxyReq', (proxyReq, req, _res) => {
-            if (env.GROQ_API_KEY) {
-              proxyReq.setHeader('Authorization', `Bearer ${env.GROQ_API_KEY}`);
+            const apiKey = env.VITE_GROQ_API_KEY || env.GROQ_API_KEY;
+            if (apiKey) {
+              proxyReq.setHeader('Authorization', `Bearer ${apiKey}`);
             }
           });
         }
@@ -53,8 +54,9 @@ export default defineConfig(({ mode }) => {
         secure: true,
         configure: (proxy, _options) => {
           proxy.on('proxyReq', (proxyReq, req, _res) => {
-            if (env.GEMINI_API_KEY) {
-              proxyReq.setHeader('x-goog-api-key', env.GEMINI_API_KEY);
+            const apiKey = env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY;
+            if (apiKey) {
+              proxyReq.setHeader('x-goog-api-key', apiKey);
             }
           });
         }

@@ -59,6 +59,8 @@ export function checkRateLimit(endpoint: string): boolean {
 
 /** Resolve the Gemini proxy base URL based on platform */
 function getGeminiBaseUrl(): string {
+    const aiUrl = import.meta.env.VITE_AI_URL;
+    if (aiUrl) return aiUrl;
     const isNative = Capacitor.isNativePlatform();
     if (isNative) return 'https://medixai.shop/gemini-proxy';
     return typeof window !== 'undefined' ? '/gemini-proxy' : 'https://generativelanguage.googleapis.com';
@@ -66,6 +68,8 @@ function getGeminiBaseUrl(): string {
 
 /** Resolve the Groq proxy base URL based on platform */
 function getGroqBaseUrl(): string {
+    const aiUrl = import.meta.env.VITE_AI_URL;
+    if (aiUrl) return aiUrl;
     const isNative = Capacitor.isNativePlatform();
     if (isNative) return 'https://medixai.shop/groq-proxy';
     return typeof window !== 'undefined' ? '/groq-proxy' : 'https://api.groq.com';
@@ -77,25 +81,40 @@ export async function callGeminiVision(prompt: string, base64Image: string, mime
 
         let endpoint = `${getGeminiBaseUrl()}/v1beta/models/gemini-2.0-flash:generateContent`;
         const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        const aiUrl = import.meta.env.VITE_AI_URL;
         const headers: any = { "Content-Type": "application/json" };
         
-        if (apiKey) {
+        if (aiUrl) {
+            // LiteLLM / OpenAI compatible endpoint
+            endpoint = `${aiUrl}/chat/completions`;
+        } else if (apiKey) {
             endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
         }
+
+        const body = aiUrl ? {
+            model: "gemini-2.0-flash",
+            messages: [{
+                role: "user",
+                content: [
+                    { type: "text", text: prompt },
+                    { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+                ]
+            }]
+        } : {
+            contents: [{
+                parts: [
+                    { text: prompt },
+                    { inline_data: { mime_type: mimeType, data: base64Image } }
+                ]
+            }]
+        };
 
         const response = await fetchWithTimeout(
             endpoint,
             {
                 method: "POST",
                 headers,
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [
-                            { text: prompt },
-                            { inline_data: { mime_type: mimeType, data: base64Image } }
-                        ]
-                    }]
-                })
+                body: JSON.stringify(body)
             },
             45000
         );
@@ -138,9 +157,12 @@ export async function callGroqAI(messages: any[], model: string = "llama-3.3-70b
 
     let endpoint = `${getGroqBaseUrl()}/openai/v1/chat/completions`;
     const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    const aiUrl = import.meta.env.VITE_AI_URL;
     const headers: any = { "Content-Type": "application/json" };
     
-    if (apiKey) {
+    if (aiUrl) {
+        endpoint = `${aiUrl}/chat/completions`;
+    } else if (apiKey) {
         endpoint = `https://api.groq.com/openai/v1/chat/completions`;
         headers["Authorization"] = `Bearer ${apiKey}`;
     }
@@ -174,9 +196,12 @@ export async function callGroqWhisper(audioBlob: Blob): Promise<string> {
 
     let endpoint = `${getGroqBaseUrl()}/openai/v1/audio/transcriptions`;
     const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    const aiUrl = import.meta.env.VITE_AI_URL;
     const headers: any = {};
     
-    if (apiKey) {
+    if (aiUrl) {
+        endpoint = `${aiUrl}/audio/transcriptions`;
+    } else if (apiKey) {
         endpoint = `https://api.groq.com/openai/v1/audio/transcriptions`;
         headers["Authorization"] = `Bearer ${apiKey}`;
     }
