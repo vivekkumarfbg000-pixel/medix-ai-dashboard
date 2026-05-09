@@ -1,11 +1,14 @@
 
 // Output nothing - skipped update
 
+import dotenv from 'dotenv';
+dotenv.config();
+
 // Configuration
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
 
 if (!GROQ_API_KEY) {
-    console.warn("⚠️  GROQ_API_KEY is missing. Please set it via environment variables.");
+    console.warn("⚠️  GROQ_API_KEY is missing. Please set it in .env or environment variables.");
 }
 const MODEL = "llama-3.3-70b-versatile";
 

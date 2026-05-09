@@ -207,7 +207,9 @@ export default function GoogleCallback() {
                         const key = localStorage.key(i);
                         if (key && key.startsWith('sb-') && key.includes('auth-token')) localStorage.removeItem(key);
                     }
-                } catch(e) {}
+                } catch(e) {
+                    /* local storage might be blocked or key might not exist */
+                }
 
                 navigate("/login", { replace: true });
             }
