@@ -72,7 +72,7 @@ const getFinalUrl = () => {
 const FINAL_SUPABASE_URL = getFinalUrl();
 
 /** Exposed so the connectivity checker can ping the right base URL. */
-export const getSupabaseBaseUrl = () => SUPABASE_URL;
+export const getSupabaseBaseUrl = () => FINAL_SUPABASE_URL;
 
 export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
