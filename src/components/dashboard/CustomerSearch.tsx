@@ -29,6 +29,8 @@ export interface Customer {
     credit_balance: number;
     credit_limit?: number;
     is_blocked?: boolean;
+    medical_history?: any[];
+    last_consultation?: string;
 }
 
 interface CustomerSearchProps {
@@ -55,7 +57,7 @@ export function CustomerSearch({ onSelect, selectedCustomer, placeholder, classN
     const fetchCustomers = async () => {
         const { data } = await supabase
             .from("customers")
-            .select("id, name, phone, credit_balance, credit_limit, is_blocked")
+            .select("id, name, phone, credit_balance, credit_limit, is_blocked, medical_history, last_consultation")
             .eq("shop_id", currentShop?.id)
             .limit(50);
 

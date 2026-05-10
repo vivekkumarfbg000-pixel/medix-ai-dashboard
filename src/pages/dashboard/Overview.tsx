@@ -11,6 +11,7 @@ import { QuickActions } from "@/components/dashboard/widgets/QuickActions";
 import { SafetyWidget } from "@/components/dashboard/widgets/SafetyWidget";
 import { AICommandCentre } from "@/components/dashboard/widgets/AICommandCentre"; // NEW
 import { DayEndTally } from "@/components/dashboard/widgets/DayEndTally";
+import { BusinessReportWidget } from "@/components/dashboard/widgets/BusinessReportWidget";
 import { AddMedicineDialog } from "@/components/dashboard/inventory/AddMedicineDialog";
 
 import { SystemHealthCheck } from "@/components/debug/SystemHealthCheck";
@@ -75,10 +76,12 @@ const Overview = () => {
 
       {/* ROW 3: METRICS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <WidgetErrorBoundary title="Growth Engine">
+          <BusinessReportWidget />
+        </WidgetErrorBoundary>
         <WidgetErrorBoundary title="Day Tally">
           <DayEndTally />
         </WidgetErrorBoundary>
-        {/* System Pulse Removed */}
       </div>
 
       {/* Activity Feed & Detailed Metrics */}

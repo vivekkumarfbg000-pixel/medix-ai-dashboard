@@ -87,7 +87,7 @@ export const AICommandCentre = () => {
         calculateSeason();
     }, [currentShop]);
 
-    // 3. Trigger N8N Analysis
+    // 3. Trigger AI Analysis
     const runAIAnalysis = async () => {
         if (!currentShop?.id) return;
         setLoading(true);
@@ -96,38 +96,47 @@ export const AICommandCentre = () => {
         try {
             // Fetch recent sales for context
             const { data: salesHistory } = await supabase
-                .from('orders') // Assuming orders table exists
-                .select('*')
+                .from('orders')
+                .select('order_items, created_at')
                 .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
                 .eq('shop_id', currentShop?.id)
-                .limit(100);
+                .limit(50);
 
-            // Call Service
-            // Call Service
-            const aiResponse = await aiService.getInventoryForecast(salesHistory || []);
+            // Fetch current inventory for forecasting
+            const { data: inventory } = await supabase
+                .from('inventory')
+                .select('medicine_name, quantity')
+                .eq('shop_id', currentShop?.id);
+
+            // Call Native AI Service (No N8N)
+            const aiResponse = await aiService.getInventoryForecast(inventory || []);
 
             if (aiResponse && aiResponse.forecast) {
-                // Clear old
+                // Clear old predictions for this shop
                 await supabase.from('restock_predictions' as any).delete().eq('shop_id', currentShop?.id);
 
-                // Save new
-                await supabase.from('restock_predictions' as any).insert(aiResponse.forecast.map((item: any) => ({
-                    shop_id: currentShop?.id,
-                    medicine_name: item.product,
-                    current_stock: item.current_stock || 0,
-                    predicted_quantity: item.suggested_restock || 0,
-                    confidence_score: item.confidence || 0.85,
-                    reason: item.reason || "AI Insight"
-                })));
+                // Save new predictions
+                const { error: insertError } = await supabase.from('restock_predictions' as any).insert(
+                    aiResponse.forecast.map((item: any) => ({
+                        shop_id: currentShop?.id,
+                        medicine_name: item.medicine_name,
+                        current_stock: item.current_stock || 0,
+                        predicted_quantity: item.recommended_order_qty || 0,
+                        confidence_score: item.urgency === 'critical' ? 0.95 : 0.85,
+                        reason: item.reason || "AI Trend Analysis"
+                    }))
+                );
+
+                if (insertError) throw insertError;
 
                 await fetchPredictions();
                 toast.dismiss();
                 toast.success("Growth Engine Updated!");
             }
         } catch (e) {
-            console.error(e);
+            console.error("AI Analysis Failed:", e);
             toast.dismiss();
-            toast.error("Analysis Failed. Check N8N connection.");
+            toast.error("Analysis Failed. AI Engine is temporarily busy.");
         } finally {
             setLoading(false);
         }

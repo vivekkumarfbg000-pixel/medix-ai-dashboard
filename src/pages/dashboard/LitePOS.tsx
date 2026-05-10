@@ -141,7 +141,12 @@ const LitePOS = () => {
                             } as OfflineInventory,
                             qty: incomingItem.quantity || 1
                         });
-                        toast.warning(`Added "${incomingItem.name}" as Manual Item (Set Price!)`);
+                        toast.warning(`Added "${incomingItem.name}" as Manual Item (Set Price!)`, {
+                            action: {
+                                label: "Add to Shortbook",
+                                onClick: () => quickAddToShortbook(incomingItem.name)
+                            }
+                        });
                     }
                 }
 
@@ -843,8 +848,22 @@ const LitePOS = () => {
         }
     };
 
-    const addToShortbook = () => {
-        toast.success(`'${search}' added to Shortbook`);
+    const quickAddToShortbook = async (name: string) => {
+        if (!currentShop?.id) return;
+        const { error } = await supabase.from('shortbook').insert({
+            shop_id: currentShop.id,
+            product_name: name,
+            quantity: 10,
+            priority: 'medium',
+            added_from: 'POS_Quick_Action'
+        });
+        if (error) toast.error("Failed to add to Shortbook");
+        else toast.success(`Added ${name} to Shortbook`);
+    };
+
+    const addToShortbook = async () => {
+        if (!search) return;
+        await quickAddToShortbook(search);
         setSearch("");
     };
 
@@ -1176,7 +1195,12 @@ const LitePOS = () => {
                                                     } as OfflineInventory;
                                                     addToCart(tempItem, 1);
                                                     setSearch("");
-                                                    toast.warning(`Added "${searchTerm}" (Set Price Manually)`);
+                                                    toast.warning(`Added "${searchTerm}" (Set Price Manually)`, {
+                                                        action: {
+                                                            label: "Add to Shortbook",
+                                                            onClick: () => quickAddToShortbook(searchTerm)
+                                                        }
+                                                    });
                                                 }
                                             }
                                         }}
@@ -1338,6 +1362,32 @@ const LitePOS = () => {
                                         <span className="text-slate-500 block">LIMIT</span>
                                         <span className="text-slate-300">₹{selectedCustomer.credit_limit || 5000}</span>
                                     </div>
+
+                                    {/* AI Medical History Summary */}
+                                    {selectedCustomer.medical_history && selectedCustomer.medical_history.length > 0 && (
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button size="sm" variant="ghost" className="h-6 px-2 bg-amber-500/10 text-amber-500 border border-amber-500/30 hover:bg-amber-500/20 text-[9px] gap-1 animate-pulse">
+                                                    <ShieldAlert className="w-3 h-3" /> HEALTH ALERT
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-64 bg-slate-950 border-amber-500/30 text-slate-300 p-0 shadow-2xl">
+                                                <div className="p-2 bg-amber-500/10 border-b border-amber-500/20 text-xs font-bold text-amber-500 flex items-center gap-2">
+                                                    <ShieldAlert className="w-3 h-3" /> Patient Medical Summary
+                                                </div>
+                                                <ScrollArea className="h-40 p-3">
+                                                    <div className="space-y-3">
+                                                        {selectedCustomer.medical_history.slice().reverse().map((entry: any, i: number) => (
+                                                            <div key={i} className="border-l-2 border-amber-500/50 pl-3 py-1">
+                                                                <div className="text-[10px] text-slate-500 mb-1">{entry.date} • {entry.doctor || 'AI'}</div>
+                                                                <div className="text-[11px] text-slate-200">{entry.note}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </ScrollArea>
+                                            </PopoverContent>
+                                        </Popover>
+                                    )}
                                 </div>
                             )}
                         </div>

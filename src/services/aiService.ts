@@ -328,6 +328,43 @@ Return ONLY valid JSON:
 
         const res = await callGroqAI(prompt, "llama-3.3-70b-versatile", true);
         return safeJSONParse(res, { forecast: [], summary: "Unable to generate forecast" });
+    },
+
+    /**
+     * AI-Powered Sales Pulse Analysis
+     * Analyzes historical sales to find high-velocity items and trends.
+     */
+    async analyzeSalesPulse(salesData: any[]): Promise<{ insight: string; action: string }> {
+        const prompt = [
+            {
+                role: "system",
+                content: `You are a Retail Intelligence AI for a pharmacy. 
+Analyze the provided sales data (JSON format) and identify one major trend or high-demand medicine.
+Provide a clear insight and a recommended action.
+Return ONLY valid JSON:
+{
+  "insight": "Short trend summary",
+  "action": "Recommended inventory action"
+}`
+            },
+            {
+                role: "user",
+                content: `Sales Data (Last 30 days): ${JSON.stringify(salesData.slice(0, 50))}` // Limit payload
+            }
+        ];
+
+        try {
+            const res = await callGroqAI(prompt, "llama-3.3-70b-versatile", true);
+            return safeJSONParse(res, { 
+                insight: "Stable sales observed.", 
+                action: "Continue regular stock monitoring." 
+            });
+        } catch {
+            return { 
+                insight: "Data analysis unavailable.", 
+                action: "Please check stock manually." 
+            };
+        }
     }
 };
 
