@@ -39,6 +39,19 @@ export function AIChatbotWidget() {
     const scrollRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+    useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
     // Auto-scroll to bottom
     useEffect(() => {
         if (scrollRef.current) {
@@ -55,6 +68,11 @@ export function AIChatbotWidget() {
 
     const handleSend = async () => {
         if (!input.trim() || loading) return;
+
+        if (!isOnline) {
+            toast.error("You are offline. Please check your connection.");
+            return;
+        }
 
         const userMsg: Message = {
             id: Date.now().toString(),
@@ -118,11 +136,6 @@ export function AIChatbotWidget() {
     const handleVoiceTranscript = (text: string) => {
         if (text) {
             setInput(text);
-            // Optional: Auto-send for smoother experience
-            // handleSend(); // Tricky because state update is async. Better to just set input for review.
-
-            // To auto-send, we'd need a useEffect or a direct call with the text, bypassing state for the immediate action
-            // Let's just set it for now so user can see what was heard.
         }
     };
 
@@ -141,8 +154,8 @@ export function AIChatbotWidget() {
                             <div>
                                 <h3 className="font-semibold text-sm">Pharma AI Agent</h3>
                                 <p className="text-[10px] text-blue-100 flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                                    Online
+                                    <span className={cn("w-1.5 h-1.5 rounded-full", isOnline ? "bg-green-400 animate-pulse" : "bg-red-400")} />
+                                    {isOnline ? "Online" : "Offline"}
                                 </p>
                             </div>
                         </div>
