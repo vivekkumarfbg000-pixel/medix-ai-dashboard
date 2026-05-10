@@ -141,7 +141,69 @@ export async function callGeminiVision(prompt: string, base64Image: string, mime
 }
 
 /**
- * Primary AI call — routes through Groq AI for fast text operations.
+ * Gemini text-only call — CORS-safe direct API with ?key= param.
+ * Used as primary for production and fallback when Groq proxy is unavailable.
+ */
+export async function callGeminiText(messages: any[], jsonMode: boolean = false): Promise<string> {
+    checkConnectivity();
+
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const aiUrl = import.meta.env.VITE_AI_URL;
+    let endpoint: string;
+    const headers: any = { "Content-Type": "application/json" };
+
+    if (aiUrl) {
+        endpoint = `${aiUrl}/chat/completions`;
+    } else if (apiKey) {
+        endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    } else {
+        endpoint = `${getGeminiBaseUrl()}/v1beta/models/gemini-2.0-flash:generateContent`;
+    }
+
+    // Build body: Gemini native format vs OpenAI format for LiteLLM
+    const isNativeGemini = !aiUrl;
+    let body: any;
+    if (isNativeGemini) {
+        // Convert OpenAI-style messages to Gemini format
+        const systemInstruction = messages.find(m => m.role === 'system')?.content;
+        const chatMessages = messages.filter(m => m.role !== 'system');
+        body = {
+            contents: chatMessages.map(m => ({
+                role: m.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: m.content }]
+            }))
+        };
+        if (systemInstruction) {
+            body.system_instruction = { parts: [{ text: systemInstruction }] };
+        }
+        if (jsonMode) {
+            body.generationConfig = { responseMimeType: "application/json" };
+        }
+    } else {
+        body = { model: "gemini-2.0-flash", messages };
+        if (jsonMode) body.response_format = { type: "json_object" };
+    }
+
+    const response = await fetchWithTimeout(
+        endpoint,
+        { method: "POST", headers, body: JSON.stringify(body) },
+        25000
+    );
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Gemini Text Failed (${response.status}): ${errText.substring(0, 150)}`);
+    }
+
+    const data = await response.json();
+    // Handle both Gemini native and OpenAI response formats
+    return data.candidates?.[0]?.content?.parts?.[0]?.text
+        || data.choices?.[0]?.message?.content
+        || "";
+}
+
+/**
+ * Primary AI call — tries Groq proxy first, auto-falls back to Gemini direct.
  */
 export async function callGroqAI(messages: any[], model: string = "llama-3.3-70b-versatile", jsonMode: boolean = false): Promise<string> {
     checkConnectivity();
@@ -156,34 +218,40 @@ export async function callGroqAI(messages: any[], model: string = "llama-3.3-70b
     }
 
     let endpoint = `${getGroqBaseUrl()}/openai/v1/chat/completions`;
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    const groqKey = import.meta.env.VITE_GROQ_API_KEY;
     const aiUrl = import.meta.env.VITE_AI_URL;
     const headers: any = { "Content-Type": "application/json" };
     
     if (aiUrl) {
         endpoint = `${aiUrl}/chat/completions`;
-    } else if (apiKey) {
-        endpoint = `https://api.groq.com/openai/v1/chat/completions`;
-        headers["Authorization"] = `Bearer ${apiKey}`;
     }
+    // Note: Do NOT switch to direct Groq when apiKey is present — Groq blocks browser CORS.
+    // The proxy path /groq-proxy handles auth via Cloudflare Worker secrets.
 
-    const response = await fetchWithTimeout(
-        endpoint,
-        {
-            method: "POST",
-            headers,
-            body: JSON.stringify(payload)
-        },
-        20000
-    );
+    try {
+        const response = await fetchWithTimeout(
+            endpoint,
+            {
+                method: "POST",
+                headers,
+                body: JSON.stringify(payload)
+            },
+            20000
+        );
 
-    if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Groq AI Failed (${response.status}): ${errText.substring(0, 150)}`);
+        if (!response.ok) {
+            const errText = await response.text();
+            logger.warn(`Groq proxy failed (${response.status}), falling back to Gemini: ${errText.substring(0, 100)}`);
+            // Fallback to Gemini
+            return await callGeminiText(messages, jsonMode);
+        }
+
+        const data = await response.json();
+        return data.choices?.[0]?.message?.content || "";
+    } catch (groqError: any) {
+        logger.warn(`Groq call failed: ${groqError.message}, falling back to Gemini`);
+        return await callGeminiText(messages, jsonMode);
     }
-
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || "";
 }
 
 export async function callGroqWhisper(audioBlob: Blob): Promise<string> {
