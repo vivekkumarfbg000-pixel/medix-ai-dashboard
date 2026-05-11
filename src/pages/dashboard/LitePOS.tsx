@@ -27,25 +27,30 @@ import { supabase } from "@/integrations/supabase/client";
 import VoiceInput from "@/components/common/VoiceInput";
 import { whatsappService } from "@/services/whatsappService";
 import { drugService } from "@/services/drugService";
+import { useBillingCart } from "@/hooks/useBillingCart";
+import { ScannerModal } from "@/components/pos/ScannerModal";
+import { CheckoutDialogs } from "@/components/pos/CheckoutDialogs";
+import { AlternativeDialog } from "@/components/pos/AlternativeDialog";
 
 const LitePOS = () => {
     const navigate = useNavigate();
     const { currentShop } = useUserShops();
-    const [cart, setCart] = useState<{ item: OfflineInventory; qty: number }[]>([]);
+    const { cart, setCart, discountPercentage, setDiscountPercentage, totals } = useBillingCart();
+    const { total, subtotal, discount, totalProfit, margin, gst } = totals;
+
     const [search, setSearch] = useState("");
     const [paymentMode, setPaymentMode] = useState<string>("cash");
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-    const [discountPercentage, setDiscountPercentage] = useState(0);
     const [interactions, setInteractions] = useState<string[]>([]);
     const [showMobileCatalog, setShowMobileCatalog] = useState(false);
-    const [profitStats, setProfitStats] = useState({ totalProfit: 0, margin: 0 });
     const [isSyncing, setIsSyncing] = useState(false);
     const [showGuestDialog, setShowGuestDialog] = useState(false);
     const [guestDetails, setGuestDetails] = useState({ name: "", phone: "" });
     const searchInputRef = useRef<HTMLInputElement>(null);
     const interactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const [alternativeData, setAlternativeData] = useState<{ name: string; substitutes: string[]; targetItemId?: string } | null>(null);
+    const [alternativeData, setAlternativeData] = useState<{ itemId: string; name: string; options: any[] } | null>(null);
     const [doctorName, setDoctorName] = useState(""); // For H1 Compliance
+    const [showScanner, setShowScanner] = useState(false);
 
     // Held Bills State
     const [heldBills, setHeldBills] = useState<{
@@ -185,13 +190,12 @@ const LitePOS = () => {
         setShowCheckoutOptions(true);
     };
 
-    const confirmCheckout = async () => {
+    const confirmCheckout = async (finalPaymentMode: string, splits?: any[]) => {
         setShowGuestDialog(false); // Close dialog if open
-        const { total } = calculateTotals();
         toast.loading("Processing Order...");
 
         // LINKED CUSTOMER CREDIT CHECK
-        const finalTotal = calculateTotals().total;
+        const finalTotal = total;
         if (paymentMode === 'credit' && selectedCustomer) {
             const currentBal = selectedCustomer.credit_balance || 0;
             const limit = selectedCustomer.credit_limit || 5000;
@@ -693,9 +697,11 @@ const LitePOS = () => {
 
         if (cart.length > 1) {
             interactionTimeoutRef.current = setTimeout(async () => {
+                if (cart.length < 2) return; // FIX: Re-check after debounce
                 const drugNames = [...new Set(cart.map(c => c.item.medicine_name))];
                 try {
-                    const { warnings } = await aiService.checkInteractions(drugNames);
+                    const results = await drugService.checkInteractions(drugNames);
+                    const warnings = results.map(r => `⚠️ ${r.severity}: ${r.drug1} + ${r.drug2} - ${r.description}`);
                     setInteractions(warnings || []); // Replace interactions with current set
                     if (warnings && warnings.length > 0) {
                         toast.error("Interaction Detected!", { id: "interaction-toast" });
@@ -777,7 +783,8 @@ const LitePOS = () => {
         toast.loading("Checking Interactions...", { id: "manual-check" });
         try {
             const drugNames = [...new Set(cart.map(c => c.item.medicine_name))];
-            const { warnings } = await aiService.checkInteractions(drugNames);
+            const results = await drugService.checkInteractions(drugNames);
+            const warnings = results.map(r => `⚠️ ${r.severity}: ${r.drug1} + ${r.drug2} - ${r.description}`);
             setInteractions(warnings);
             if (warnings.length > 0) {
                 toast.error(`Found ${warnings.length} interactions!`, {
@@ -817,18 +824,19 @@ const LitePOS = () => {
                 toast.loading(`No local matches. Asking Market Intelligence...`, { id: 'alt-search' });
                 try {
                     const aiSuggestions = await aiService.getGenericSubstitutes(medicineName);
-                    // Map AI strings "Name (Brand) - ₹Price" to Mock Inventory Objects
-                    substitutes = aiSuggestions.map((s, idx) => {
-                        const parts = s.split(' - ₹');
-                        const name = parts[0].trim();
-                        const price = parts.length > 1 ? parseFloat(parts[1]) : 0;
+                    // Map AI objects to Mock Inventory Objects
+                    substitutes = aiSuggestions.map((s: any, idx) => {
+                        const name = s.name || (typeof s === 'string' ? s : "Generic Match");
+                        const basePrice = currentItem ? currentItem.unit_price : 100;
+                        const targetMargin = s.margin ? Number(s.margin) : 20;
+                        const estPrice = basePrice * 0.9; // Assume generic is 10% cheaper
                         return {
                             id: `AI_GEN_${Date.now()}_${idx}`,
                             shop_id: currentShop?.id,
                             medicine_name: name + " (Market)", // Tag as external
-                            unit_price: price,
+                            unit_price: Number(estPrice.toFixed(2)),
                             quantity: 0, // Out of stock
-                            purchase_price: price * 0.7, // Est margin
+                            purchase_price: Number((estPrice * (1 - (targetMargin / 100))).toFixed(2)), // Apply margin
                             is_synced: 0,
                             generic_name: "AI Suggestion",
                             composition: "Market Substitute"
@@ -892,55 +900,7 @@ const LitePOS = () => {
     };
 
 
-    const calculateTotals = () => {
-        const subtotal = cart.reduce((acc, curr) => acc + (curr.item.unit_price * curr.qty), 0);
-        const totalProfit = cart.reduce((acc, curr) => acc + ((curr.item.unit_price - (curr.item.purchase_price || 0)) * curr.qty), 0);
-        const discountAmount = (subtotal * discountPercentage) / 100;
-
-        // FIX: Use 2 decimal precision instead of Math.round (which forces integers)
-        const total = Number((subtotal - discountAmount).toFixed(2));
-
-        // GST Logic: Assumes Unit Price includes Tax (Inclusive)
-        // Taxable Value = Total / (1 + GST%)
-        // GST Amount = Total - Taxable Value
-        // Simple Average GST for now or Item-wise? Item-wise is better but complex for header
-        // Let's do a rough aggregate for display
-        const totalTaxableValue = cart.reduce((acc, curr) => {
-            const itemTotal = curr.item.unit_price * curr.qty;
-            const rate = curr.item.gst_rate || 12; // Default 12%
-            return acc + (itemTotal / (1 + rate / 100));
-        }, 0);
-
-        const totalGST = subtotal - totalTaxableValue; // On subtotal before discount? Usually GST is on Transaction Value
-        // If discount is applied, GST reduces.
-        // Real logic: Transaction Value = Total (after disc)
-        // Taxable = Total / (1 + Rate)
-        // Loop again for Total (After Disc)
-        // To simplify: We apply discount proportionally to all items
-
-        const gstBreakdown = cart.reduce((acc, curr) => {
-            const itemRatio = (curr.item.unit_price * curr.qty) / subtotal;
-            const itemDiscountedTotal = total * itemRatio;
-            const rate = curr.item.gst_rate || 12;
-            const taxable = itemDiscountedTotal / (1 + rate / 100);
-            const gst = itemDiscountedTotal - taxable;
-            return {
-                cgst: acc.cgst + (gst / 2),
-                sgst: acc.sgst + (gst / 2)
-            };
-        }, { cgst: 0, sgst: 0 });
-
-        const margin = subtotal > 0 ? (totalProfit / subtotal) * 100 : 0;
-        return { subtotal, discount: discountAmount, total, totalProfit, margin, gst: gstBreakdown };
-    };
-
-    // Update profit stats when cart changes
-    useEffect(() => {
-        const { totalProfit, margin } = calculateTotals();
-        setProfitStats({ totalProfit, margin });
-    }, [cart, discountPercentage]);
-
-    const { total } = calculateTotals();
+    // CalculateTotals removed - now handled by useBillingCart
 
     // --- HOLD BILL LOGIC ---
     const handleHoldBill = () => {
@@ -1208,8 +1168,8 @@ const LitePOS = () => {
                                         autoFocus
                                     />
                                 </div>
-                                {/* Voice-to-Cart Trigger (Search Bar Mic) */}
-                                <div className="">
+                                {/* Voice-to-Cart Trigger (Search Bar Mic) and Scanner */}
+                                <div className="flex gap-2">
                                     <VoiceInput
                                         onTranscript={async (text) => {
                                             // DIRECTLY add to cart — don't put in search
@@ -1248,6 +1208,14 @@ const LitePOS = () => {
                                             }
                                         }}
                                     />
+                                    <Button
+                                        size="icon"
+                                        className="h-10 w-10 bg-slate-800 border border-slate-700 hover:bg-cyan-900/30 text-cyan-400 shrink-0"
+                                        onClick={() => setShowScanner(true)}
+                                        title="Scan Barcode"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-scan-line w-5 h-5"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" x2="17" y1="12" y2="12"/></svg>
+                                    </Button>
                                 </div>
                             </div>
                             {/* Zero State / Shortbook */}
@@ -1301,25 +1269,18 @@ const LitePOS = () => {
                                             <div className="flex items-center gap-2">
                                                 <span className="font-bold text-sm text-cyan-400 font-mono">₹{p.unit_price}</span>
 
-                                                {/* Alternative Popover */}
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); }}
-                                                            className="w-6 h-6 flex items-center justify-center rounded-full bg-slate-800 hover:bg-purple-900/50 text-purple-400 transition-colors"
-                                                        >
-                                                            <Sparkles className="w-3 h-3" />
-                                                        </button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-56 bg-slate-950 border border-purple-500/30 text-slate-300 p-0 shadow-xl" align="end">
-                                                        <div className="p-2 bg-purple-900/10 border-b border-purple-500/20 text-xs font-bold text-purple-300 flex items-center gap-2">
-                                                            <Sparkles className="w-3 h-3" /> Smart Substitutes
-                                                        </div>
-                                                        <div className="p-3 text-[10px] text-slate-400 text-center italic">
-                                                            No direct substitutes found in local DB.
-                                                        </div>
-                                                    </PopoverContent>
-                                                </Popover>
+                                                {/* Alternative Button */}
+                                                <button
+                                                    onClick={(e) => { 
+                                                        e.stopPropagation();
+                                                        const subs = drugService.findBetterMarginSubstitutes(p, products);
+                                                        setAlternativeData({ itemId: p.id, name: p.medicine_name, options: subs });
+                                                    }}
+                                                    className="w-6 h-6 flex items-center justify-center rounded-full bg-slate-800 hover:bg-purple-900/50 text-purple-400 transition-colors"
+                                                    title="Find Substitutes"
+                                                >
+                                                    <Sparkles className="w-3 h-3" />
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -1419,9 +1380,15 @@ const LitePOS = () => {
                                                 </div>
                                                 <span className="text-[10px] text-slate-500 font-mono shrink-0">x {c.qty}</span>
 
-                                                {/* Alternative Option Button - FIXED STYLING */}
+                                                {/* Alternative Option Button */}
                                                 <button
-                                                    onClick={() => showAlternatives(c.item.medicine_name, c.item.id)}
+                                                    onClick={() => {
+                                                        // Fallback for cart items, scan entire local Dexie if necessary
+                                                        // (Simplified: relies on alternativeData handling)
+                                                        const p = c.item;
+                                                        const subs = products ? drugService.findBetterMarginSubstitutes(p, products) : [];
+                                                        setAlternativeData({ itemId: p.id, name: p.medicine_name, options: subs });
+                                                    }}
                                                     className="text-[9px] bg-purple-900/40 text-purple-300 px-2 py-0.5 rounded border border-purple-700/30 hover:bg-purple-800/60 hover:border-purple-600/50 flex items-center gap-1 shrink-0 transition-all"
                                                     title="Find Better Margin Alternatives"
                                                 >
@@ -1567,7 +1534,8 @@ const LitePOS = () => {
                                                     // 1. Force Interaction Check
                                                     if (cart.length > 0) {
                                                         const drugNames = [...new Set(cart.map(c => c.item.medicine_name))];
-                                                        const { warnings } = await aiService.checkInteractions(drugNames);
+                                                        const results = await drugService.checkInteractions(drugNames);
+                                                        const warnings = results.map(r => `⚠️ ${r.severity}: ${r.drug1} + ${r.drug2} - ${r.description}`);
                                                         setInteractions(warnings || []);
 
                                                         if (warnings && warnings.length > 0) {
@@ -1737,6 +1705,33 @@ const LitePOS = () => {
                     </div>
                 </div>
             </div>
+            
+            {/* New Dialogs & Modals */}
+            <ScannerModal 
+                open={showScanner} 
+                onOpenChange={setShowScanner} 
+                onScan={(code) => {
+                    setSearch(code);
+                    setShowScanner(false);
+                }} 
+            />
+
+            <AlternativeDialog 
+                data={alternativeData} 
+                onClose={() => setAlternativeData(null)} 
+                onSelect={handleSubstituteSelect} 
+            />
+
+            <CheckoutDialogs 
+                open={showCheckoutOptions}
+                onOpenChange={setShowCheckoutOptions}
+                total={total}
+                paymentMode={paymentMode}
+                setPaymentMode={setPaymentMode}
+                onConfirm={confirmCheckout}
+                isProcessing={isSyncing}
+            />
+
             {lastOrderDetails && (
                 <ThermalReceipt
                     ref={receiptRef}

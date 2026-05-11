@@ -505,7 +505,7 @@ class DrugService {
    * @returns List of items with better margin
    */
   findBetterMarginSubstitutes(currentItem: any, inventoryList: any[]): any[] {
-    if (!currentItem.purchase_price || !currentItem.unit_price) return [];
+    if (!currentItem.unit_price) return [];
 
     const currentMargin = currentItem.unit_price - currentItem.purchase_price;
     const currentMarginPercent = (currentMargin / currentItem.unit_price) * 100;
@@ -526,7 +526,12 @@ class DrugService {
       const sameGeneric = currentItem.generic_name && candidate.generic_name &&
         candidate.generic_name.toLowerCase() === currentItem.generic_name.toLowerCase();
 
-      if (!sameComp && !sameGeneric) return false;
+      // Fallback 2: Name-based similarity (e.g., "Pan 40" matches "Pantocid 40")
+      const nameBase = currentItem.medicine_name.toLowerCase()
+        .replace(/\d+\s*(mg|g|ml|tab|cap)?/gi, '').trim();
+      const sameName = nameBase.length > 3 && candidate.medicine_name.toLowerCase().includes(nameBase);
+
+      if (!sameComp && !sameGeneric && !sameName) return false;
 
       // Margin Check
       const candCost = candidate.purchase_price || (candidate.unit_price * 0.7); // Fallback cost estimate

@@ -10,20 +10,41 @@ interface Props {
 interface State {
     hasError: boolean;
     error: Error | null;
+    isReloading?: boolean;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
     public state: State = {
         hasError: false,
         error: null,
+        isReloading: false,
     };
 
     public static getDerivedStateFromError(error: Error): State {
-        return { hasError: true, error };
+        const msg = error.message.toLowerCase();
+        const isChunkError = msg.includes('dynamically imported module') || 
+                             msg.includes('importing a module script failed') || 
+                             msg.includes('chunk');
+        
+        // If it's a chunk error and we haven't reloaded yet, flag as reloading
+        if (isChunkError && !sessionStorage.getItem('medix_chunk_reload')) {
+            return { hasError: true, error, isReloading: true };
+        }
+
+        return { hasError: true, error, isReloading: false };
     }
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error("Uncaught error:", error, errorInfo);
+        
+        // Auto-recover from chunk loading errors (e.g. new deploy invalidates old hashes)
+        if (this.state.isReloading) {
+            console.warn('[ErrorBoundary] Stale build chunk detected, auto-reloading...');
+            sessionStorage.setItem('medix_chunk_reload', '1');
+            window.location.reload();
+            return;
+        }
+
         // Simulate sending to Sentry/PostHog
         // logErrorToService(error, errorInfo); 
     }
@@ -45,6 +66,17 @@ export class ErrorBoundary extends Component<Props, State> {
     };
 
     public render() {
+        if (this.state.isReloading) {
+            return (
+                <div className="h-screen w-full flex items-center justify-center bg-gray-50 p-4">
+                    <div className="flex flex-col items-center space-y-4 text-gray-500">
+                        <RefreshCcw className="w-8 h-8 animate-spin text-primary" />
+                        <p>Updating application to latest version...</p>
+                    </div>
+                </div>
+            );
+        }
+
         if (this.state.hasError) {
             return (
                 <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50 p-4">
