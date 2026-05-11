@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ export const RefillAlertsWidget = () => {
     const [refills, setRefills] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const fetchRefills = async () => {
+    const fetchRefills = useCallback(async () => {
         if (!currentShop?.id) return;
         setLoading(true);
         const today = new Date().toISOString().split('T')[0];
@@ -34,7 +34,7 @@ export const RefillAlertsWidget = () => {
             setRefills(data);
         }
         setLoading(false);
-    };
+    }, [currentShop?.id]);
 
     useEffect(() => {
         if (currentShop?.id) fetchRefills();
@@ -46,7 +46,7 @@ export const RefillAlertsWidget = () => {
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [currentShop?.id]);
+    }, [currentShop?.id, fetchRefills]);
 
     return (
         <Card className="h-full border-l-4 border-l-blue-400">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,9 +21,9 @@ export const RefillReminderList = ({ shopId }: { shopId: string }) => {
 
     useEffect(() => {
         if (shopId) fetchReminders();
-    }, [shopId]);
+    }, [shopId, fetchReminders]);
 
-    const fetchReminders = async () => {
+    const fetchReminders = useCallback(async () => {
         setLoading(true);
         // Logic: Find orders where refill_due_date is in the past (or next 3 days)
         // and last_refill_reminder is null or old.
@@ -81,7 +81,7 @@ export const RefillReminderList = ({ shopId }: { shopId: string }) => {
             setReminders(mapped);
         }
         setLoading(false);
-    };
+    }, [shopId]);
 
     const sendReminder = async (r: Reminder) => {
         if (!r.customer_phone) {

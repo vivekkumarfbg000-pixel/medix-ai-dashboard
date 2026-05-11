@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -43,9 +43,9 @@ export const PatientProfileSheet = ({ customer, open, onOpenChange, onUpdate }: 
             setNotes(customer.notes || "");
             setTags(customer.tags || []);
         }
-    }, [customer, open]);
+    }, [customer, open, fetchDetails]);
 
-    const fetchDetails = async () => {
+    const fetchDetails = useCallback(async () => {
         if (!customer) return;
         setLoading(true);
         // Fetch Orders
@@ -58,7 +58,8 @@ export const PatientProfileSheet = ({ customer, open, onOpenChange, onUpdate }: 
 
         if (orderData) setOrders(orderData);
         setLoading(false);
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [customer?.name]); // customer object excluded — only .name used for query
 
     const saveCRM = async () => {
         if (!customer) return;

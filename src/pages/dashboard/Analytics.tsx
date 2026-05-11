@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -58,8 +58,8 @@ export default function Analytics() {
 
   useEffect(() => {
     fetchAnalyticsData();
-  }, []);
-  async function fetchAnalyticsData() {
+  }, [fetchAnalyticsData]);
+  const fetchAnalyticsData = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch ORDERS data (Source of Truth)
@@ -136,7 +136,7 @@ export default function Analytics() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   function calculateMetrics(salesData: Sale[], inventoryData: InventoryItem[]) {
     const now = new Date();

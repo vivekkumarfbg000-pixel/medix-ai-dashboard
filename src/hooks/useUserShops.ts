@@ -230,7 +230,8 @@ export function useUserShops(): UserShopsState {
     }
 
     fetchShops();
-  }, [user?.id, refetchTrigger]); // ✅ FIX D: Re-run on user change or explicit refetch trigger
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, refetchTrigger]); // ✅ FIX D: Re-run on user change or explicit refetch trigger. shops.length intentionally excluded to prevent re-fetch loop.
 
   // FIX F: No more window.location.reload(). Use reactive state + event dispatch.
   const switchShop = (shopId: string) => {

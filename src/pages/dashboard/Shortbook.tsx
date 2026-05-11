@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,9 +29,9 @@ const Shortbook = () => {
             fetchShortbook();
             fetchDistributors();
         }
-    }, [currentShop]);
+    }, [currentShop?.id, fetchShortbook, fetchDistributors]);
 
-    const fetchShortbook = async () => {
+    const fetchShortbook = useCallback(async () => {
         setLoading(true);
         const { data } = await supabase
             .from('shortbook')
@@ -41,15 +41,15 @@ const Shortbook = () => {
             .order('created_at', { ascending: false });
         if (data) setItems(data);
         setLoading(false);
-    };
+    }, [currentShop?.id]);
 
-    const fetchDistributors = async () => {
+    const fetchDistributors = useCallback(async () => {
         const { data } = await supabase
             .from('distributors')
             .select('*')
             .eq('shop_id', currentShop?.id);
         if (data) setDistributors(data);
-    };
+    }, [currentShop?.id]);
 
     const addItem = async () => {
         if (!newItem.product_name) return toast.error("Product name is required");

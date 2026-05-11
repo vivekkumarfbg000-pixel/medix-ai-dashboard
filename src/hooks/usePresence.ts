@@ -70,7 +70,8 @@ export function usePresence(roomId: string): PresenceState {
         supabase.removeChannel(channel);
       }
     };
-  }, [roomId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]); // channel intentionally excluded — adding it would cause an infinite loop since channel is set inside this effect
 
   const trackPresence = async (editing?: string) => {
     if (!channel) return;

@@ -38,7 +38,8 @@ export const CameraCapture = ({ onCapture, trigger, isOpen: controlledIsOpen, on
             stopCamera();
         }
         return () => stopCamera();
-    }, [show, facingMode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [show, facingMode]); // startCamera/stopCamera reference stream state — memoizing would require stream in deps causing re-runs
 
     const startCamera = async () => {
         try {

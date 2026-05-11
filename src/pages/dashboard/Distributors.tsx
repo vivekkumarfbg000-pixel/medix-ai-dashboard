@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,14 +19,14 @@ const Distributors = () => {
 
     useEffect(() => {
         if (currentShop?.id) fetchDistributors();
-    }, [currentShop]);
+    }, [currentShop?.id, fetchDistributors]);
 
-    const fetchDistributors = async () => {
+    const fetchDistributors = useCallback(async () => {
         setLoading(true);
         const { data } = await supabase.from('distributors').select('*').eq('shop_id', currentShop?.id).order('name');
         if (data) setDistributors(data);
         setLoading(false);
-    };
+    }, [currentShop?.id]);
 
     const addDistributor = async () => {
         if (!newDistributor.name) return toast.error("Name is required");

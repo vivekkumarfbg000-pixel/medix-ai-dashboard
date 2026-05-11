@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useUserShops } from "@/hooks/useUserShops";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -52,16 +52,16 @@ export function PurchaseReturnModal({ open, onOpenChange, onSuccess }: PurchaseR
     const [searchTerm, setSearchTerm] = useState("");
     const [searchResults, setSearchResults] = useState<any[]>([]);
 
+    const fetchSuppliers = useCallback(async () => {
+        const { data } = await supabase.from("suppliers").select("id, name").eq("shop_id", currentShop?.id);
+        setSuppliers(data || []);
+    }, [currentShop?.id]);
+
     useEffect(() => {
         if (open && currentShop?.id) {
             fetchSuppliers();
         }
-    }, [open, currentShop]);
-
-    const fetchSuppliers = async () => {
-        const { data } = await supabase.from("suppliers").select("id, name").eq("shop_id", currentShop?.id);
-        setSuppliers(data || []);
-    };
+    }, [open, currentShop?.id, fetchSuppliers]);
 
     const handleSearchInventory = async (query: string) => {
         setSearchTerm(query);

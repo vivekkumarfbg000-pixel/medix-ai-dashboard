@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, AlertOctagon, Lightbulb, PackageX } from "lucide-react";
@@ -19,9 +19,9 @@ export const PulseWidget = () => {
     useEffect(() => {
         if (!currentShop?.id) return;
         fetchSalesPulse();
-    }, [currentShop]);
+    }, [currentShop?.id, fetchSalesPulse]);
 
-    const fetchSalesPulse = async () => {
+    const fetchSalesPulse = useCallback(async () => {
         setLoading(true);
         const today = new Date();
         const sevenDaysAgo = subDays(today, 6); // Last 7 days including today
@@ -78,7 +78,7 @@ export const PulseWidget = () => {
             }
         }
         setLoading(false);
-    };
+    }, [currentShop?.id]);
 
     return (
         <div className="space-y-6 h-full flex flex-col">

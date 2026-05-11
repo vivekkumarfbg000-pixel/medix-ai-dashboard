@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ export const AICommandCentre = () => {
     const [seasonalData, setSeasonalData] = useState<SeasonalInsight | null>(null);
 
     // 1. Fetch AI Predictions (Growth Engine)
-    const fetchPredictions = async () => {
+    const fetchPredictions = useCallback(async () => {
         if (!currentShop?.id) return;
         const { data, error } = await supabase
             .from('restock_predictions' as any)
@@ -41,7 +41,8 @@ export const AICommandCentre = () => {
                 runAIAnalysis();
             }
         }
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentShop?.id]); // runAIAnalysis intentionally excluded — circular dep (fetchPredictions ↔ runAIAnalysis)
 
     // 2. Calculate Seasonal Prep Logic
     const calculateSeason = () => {
@@ -85,7 +86,7 @@ export const AICommandCentre = () => {
     useEffect(() => {
         fetchPredictions();
         calculateSeason();
-    }, [currentShop]);
+    }, [currentShop?.id, fetchPredictions]);
 
     // 3. Trigger AI Analysis
     const runAIAnalysis = async () => {

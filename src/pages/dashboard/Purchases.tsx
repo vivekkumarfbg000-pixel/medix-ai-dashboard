@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useUserShops } from "@/hooks/useUserShops";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -20,9 +20,9 @@ export default function Purchases({ embedded = false }: { embedded?: boolean }) 
 
     useEffect(() => {
         if (currentShop?.id) fetchPurchases();
-    }, [currentShop]);
+    }, [currentShop?.id, fetchPurchases]);
 
-    const fetchPurchases = async () => {
+    const fetchPurchases = useCallback(async () => {
         setLoading(true);
         const { data, error } = await supabase
             .from("purchases")
@@ -33,7 +33,7 @@ export default function Purchases({ embedded = false }: { embedded?: boolean }) 
         if (error) toast.error("Failed to fetch purchases");
         else setPurchases(data || []);
         setLoading(false);
-    };
+    }, [currentShop?.id]);
 
     const filteredPurchases = purchases.filter(p =>
         p.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||

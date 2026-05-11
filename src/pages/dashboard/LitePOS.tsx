@@ -35,7 +35,7 @@ import { AlternativeDialog } from "@/components/pos/AlternativeDialog";
 const LitePOS = () => {
     const navigate = useNavigate();
     const { currentShop } = useUserShops();
-    const { cart, setCart, discountPercentage, setDiscountPercentage, totals } = useBillingCart();
+    const { cart, setCart, discountPercentage, setDiscountPercentage, totals, idempotencyKey, resetCart } = useBillingCart();
     const { total, subtotal, discount, totalProfit, margin, gst } = totals;
 
     const [search, setSearch] = useState("");
@@ -171,7 +171,8 @@ const LitePOS = () => {
         };
 
         handleIncomingData();
-    }, [location.state, currentShop?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.state, currentShop?.id, setCart]); // quickAddToShortbook/selectedCustomer intentionally excluded — URL state import, stale deps would cause re-runs
 
     // Handle Deep Linking for Customer (e.g. from Customers Page)
     useEffect(() => {
@@ -180,15 +181,15 @@ const LitePOS = () => {
             setSelectedCustomer(state.customer);
             toast.success(`Customer Selected: ${state.customer.name}`);
         }
-    }, [location.state]);
+    }, [location.state]); // Navigation state change only
 
     // --- CHECKOUT LOGIC ---
-    const handleCheckout = async () => {
+    const handleCheckout = useCallback(async () => {
         if (!currentShop?.id || cart.length === 0) return;
 
         // Open checkout options dialog
         setShowCheckoutOptions(true);
-    };
+    }, [currentShop?.id, cart.length]);
 
     const confirmCheckout = async (finalPaymentMode: string, splits?: any[]) => {
         setShowGuestDialog(false); // Close dialog if open
@@ -223,8 +224,6 @@ const LitePOS = () => {
                     }
 
                     toast.loading("Creating Account for Credit...");
-                    // Check if exists by phone first to avoid dupe? 
-                    // For now, simple insert to ensure flow works.
                     const { data: newCust, error: createError } = await supabase
                         .from('customers')
                         .insert({
@@ -246,91 +245,34 @@ const LitePOS = () => {
                     toast.success(`Created account for ${finalName}`);
                 }
 
-                try {
-                    const { data: order, error: orderError } = await supabase
-                        .from("orders")
-                        .insert({
-                            shop_id: currentShop?.id,
-                            customer_name: finalName,
-                            customer_phone: finalPhone,
-                            doctor_name: doctorName, // Defined in state below
-                            customer_id: finalCustomerId,
-                            total_amount: total,
-                            payment_mode: paymentMode,
-                            status: paymentMode === 'credit' ? "pending" : "approved",
-                            source: "LitePOS",
-                            refill_due_date: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-                            // FIX: Populate JSONB for Reporting RPC
-                            order_items: cart.map(c => ({
-                                id: c.item.id,
-                                name: c.item.medicine_name,
-                                qty: c.qty,
-                                price: c.item.unit_price,
-                                purchase_price: c.item.purchase_price || 0,
-                                batch_number: c.item.batch_number || null,
-                                expiry_date: c.item.expiry_date || null,
-                                schedule_h1: c.item.schedule_h1
-                            }))
-                        })
-                        .select()
-                        .single();
+                toast.loading("Processing Sale...", { id: "checkout" });
 
-                    if (orderError) throw orderError;
-
-                    // 2. Create Order Items
-                    const orderItems = cart.map(c => ({
-                        order_id: order.id,
-                        inventory_id: c.item.id,
+                // ATOMIC RPC CALL
+                const { data, error: rpcError } = await supabase.rpc('process_pos_sale', {
+                    p_transaction_id: idempotencyKey,
+                    p_shop_id: currentShop?.id,
+                    p_customer_name: finalName,
+                    p_customer_phone: finalPhone,
+                    p_customer_id: finalCustomerId,
+                    p_doctor_name: doctorName,
+                    p_total_amount: total,
+                    p_payment_mode: paymentMode,
+                    p_items: cart.map(c => ({
+                        id: c.item.id,
                         name: c.item.medicine_name,
                         qty: c.qty,
                         price: c.item.unit_price,
                         cost_price: c.item.purchase_price || 0
-                    }));
+                    }))
+                });
 
-                    // @ts-ignore
-                    const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
-                    if (itemsError) throw itemsError;
-
-                    {/* 3. Update Inventory (Deduct Stock) - PARALLEL for Speed */ }
-                    await Promise.all(cart.map(c =>
-                        supabase.rpc('decrement_stock', {
-                            row_id: c.item.id,
-                            amount: c.qty
-                        })
-                    ));
-
-                    // 4. Update Customer Credit Balance if payment is credit
-                    if (paymentMode === 'credit' && finalCustomerId) {
-                        // Re-fetch current balance to be safe or just increment (RPC is better but simple update for now)
-                        // Fetch first
-                        const { data: freshCust } = await supabase.from('customers').select('credit_balance').eq('id', finalCustomerId).single();
-                        const currentBal = freshCust?.credit_balance || 0;
-                        const newBalance = currentBal + total;
-
-                        const { error: creditError } = await supabase
-                            .from('customers')
-                            .update({ credit_balance: newBalance })
-                            .eq('id', finalCustomerId);
-
-                        if (creditError) console.error("Credit Balance Update Failed:", creditError);
-
-                        // Log Ledger Entry
-                        await supabase.from('ledger_entries').insert({
-                            shop_id: currentShop?.id,
-                            customer_id: finalCustomerId,
-                            amount: total,
-                            transaction_type: 'CREDIT', // Matches Customers.tsx logic (CREDIT increases balance)
-                            description: `Order #${order.invoice_number || order.id.slice(0, 6)}`
-                        });
-                    }
-
-                    // Success Online
-                    await finalizeSuccess(finalName, finalPhone, order.id, true, total);
-
-                } catch (onlineError) {
-                    console.warn("Online Checkout Failed, trying offline...", onlineError);
-                    await performOfflineCheckout(finalName, finalPhone, total);
+                if (rpcError || !data?.success) {
+                    throw new Error(rpcError?.message || data?.error || "Transaction failed");
                 }
+
+                // Success Online
+                await finalizeSuccess(finalName, finalPhone, data.order_id, true, total);
+
             } else {
                 // Offline immediately
                 await performOfflineCheckout(finalName, finalPhone, total);
@@ -338,7 +280,7 @@ const LitePOS = () => {
 
         } catch (err: any) {
             console.error(err);
-            toast.dismiss();
+            toast.dismiss("checkout");
             toast.error(`Checkout Failed: ${err.message}`);
         }
     };
@@ -354,7 +296,8 @@ const LitePOS = () => {
                 id: c.item.id,
                 name: c.item.medicine_name,
                 qty: c.qty,
-                price: c.item.unit_price
+                price: c.item.unit_price,
+                cost_price: c.item.purchase_price || 0
             })),
             created_at: new Date().toISOString(),
             is_synced: 0
@@ -464,14 +407,14 @@ const LitePOS = () => {
             setTimeout(() => window.print(), 600);
         }
 
-        setCart([]);
+        resetCart();
         setPaymentMode('cash');
         setSelectedCustomer(null);
         setGuestDetails({ name: "", phone: "" });
         setInteractions([]);
         setDoctorName("");
     };
-    const syncInventory = async () => {
+    const syncInventory = useCallback(async () => {
         if (!currentShop?.id) return;
         setIsSyncing(true);
         try {
@@ -485,7 +428,9 @@ const LitePOS = () => {
 
             // 2. Refresh Local DB
             await db.transaction('rw', db.inventory, async () => {
-                await db.inventory.where('shop_id').equals(currentShop?.id).delete(); // Clear old
+                // Only delete items that are already synced (is_synced: 1)
+                // This prevents wiping out local changes that haven't reached the cloud yet.
+                await db.inventory.where('shop_id').equals(currentShop?.id).and(item => item.is_synced === 1).delete(); 
 
                 // Map to OfflineInventory format
                 const items = data.map((item: any) => ({
@@ -515,7 +460,7 @@ const LitePOS = () => {
         } finally {
             setIsSyncing(false);
         }
-    };
+    }, [currentShop?.id]);
 
     // Auto-Sync on Mount or Shop Change
     useEffect(() => {
@@ -564,7 +509,7 @@ const LitePOS = () => {
 
             return () => { supabase.removeChannel(channel); };
         }
-    }, [currentShop?.id]);
+    }, [currentShop?.id, syncInventory]);
 
     // --- PARCHA IMPORT LOGIC ---
     // const location = useLocation(); // Removed duplicate
@@ -638,7 +583,7 @@ const LitePOS = () => {
         };
 
         processImport();
-    }, [location.state, currentShop?.id]);
+    }, [location.state, currentShop?.id, setCart, setSearch]);
 
     // --- DEBOUNCE SEARCH ---
     const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -903,31 +848,18 @@ const LitePOS = () => {
     // CalculateTotals removed - now handled by useBillingCart
 
     // --- HOLD BILL LOGIC ---
-    const handleHoldBill = () => {
-        if (cart.length === 0) {
-            toast.error("Cart is empty! Cannot hold bill.");
-            return;
-        }
-
-        const newHeldBill = {
-            id: `HOLD_${Date.now()}`,
-            customer: selectedCustomer, // Save customer context
-            cart: [...cart],
-            timestamp: new Date(),
-            note: selectedCustomer?.name || "Walk-in Customer"
+    const handleHoldBill = useCallback(() => {
+        if (cart.length === 0) return;
+        const newBill: HeldBill = {
+            id: Date.now().toString(),
+            customer_name: selectedCustomer?.name || "Guest",
+            items: cart,
+            timestamp: new Date().toISOString()
         };
-
-        setHeldBills(prev => [newHeldBill, ...prev]);
-
-        // Clear current session
-        setCart([]);
+        setHeldBills(prev => [...prev, newBill]);
+        clearCart();
         setSelectedCustomer(null);
-        setSearch("");
-        setDoctorName("");
-        toast.success("Bill Held Successfully", {
-            description: "You can resume it later from the 'Held Bills' menu."
-        });
-    };
+    }, [cart, selectedCustomer]);
 
     const handleResumeBill = (billId: string) => {
         const bill = heldBills.find(b => b.id === billId);
@@ -979,7 +911,7 @@ const LitePOS = () => {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [cart, selectedCustomer, heldBills, paymentMode, showProfitMode]); // Added showProfitMode to dependencies
+    }, [cart, selectedCustomer, heldBills, paymentMode, showProfitMode, handleCheckout, handleHoldBill]); // Added missing dependencies
 
     return (
         <>

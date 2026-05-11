@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { format, subDays } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,9 +17,9 @@ export const SalesAnalytics = ({ shopId }: SalesAnalyticsProps) => {
 
     useEffect(() => {
         if (shopId) fetchAnalytics();
-    }, [shopId]);
+    }, [shopId, fetchAnalytics]);
 
-    const fetchAnalytics = async () => {
+    const fetchAnalytics = useCallback(async () => {
         setLoading(true);
         try {
             // Fetch last 30 days orders for detailed breakdown
@@ -108,7 +108,7 @@ export const SalesAnalytics = ({ shopId }: SalesAnalyticsProps) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [shopId]);
 
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28'];
 

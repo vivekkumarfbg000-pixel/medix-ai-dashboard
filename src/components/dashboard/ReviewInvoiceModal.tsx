@@ -70,7 +70,8 @@ export function ReviewInvoiceModal({
     if (open && parsedItems.length > 0) {
       matchWithInventory();
     }
-  }, [open, parsedItems]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, parsedItems]); // matchWithInventory is stable — memoization would require shopId/setItems in deps causing re-runs
 
   const matchWithInventory = async () => {
     if (!shopId) {

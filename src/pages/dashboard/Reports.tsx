@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useUserShops } from "@/hooks/useUserShops";
@@ -26,9 +26,9 @@ export default function Reports() {
         if (currentShop?.id && date?.from && date?.to) {
             fetchReport();
         }
-    }, [currentShop?.id, date]);
+    }, [currentShop?.id, date, fetchReport]);
 
-    const fetchReport = async () => {
+    const fetchReport = useCallback(async () => {
         if (!date?.from || !date?.to) return;
         setLoading(true);
 
@@ -55,7 +55,7 @@ export default function Reports() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentShop?.id, date]);
 
     const downloadCSV = () => {
         if (!reportData?.sales_by_date) return;

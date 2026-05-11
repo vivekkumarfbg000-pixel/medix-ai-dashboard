@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useUserShops } from "@/hooks/useUserShops";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -22,9 +22,9 @@ const ScheduleH1 = () => {
 
     useEffect(() => {
         if (currentShop?.id) fetchH1Records();
-    }, [currentShop]);
+    }, [currentShop?.id, fetchH1Records]);
 
-    const fetchH1Records = async () => {
+    const fetchH1Records = useCallback(async () => {
         setLoading(true);
         // In a real app, we would join with inventory to check 'schedule_h1' flag
         // For now, we will fetch sales and filter manually or assume all are for demo
@@ -97,7 +97,7 @@ const ScheduleH1 = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentShop?.id]);
 
     const filtered = records.filter(r =>
         r.medicine.toLowerCase().includes(search.toLowerCase()) ||

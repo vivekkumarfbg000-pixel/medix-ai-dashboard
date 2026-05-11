@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,39 +29,80 @@ serve(async (req) => {
     const n8nWebhookUrl = Deno.env.get("N8N_INVOICE_WEBHOOK_URL");
 
     if (!n8nWebhookUrl) {
-      console.log("N8N_INVOICE_WEBHOOK_URL not configured, skipping webhook");
       return new Response(
         JSON.stringify({ success: true, message: "Invoice queued (n8n not configured)" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Trigger n8n workflow to generate PDF and send via WhatsApp
-    const response = await fetch(n8nWebhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "invoice",
-        data: {
-          sale_id: payload.sale_id,
-          customer_name: payload.customer_name,
-          customer_phone: payload.customer_phone,
-          items: payload.items,
-          total: payload.total,
-          shop_name: payload.shop_name,
-          generated_at: new Date().toISOString(),
-        },
-      }),
-    });
+    // --- IDEMPOTENCY CHECK ---
+    // Prevent double-sending to n8n if client retries
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
 
-    if (!response.ok) {
-      throw new Error(`n8n webhook failed: ${response.status}`);
+    const { data: existing } = await supabaseClient
+      .from("processed_webhooks")
+      .select("webhook_id")
+      .eq("webhook_id", `invoice_${payload.sale_id}`)
+      .single();
+
+    if (existing) {
+      return new Response(
+        JSON.stringify({ success: true, message: "Invoice already processed" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    return new Response(
-      JSON.stringify({ success: true, message: "Invoice sent to n8n for processing" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    // --- RESILIENT WEBHOOK CALL ---
+    let attempts = 0;
+    const maxAttempts = 3;
+    const backoff = [1000, 3000, 5000];
+    let lastError;
+
+    while (attempts < maxAttempts) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+        const response = await fetch(n8nWebhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            type: "invoice",
+            data: { ...payload, generated_at: new Date().toISOString() },
+          }),
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          // Mark as processed
+          await supabaseClient.from("processed_webhooks").insert({ 
+            webhook_id: `invoice_${payload.sale_id}` 
+          });
+
+          return new Response(
+            JSON.stringify({ success: true, message: "Invoice sent to n8n" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        throw new Error(`n8n status: ${response.status}`);
+      } catch (err) {
+        attempts++;
+        lastError = err;
+        if (attempts < maxAttempts) {
+          console.log(`Retry attempt ${attempts} for sale ${payload.sale_id}...`);
+          await new Promise(r => setTimeout(r, backoff[attempts-1]));
+        }
+      }
+    }
+
+    throw lastError;
+
   } catch (error: any) {
     console.error("Invoice webhook error:", error);
     return new Response(

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,7 +47,7 @@ const Customers = () => {
     const [transaction, setTransaction] = useState({ type: 'CREDIT', amount: '', description: '' });
     const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", email: "" });
 
-    const fetchCustomers = async () => {
+    const fetchCustomers = useCallback(async () => {
         setLoading(true);
         const { data, error } = await supabase
             .from("customers")
@@ -61,11 +61,11 @@ const Customers = () => {
             setCustomers((data || []) as Customer[]);
         }
         setLoading(false);
-    };
+    }, [currentShop?.id]);
 
     useEffect(() => {
         if (currentShop?.id) fetchCustomers();
-    }, [currentShop]);
+    }, [currentShop?.id, fetchCustomers]);
 
     // Fetch Ledger History when a customer is selected for Khata view
     // (Note: PatientSheet fetches its own purchase history, this ledger is for credit)

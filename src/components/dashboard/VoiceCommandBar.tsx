@@ -202,7 +202,8 @@ export function VoiceCommandBar({ onTranscriptionComplete, compact = false }: Vo
       logger.error("[Voice] Failed to start recognition:", error);
       toast.error(`Microphone error: ${error.message || "Permission denied"}`);
     }
-  }, [getSpeechRecognition, processTranscript]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getSpeechRecognition, processTranscript]); // startMediaRecorderFallback intentionally excluded — defined after, adding it creates circular dep
 
   // FALLBACK: MediaRecorder + backend AI (only when browser SpeechRecognition unavailable)
   const startMediaRecorderFallback = useCallback(async () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -31,9 +31,9 @@ const Compliance = () => {
         fetchH1Data();
         // Set a default license expiry (6 months from now) since column doesn't exist
         setLicenseExpiry(addMonths(new Date(), 6).toISOString());
-    }, [currentShop]);
+    }, [currentShop?.id, fetchH1Data]);
 
-    const fetchH1Data = async () => {
+    const fetchH1Data = useCallback(async () => {
         try {
             const { data: orders, error } = await supabase
                 .from("orders")
@@ -83,7 +83,7 @@ const Compliance = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentShop?.id]);
 
     const handleDownloadPDF = () => {
         toast.success("Downloading Schedule H1 Register (PDF)...");

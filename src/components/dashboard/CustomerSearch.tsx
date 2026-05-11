@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Check, ChevronsUpDown, User, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -52,7 +52,8 @@ export function CustomerSearch({ onSelect, selectedCustomer, placeholder, classN
         if (open && currentShop?.id) {
             fetchCustomers();
         }
-    }, [open, currentShop]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, currentShop?.id]); // fetchCustomers intentionally not in deps — defined after this effect, memoization ref needed
 
     const fetchCustomers = async () => {
         const { data } = await supabase

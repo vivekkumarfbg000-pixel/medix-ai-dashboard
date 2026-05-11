@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useUserShops } from "@/hooks/useUserShops";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -26,11 +26,7 @@ export default function Suppliers({ embedded = false }: { embedded?: boolean }) 
         credit_period_days: 30
     });
 
-    useEffect(() => {
-        if (currentShop?.id) fetchSuppliers();
-    }, [currentShop]);
-
-    const fetchSuppliers = async () => {
+    const fetchSuppliers = useCallback(async () => {
         setLoading(true);
         const { data, error } = await supabase
             .from("suppliers")
@@ -41,7 +37,11 @@ export default function Suppliers({ embedded = false }: { embedded?: boolean }) 
         if (error) toast.error("Failed to load suppliers");
         else setSuppliers(data || []);
         setLoading(false);
-    };
+    }, [currentShop?.id]);
+
+    useEffect(() => {
+        if (currentShop?.id) fetchSuppliers();
+    }, [currentShop?.id, fetchSuppliers]);
 
     const handleSave = async () => {
         if (!formData.name) {

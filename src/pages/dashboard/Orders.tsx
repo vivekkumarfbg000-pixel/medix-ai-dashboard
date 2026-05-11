@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -125,9 +125,9 @@ const Orders = () => {
         supabase.removeChannel(channel);
       };
     }
-  }, [currentShop?.id]);
+  }, [currentShop?.id, fetchOrders]);
 
-  const fetchOrders = async (shopId?: string | object) => {
+  const fetchOrders = useCallback(async (shopId?: string | object) => {
     // FIX: Handle both direct string call and Event object from click
     const idToUse = typeof shopId === 'string' ? shopId : currentShop?.id;
     if (!idToUse) return;
@@ -158,7 +158,7 @@ const Orders = () => {
       setOrders(parsedData as Order[]);
     }
     setLoading(false);
-  };
+  }, [currentShop?.id]);
 
   const filteredOrders = orders.filter(o =>
     filter === 'all' ? true : o.status === filter

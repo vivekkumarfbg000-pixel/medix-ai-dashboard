@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { aiService } from '@/services/aiService';
@@ -22,7 +22,7 @@ export const useDemandForecast = (shopId?: string) => {
 
     const [salesTrend, setSalesTrend] = useState<any[]>([]);
 
-    const fetchPredictions = async () => {
+    const fetchPredictions = useCallback(async () => {
         if (!shopId) return;
 
         const { data, error } = await supabase
@@ -53,7 +53,7 @@ export const useDemandForecast = (shopId?: string) => {
         if (data && data.length > 0) {
             setLastRun(new Date(data[0].created_at));
         }
-    };
+    }, [shopId]);
 
     const runAIAnalysis = async () => {
         if (!shopId) return;
@@ -223,7 +223,7 @@ export const useDemandForecast = (shopId?: string) => {
 
     useEffect(() => {
         fetchPredictions();
-    }, [shopId]);
+    }, [shopId, fetchPredictions]);
 
     return {
         predictions,

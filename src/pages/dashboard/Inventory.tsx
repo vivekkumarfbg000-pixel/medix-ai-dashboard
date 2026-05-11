@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense, useRef } from "react";
+import { useEffect, useState, lazy, Suspense, useRef, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useUserShops } from "@/hooks/useUserShops";
@@ -101,7 +101,7 @@ const Inventory = () => {
 
   /* Debug Logging */
   /* Debug Logging */
-  const fetchInventory = async () => {
+  const fetchInventory = useCallback(async () => {
     // Robust ID Check
     const activeShopId = currentShop?.id || localStorage.getItem("currentShopId");
 
@@ -139,7 +139,7 @@ const Inventory = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentShop?.id]);
 
   const handleProcessUnstructured = async () => {
     if (!scanText && !scanImage) {
@@ -207,7 +207,7 @@ const Inventory = () => {
     return () => { 
       supabase.removeChannel(channel); 
     };
-  }, [currentShopId]);
+  }, [currentShopId, fetchInventory]);
 
   const getExpiryStatus = (expiryDate: string | null) => {
     if (!expiryDate) return "safe";
@@ -244,7 +244,8 @@ const Inventory = () => {
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
-  const filteredInventory = inventory.filter(item => {
+  const filteredInventory = useMemo(() => {
+    return inventory.filter(item => {
     // 1. Text Search
     const matchesSearch = item.medicine_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.generic_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -259,6 +260,7 @@ const Inventory = () => {
 
     return matchesSearch;
   });
+  }, [inventory, searchQuery, isExpiryFilter]);
 
   const handleSelectToggle = (id: string) => {
     if (selectedItems.includes(id)) {

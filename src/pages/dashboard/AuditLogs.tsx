@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,9 +61,9 @@ export default function AuditLogs({ embedded = false }: { embedded?: boolean }) 
     if (currentShop?.id) {
       fetchLogs();
     }
-  }, [currentShop?.id]);
+  }, [currentShop?.id, fetchLogs]);
 
-  async function fetchLogs() {
+  const fetchLogs = useCallback(async () => {
     if (!currentShop?.id) return;
     setLoading(true);
     try {
@@ -81,7 +81,7 @@ export default function AuditLogs({ embedded = false }: { embedded?: boolean }) 
     } finally {
       setLoading(false);
     }
-  }
+  }, [currentShop?.id]);
 
   const filteredLogs = logs.filter((log) => {
     const matchesSearch =

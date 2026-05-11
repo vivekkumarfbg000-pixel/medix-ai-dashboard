@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ export const BusinessReportWidget = () => {
     const [pulse, setPulse] = useState<{ insight: string; action: string } | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const fetchAnalytics = async () => {
+    const fetchAnalytics = useCallback(async () => {
         if (!currentShop?.id) return;
         setLoading(true);
         
@@ -44,11 +44,11 @@ export const BusinessReportWidget = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentShop?.id]);
 
     useEffect(() => {
         if (currentShop?.id) fetchAnalytics();
-    }, [currentShop?.id]);
+    }, [currentShop?.id, fetchAnalytics]);
 
     return (
         <Card className="h-full border-l-4 border-l-indigo-500 bg-gradient-to-br from-indigo-50/50 to-transparent dark:from-indigo-900/10">

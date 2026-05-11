@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useDemandForecast } from "@/hooks/useDemandForecast";
 import { format, addMonths, parseISO, differenceInDays } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -78,9 +78,9 @@ const Forecasting = () => {
   useEffect(() => {
     if (!currentShop?.id) return;
     fetchExpiryRisks();
-  }, [currentShop?.id]);
+  }, [currentShop?.id, fetchExpiryRisks]);
 
-  const fetchExpiryRisks = async () => {
+  const fetchExpiryRisks = useCallback(async () => {
     if (!currentShop?.id) return;
 
     const sixMonths = addMonths(new Date(), 6).toISOString();
@@ -108,7 +108,7 @@ const Forecasting = () => {
       });
       setExpiryRisks(risks);
     }
-  };
+  }, [currentShop?.id]);
 
 
 

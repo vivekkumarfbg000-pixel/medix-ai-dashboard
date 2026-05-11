@@ -9,6 +9,13 @@ export interface CartItem {
 export function useBillingCart(initialCart: CartItem[] = []) {
     const [cart, setCart] = useState<CartItem[]>(initialCart);
     const [discountPercentage, setDiscountPercentage] = useState(0);
+    const [idempotencyKey, setIdempotencyKey] = useState<string>(crypto.randomUUID());
+
+    const resetCart = useCallback(() => {
+        setCart([]);
+        setDiscountPercentage(0);
+        setIdempotencyKey(crypto.randomUUID());
+    }, []);
 
     const totals = useMemo(() => {
         const subtotal = cart.reduce((acc, curr) => acc + (curr.item.unit_price * curr.qty), 0);
@@ -44,26 +51,28 @@ export function useBillingCart(initialCart: CartItem[] = []) {
         };
     }, [cart, discountPercentage]);
 
-    const addToCart = useCallback((product: OfflineInventory, qtyToAdd: number = 1) => {
+    const addToCart = useCallback((item: OfflineInventory, qty: number = 1) => {
+        if (qty <= 0) return;
         setCart(prev => {
-            const existing = prev.find(c => c.item.id === product.id);
+            const existing = prev.find(i => i.item.id === item.id);
             if (existing) {
-                return prev.map(c => c.item.id === product.id ? { ...c, qty: c.qty + qtyToAdd } : c);
+                return prev.map(i => i.item.id === item.id ? { ...i, qty: i.qty + qty } : i);
             }
-            return [...prev, { item: product, qty: qtyToAdd }];
+            return [...prev, { item, qty }];
         });
     }, []);
 
-    const updateQty = useCallback((productId: string, newQty: number) => {
-        if (newQty <= 0) {
-            setCart(prev => prev.filter(c => c.item.id !== productId));
-        } else {
-            setCart(prev => prev.map(c => c.item.id === productId ? { ...c, qty: newQty } : c));
+    const updateQuantity = useCallback((id: string, qty: number) => {
+        if (qty <= 0) {
+            removeItem(id);
+            return;
         }
+        setCart(prev => prev.map(i => i.item.id === id ? { ...i, qty } : i));
     }, []);
 
-    const updatePrice = useCallback((productId: string, newPrice: number) => {
-        setCart(prev => prev.map(c => c.item.id === productId ? { ...c, item: { ...c.item, unit_price: newPrice } } : c));
+    const updatePrice = useCallback((id: string, price: number) => {
+        if (price < 0) return;
+        setCart(prev => prev.map(i => i.item.id === id ? { ...i, item: { ...i.item, unit_price: price } } : i));
     }, []);
 
     const removeItem = useCallback((productId: string) => {
@@ -79,9 +88,11 @@ export function useBillingCart(initialCart: CartItem[] = []) {
         setDiscountPercentage,
         totals,
         addToCart,
-        updateQty,
+        updateQty: updateQuantity,
         updatePrice,
         removeItem,
-        clearCart
+        clearCart,
+        resetCart,
+        idempotencyKey
     };
 }

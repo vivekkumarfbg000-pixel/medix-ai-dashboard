@@ -45,40 +45,31 @@ class SyncService {
             let syncedCount = 0;
 
             for (const order of pendingOrders) {
-                const { id, is_synced, items, ...rest } = order;
-                
-                // 1. Insert Order
-                const { data: newOrder, error } = await supabase.from('orders').insert({
-                    ...rest,
-                    order_items: items, // JSONB backup
-                    status: 'approved'
-                }).select().single();
+                // Use the atomic RPC for syncing to ensure stock deduction and ledger consistency
+                const { data, error } = await supabase.rpc('process_pos_sale', {
+                    p_transaction_id: order.id, // Keep the same ID for idempotency
+                    p_shop_id: order.shop_id,
+                    p_customer_name: order.customer_name,
+                    p_customer_phone: order.customer_phone,
+                    p_customer_id: order.customer_id || null,
+                    p_doctor_name: order.doctor_name || "",
+                    p_total_amount: order.total_amount,
+                    p_payment_mode: order.payment_mode || 'cash',
+                    p_items: order.items.map((c: any) => ({
+                        id: c.id,
+                        name: c.name,
+                        qty: c.qty,
+                        price: c.price,
+                        cost_price: c.cost_price || 0
+                    }))
+                });
 
-                if (!error && newOrder) {
-                    let itemsSynced = true;
-                    // 2. Insert Order Items for Reports/Ledger
-                    if (items && items.length > 0) {
-                        const orderItemsToInsert = items.map((c: any) => ({
-                            order_id: newOrder.id,
-                            inventory_id: c.id || c.inventory_id,
-                            name: c.name,
-                            qty: c.qty,
-                            price: c.price,
-                            cost_price: c.cost_price || 0
-                        }));
-                        // @ts-ignore
-                        const { error: itemsError } = await supabase.from('order_items').insert(orderItemsToInsert);
-                        if (itemsError) {
-                            console.error("Order items sync fail", itemsError);
-                            itemsSynced = false;
-                        }
-                    }
-
-                    if (itemsSynced) {
-                        // 3. Mark as synced locally
-                        await db.orders.update(id, { is_synced: 1 });
-                        syncedCount++;
-                    }
+                if (!error && data?.success) {
+                    // Mark as synced locally
+                    await db.orders.update(order.id, { is_synced: 1 });
+                    syncedCount++;
+                } else {
+                    console.error("Order sync fail for ID:", order.id, error || data?.error);
                 }
             }
             if (syncedCount > 0) toast.success(`Synced ${syncedCount} orders!`);

@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 import { Activity, AlertCircle, Calendar, Clipboard, FileText, Heart, Microscope, Stethoscope, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,9 +29,9 @@ export const ClinicalCommandCenter = ({ customerId, customerName }: { customerId
 
     useEffect(() => {
         fetchClinicalData();
-    }, [customerId]);
+    }, [customerId, fetchClinicalData]);
 
-    const fetchClinicalData = async () => {
+    const fetchClinicalData = useCallback(async () => {
         setLoading(true);
         try {
             // 1. Fetch Lab Reports
@@ -102,7 +102,7 @@ export const ClinicalCommandCenter = ({ customerId, customerName }: { customerId
         } finally {
             setLoading(false);
         }
-    };
+    }, [customerId, customerName]);
 
     if (loading) return <div className="p-10 text-center animate-pulse text-blue-500 font-medium">Synthesizing Patient Clinical Pulse...</div>;
 

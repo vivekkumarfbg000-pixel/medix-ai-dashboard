@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,7 +14,7 @@ export function RecentInvoices({ shopId }: { shopId?: string }) {
     const [search, setSearch] = useState("");
     const [isOpen, setIsOpen] = useState(false);
 
-    const fetchOrders = async () => {
+    const fetchOrders = useCallback(async () => {
         if (!shopId) return;
         setLoading(true);
         try {
@@ -37,11 +37,11 @@ export function RecentInvoices({ shopId }: { shopId?: string }) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [shopId, search]);
 
     useEffect(() => {
         if (isOpen) fetchOrders();
-    }, [isOpen, search]);
+    }, [isOpen, search, fetchOrders]);
 
     const handlePrint = (order: any) => {
         // In a real scenario, this would generate a PDF or open a print window

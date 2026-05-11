@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserShops } from "@/hooks/useUserShops";
@@ -20,7 +20,7 @@ export function DayEndTally() {
     const [stats, setStats] = useState<DayStats>({ total: 0, cash: 0, upi: 0, card: 0, credit: 0, profit: 0, orderCount: 0 });
     const [loading, setLoading] = useState(false);
 
-    const fetchDayStats = async () => {
+    const fetchDayStats = useCallback(async () => {
         if (!currentShop?.id) return;
         setLoading(true);
 
@@ -77,11 +77,11 @@ export function DayEndTally() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentShop?.id]);
 
     useEffect(() => {
         fetchDayStats();
-    }, [currentShop]);
+    }, [currentShop?.id, fetchDayStats]);
 
     const profitMargin = stats.total > 0 ? ((stats.profit / stats.total) * 100).toFixed(1) : '0';
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -37,9 +37,9 @@ export const StockAudit = ({ open, onOpenChange, shopId, onComplete }: StockAudi
         if (open && shopId) {
             loadInventory();
         }
-    }, [open, shopId]);
+    }, [open, shopId, loadInventory]);
 
-    const loadInventory = async () => {
+    const loadInventory = useCallback(async () => {
         setLoading(true);
         const { data, error } = await supabase
             .from('inventory')
@@ -57,7 +57,7 @@ export const StockAudit = ({ open, onOpenChange, shopId, onComplete }: StockAudi
         setLoading(false);
         // Focus scan input
         setTimeout(() => scanInputRef.current?.focus(), 100);
-    };
+    }, [shopId]);
 
     const handleScan = (e: React.FormEvent) => {
         e.preventDefault();

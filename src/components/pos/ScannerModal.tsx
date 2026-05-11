@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Html5Qrcode } from "html5-qrcode";
 import { ScanLine, X } from "lucide-react";
@@ -22,9 +22,9 @@ export function ScannerModal({ open, onOpenChange, onScan }: ScannerModalProps) 
         }
 
         return () => stopScanner();
-    }, [open]);
+    }, [open, startScanner, stopScanner]);
 
-    const startScanner = async () => {
+    const startScanner = useCallback(async () => {
         try {
             if (!scannerRef.current) {
                 scannerRef.current = new Html5Qrcode("reader");
@@ -51,16 +51,16 @@ export function ScannerModal({ open, onOpenChange, onScan }: ScannerModalProps) 
             console.error("Error starting scanner:", err);
             setIsScanning(false);
         }
-    };
+    }, [onScan]);
 
-    const stopScanner = () => {
+    const stopScanner = useCallback(() => {
         if (scannerRef.current && isScanning) {
             scannerRef.current.stop().then(() => {
                 scannerRef.current?.clear();
                 setIsScanning(false);
             }).catch(console.error);
         }
-    };
+    }, [isScanning]);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>

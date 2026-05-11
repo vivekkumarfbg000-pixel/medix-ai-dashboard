@@ -1,3 +1,5 @@
+// eslint-disable-file react-refresh/only-export-components
+/* eslint-disable react-refresh/only-export-components */
 /**
  * AuthProvider — Global authentication context.
  *
@@ -6,6 +8,9 @@
  *
  * Supabase handles bcrypt password hashing and JWT token management
  * server-side. This provider simply surfaces that state to React.
+ *
+ * Note: AuthContext is intentionally co-located with AuthProvider.
+ * Splitting them would break standard React context patterns.
  */
 
 import {

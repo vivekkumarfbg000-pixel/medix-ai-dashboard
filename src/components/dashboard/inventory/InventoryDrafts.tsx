@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +46,7 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
     const [loading, setLoading] = useState(true);
     const [stagingItems, setStagingItems] = useState<DraftItem[]>([]);
 
-    const fetchStaging = async () => {
+    const fetchStaging = useCallback(async () => {
         if (!shopId) return;
 
         try {
@@ -100,7 +100,7 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
         } finally {
             setLoading(false);
         }
-    };
+    }, [shopId, predictions]);
 
     useEffect(() => {
         fetchStaging();
@@ -109,7 +109,7 @@ export const InventoryDrafts = ({ shopId, onRefreshRequest, predictions = [] }: 
             .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_drafts' }, fetchStaging)
             .subscribe();
         return () => { supabase.removeChannel(channel); };
-    }, [shopId, predictions]);
+    }, [shopId, predictions, fetchStaging]);
 
     const updateDraftItem = (id: string, field: keyof DraftItem, value: any) => {
         setStagingItems(prev => prev.map(item =>

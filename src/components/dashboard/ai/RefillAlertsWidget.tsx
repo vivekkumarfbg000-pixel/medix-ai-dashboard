@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,9 +27,9 @@ export const RefillAlertsWidget = () => {
     useEffect(() => {
         if (!currentShop?.id) return;
         fetchRefillCandidates();
-    }, [currentShop?.id]);
+    }, [currentShop?.id, fetchRefillCandidates]);
 
-    const fetchRefillCandidates = async () => {
+    const fetchRefillCandidates = useCallback(async () => {
         setLoading(true);
         try {
             const today = new Date();
@@ -95,7 +95,8 @@ export const RefillAlertsWidget = () => {
         } finally {
             setLoading(false);
         }
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentShop?.id]); // currentShop object excluded — only .id is used, avoiding object reference churn
 
     const handleSendReminder = (candidate: RefillCandidate) => {
         if (!candidate.customer_phone) {
