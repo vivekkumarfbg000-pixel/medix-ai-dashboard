@@ -104,11 +104,30 @@ export const aiService = {
 
     async _injectContext(message: string, shopId: string): Promise<string> {
         try {
-            const { data: lowStock } = await supabase.from('inventory').select('medicine_name, quantity').eq('shop_id', shopId).lt('quantity', 15).limit(5);
+            // FIX: Add a 3s timeout to context fetching so the AI doesn't hang if DB is slow
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+            const { data: lowStock } = await supabase
+                .from('inventory')
+                .select('medicine_name, quantity')
+                .eq('shop_id', shopId)
+                .lt('quantity', 15)
+                .limit(5)
+                .abortSignal(controller.signal);
+            
+            clearTimeout(timeoutId);
+
             let ctx = message;
-            if (lowStock?.length) ctx += `\n[Context: Low stock items: ${lowStock.map(i => i.medicine_name).join(', ')}]`;
+            if (lowStock?.length) {
+                const stockList = lowStock.map(i => `${i.medicine_name}(${i.quantity})`).join(', ');
+                ctx = `[Context: Low stock items: ${stockList}]\n\n${message}`;
+            }
             return ctx;
-        } catch { return message; }
+        } catch (err) { 
+            logger.warn("AI Context Injection skipped (DB timeout or error):", err);
+            return message; 
+        }
     },
 
     /**

@@ -234,7 +234,8 @@ export function useUserShops(): UserShopsState {
   }, [user?.id, refetchTrigger]); // ✅ FIX D: Re-run on user change or explicit refetch trigger. shops.length intentionally excluded to prevent re-fetch loop.
 
   // FIX F: No more window.location.reload(). Use reactive state + event dispatch.
-  const switchShop = (shopId: string) => {
+  // Wrapped in useCallback to prevent re-render loops in components using this hook.
+  const switchShop = useCallback((shopId: string) => {
     console.log("🔄 [useUserShops] Switching shop to:", shopId);
     localStorage.setItem("currentShopId", shopId);
     setCurrentShopId(shopId);
@@ -242,23 +243,34 @@ export function useUserShops(): UserShopsState {
     window.dispatchEvent(
       new CustomEvent("medix_shop_sync", { detail: { shopId } })
     );
-  };
+  }, []);
 
-  const currentShop = shops.find((s) => s.id === currentShopId) || (currentShopId ? {
-    id: currentShopId,
-    name: "My Pharmacy (Offline/Syncing)",
-    address: null,
-    phone: null,
-    gst_no: null,
-    dl_number: null,
-    is_primary: true
-  } : null);
+  // FIX G: Memoize the return value to prevent infinite re-render loops in components
+  // that use this hook in their dependency arrays (like dashboard widgets).
+  const currentShop = useMemo(() => {
+    const found = shops.find((s) => s.id === currentShopId);
+    if (found) return found;
+    if (!currentShopId) return null;
+    
+    return {
+      id: currentShopId,
+      name: "My Pharmacy (Offline/Syncing)",
+      address: null,
+      phone: null,
+      gst_no: null,
+      dl_number: null,
+      license_number: null,
+      is_primary: true
+    };
+  }, [shops, currentShopId]);
 
-  return {
+  const memoizedValue = useMemo(() => ({
     shops,
     currentShop,
     currentShopId,
     loading,
     switchShop,
-  };
+  }), [shops, currentShop, currentShopId, loading, switchShop]);
+
+  return memoizedValue;
 }

@@ -36,13 +36,38 @@ export async function fetchWithTimeout(url: string, options: RequestInit, timeou
         });
         clearTimeout(id);
         return response;
-    } catch (error: any) {
+    } catch (error) {
         clearTimeout(id);
-        if (error.name === 'AbortError') {
-            throw new Error(`Request timed out after ${timeoutMs / 1000}s`);
-        }
         throw error;
     }
+}
+
+export async function retryWithBackoff<T>(
+    fn: () => Promise<T>, 
+    maxAttempts: number = 3, 
+    delay: number = 1000
+): Promise<T> {
+    let lastError: any;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await fn();
+        } catch (error: any) {
+            lastError = error;
+            const isRetryable = error.message?.includes("503") || 
+                               error.message?.includes("429") || 
+                               error.message?.includes("timeout") ||
+                               error.name === "AbortError";
+            
+            if (isRetryable && attempt < maxAttempts) {
+                const backoff = delay * Math.pow(2, attempt - 1);
+                logger.warn(`AI Retry Attempt ${attempt}/${maxAttempts} after ${backoff}ms due to: ${error.message}`);
+                await new Promise(r => setTimeout(r, backoff));
+                continue;
+            }
+            throw error;
+        }
+    }
+    throw lastError;
 }
 
 export function checkRateLimit(endpoint: string): boolean {
@@ -231,27 +256,33 @@ export async function callGroqAI(messages: any[], model: string = "llama-3.3-70b
     // The proxy path /groq-proxy handles auth via Cloudflare Worker secrets.
 
     try {
-        const response = await fetchWithTimeout(
-            endpoint,
-            {
-                method: "POST",
-                headers,
-                body: JSON.stringify(payload)
-            },
-            20000
-        );
+        return await retryWithBackoff(async () => {
+            const response = await fetchWithTimeout(
+                endpoint,
+                {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify(payload)
+                },
+                20000
+            );
 
-        if (!response.ok) {
-            const errText = await response.text();
-            logger.warn(`Groq proxy failed (${response.status}), falling back to Gemini: ${errText.substring(0, 100)}`);
-            // Fallback to Gemini
-            return await callGeminiText(messages, jsonMode);
-        }
+            if (!response.ok) {
+                const errText = await response.text();
+                // Special handling for 429 (Rate Limit) to trigger retry
+                if (response.status === 429 || response.status >= 500) {
+                    throw new Error(`Groq API Error (${response.status}): ${errText.substring(0, 50)}`);
+                }
+                
+                logger.warn(`Groq proxy failed (${response.status}), falling back to Gemini: ${errText.substring(0, 100)}`);
+                return await callGeminiText(messages, jsonMode);
+            }
 
-        const data = await response.json();
-        return data.choices?.[0]?.message?.content || "";
+            const data = await response.json();
+            return data.choices?.[0]?.message?.content || "";
+        });
     } catch (groqError: any) {
-        logger.warn(`Groq call failed: ${groqError.message}, falling back to Gemini`);
+        logger.warn(`Groq call failed permanently: ${groqError.message}, falling back to Gemini`);
         return await callGeminiText(messages, jsonMode);
     }
 }
