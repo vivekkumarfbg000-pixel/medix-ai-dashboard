@@ -48,11 +48,12 @@ const Customers = () => {
     const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", email: "" });
 
     const fetchCustomers = useCallback(async () => {
+        if (!currentShop?.id) return; // Guard: don't query without a valid shop
         setLoading(true);
         const { data, error } = await supabase
             .from("customers")
             .select("*")
-            .eq('shop_id', currentShop?.id)
+            .eq('shop_id', currentShop.id)
             .order("name");
 
         if (error) {

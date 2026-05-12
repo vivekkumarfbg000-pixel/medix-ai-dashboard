@@ -57,9 +57,6 @@ export default function Analytics() {
   const [categoryData, setCategoryData] = useState<{ category: string; profit: number; margin: number }[]>([]);
   const [dailySalesData, setDailySalesData] = useState<{ day: string; sales: number }[]>([]);
 
-  useEffect(() => {
-    fetchAnalyticsData();
-  }, [fetchAnalyticsData]);
   const fetchAnalyticsData = useCallback(async () => {
     setLoading(true);
     try {
@@ -138,6 +135,10 @@ export default function Analytics() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, [fetchAnalyticsData]);
 
   function calculateMetrics(salesData: Sale[], inventoryData: InventoryItem[]) {
     const now = new Date();

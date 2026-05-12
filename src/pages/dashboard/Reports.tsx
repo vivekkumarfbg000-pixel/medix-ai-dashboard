@@ -22,12 +22,6 @@ export default function Reports() {
     const [loading, setLoading] = useState(false);
     const [reportData, setReportData] = useState<any>(null);
 
-    useEffect(() => {
-        if (currentShop?.id && date?.from && date?.to) {
-            fetchReport();
-        }
-    }, [currentShop?.id, date, fetchReport]);
-
     const fetchReport = useCallback(async () => {
         if (!date?.from || !date?.to) return;
         setLoading(true);
@@ -56,6 +50,12 @@ export default function Reports() {
             setLoading(false);
         }
     }, [currentShop?.id, date]);
+
+    useEffect(() => {
+        if (currentShop?.id && date?.from && date?.to) {
+            fetchReport();
+        }
+    }, [currentShop?.id, date, fetchReport]);
 
     const downloadCSV = () => {
         if (!reportData?.sales_by_date) return;

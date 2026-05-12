@@ -49,7 +49,7 @@ export function useUserRole(shopId?: string | null): UserRoleState {
           setRole(null);
         }
       } catch (err) {
-        console.error("Error fetching role from user_shops:", err);
+        console.error("Error fetching role from user_roles:", err);
         setRole(null);
       } finally {
         setLoading(false);

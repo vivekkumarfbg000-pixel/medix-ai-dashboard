@@ -94,20 +94,20 @@ const Settings = () => {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        let currentShopId = profile?.shop_id;
+        let resolvedShopId = profile?.shop_id;
 
         // 2. Fallback: Try to find shop via ownership if profile link is missing
-        if (!currentShopId) {
+        if (!resolvedShopId) {
           const { data: ownedShop } = await supabase.from('shops').select('id').eq('owner_id', user.id).limit(1).maybeSingle();
-          if (ownedShop) currentShopId = ownedShop.id;
+          if (ownedShop) resolvedShopId = ownedShop.id;
         }
 
-        if (currentShopId) {
-          console.log("Found shop:", currentShopId);
+        if (resolvedShopId) {
+          console.log("Found shop:", resolvedShopId);
           const { data: shopData, error: shopError } = await supabase
             .from("shops")
             .select("*")
-            .eq("id", currentShopId)
+            .eq("id", resolvedShopId)
             .single();
 
           if (shopError) {
@@ -120,7 +120,7 @@ const Settings = () => {
           const { data: settingsData } = await supabase
             .from("shop_settings")
             .select("*")
-            .eq("shop_id", currentShopId)
+            .eq("shop_id", resolvedShopId)
             .maybeSingle();
 
           if (settingsData) {
