@@ -1,5 +1,5 @@
 import { useEffect, useState, lazy, Suspense, useRef, useCallback, useMemo } from "react";
-import { safeJSONParse } from "@/services/aiService";
+import { safeJSONParse } from "@/services/ai/core";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useUserShops } from "@/hooks/useUserShops";

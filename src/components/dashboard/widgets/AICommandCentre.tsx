@@ -38,7 +38,7 @@ export const AICommandCentre = () => {
     }, [currentShop?.id]);
 
     // 2. Calculate Seasonal Prep Logic
-    const calculateSeason = () => {
+    const calculateSeason = useCallback(() => {
         const month = new Date().getMonth(); // 0-11
         let season: SeasonalInsight = {
             season: "General Wellness",
@@ -74,7 +74,7 @@ export const AICommandCentre = () => {
             };
         }
         setSeasonalData(season);
-    };
+    }, []);
 
     // 2.5 Auto-Update Stale Data (Guarded)
     useEffect(() => {
@@ -86,7 +86,7 @@ export const AICommandCentre = () => {
                 runAIAnalysis();
             }
         }
-    }, [predictions, loading, currentShop?.id]);
+    }, [predictions, loading, runAIAnalysis]);
 
     useEffect(() => {
         fetchPredictions();
@@ -94,7 +94,7 @@ export const AICommandCentre = () => {
     }, [currentShop?.id, fetchPredictions]);
 
     // 3. Trigger AI Analysis
-    const runAIAnalysis = async () => {
+    const runAIAnalysis = useCallback(async () => {
         if (!currentShop?.id) return;
         setLoading(true);
         toast.loading("AI Engine: Analyzing Sales Patterns...");
@@ -146,7 +146,7 @@ export const AICommandCentre = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentShop?.id, fetchPredictions]);
 
     return (
         <Card className="h-full border-none shadow-md bg-gradient-to-br from-slate-900 to-slate-950 text-white overflow-hidden relative group">

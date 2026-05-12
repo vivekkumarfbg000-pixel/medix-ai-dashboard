@@ -259,7 +259,7 @@ const Shortbook = () => {
                             <DialogHeader><DialogTitle>Add to Shortbook</DialogTitle></DialogHeader>
                             <div className="space-y-4 py-4">
                                 <div className="space-y-2"><Label>Product Name</Label><Input value={newItem.product_name} onChange={e => setNewItem({ ...newItem, product_name: e.target.value })} /></div>
-                                <div className="space-y-2"><Label>Quantity</Label><Input type="number" value={newItem.quantity} onChange={e => setNewItem({ ...newItem, quantity: parseInt(e.target.value) })} /></div>
+                                <div className="space-y-2"><Label>Quantity</Label><Input type="number" value={newItem.quantity} onChange={e => setNewItem({ ...newItem, quantity: parseInt(e.target.value) || 0 })} /></div>
                                 <div className="space-y-2">
                                     <Label>Preferred Distributor</Label>
                                     <Select value={newItem.distributor_id} onValueChange={v => setNewItem({ ...newItem, distributor_id: v })}>

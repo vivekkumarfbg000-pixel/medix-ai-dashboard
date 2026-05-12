@@ -248,7 +248,7 @@ const Prescriptions = () => {
                                             <h3 className="font-bold text-slate-800 dark:text-slate-200 line-clamp-1" title={p.customer_name}>{p.customer_name || 'Unknown Patient'}</h3>
                                             <p className="text-xs text-slate-500 flex items-center gap-1">
                                                 <Calendar className="w-3 h-3" />
-                                                {p.visit_date ? format(new Date(p.visit_date), 'PP') : 'No Date'}
+                                                {safeFormat(p.visit_date, 'PP')}
                                             </p>
                                         </div>
                                     </div>

@@ -97,7 +97,7 @@ export default function Purchases({ embedded = false }: { embedded?: boolean }) 
                                         </TableCell>
                                         <TableCell className="font-mono">{p.invoice_number}</TableCell>
                                         <TableCell className="font-medium">{p.suppliers?.name || 'Unknown'}</TableCell>
-                                        <TableCell className="font-bold text-emerald-600">₹{p.total_amount.toLocaleString()}</TableCell>
+                                        <TableCell className="font-bold text-emerald-600">₹{(p.total_amount || 0).toLocaleString()}</TableCell>
                                         <TableCell>
                                             <Badge variant={p.status === 'completed' ? 'default' : 'secondary'} className="uppercase text-[10px]">
                                                 {p.status}

@@ -125,7 +125,7 @@ export const tool_getPrescriptions = async (shopId: string, patientName?: string
     if (!data || data.length === 0) return patientName ? `No prescriptions found for '${patientName}'.` : 'No recent prescriptions found.';
 
     return data.map(p => {
-        const meds = typeof p.medicines === 'string' ? JSON.parse(p.medicines) : p.medicines;
+        const meds = safeJSONParse(p.medicines, []);
         const medNames = Array.isArray(meds) ? meds.map((m: any) => m.name || m.medicine_name).join(', ') : 'N/A';
         return `${p.customer_name} (Dr. ${p.doctor_name || 'Unknown'}): ${medNames} [${new Date(p.created_at || '').toLocaleDateString()}]`;
     }).join('\n\n');
