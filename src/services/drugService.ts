@@ -1,4 +1,5 @@
-import { aiService, safeJSONParse } from "./aiService";
+import { aiService } from "./aiService";
+import { safeJSONParse } from "./ai/core";
 import { supabase } from "@/integrations/supabase/client";
 import logger from "@/utils/logger";
 

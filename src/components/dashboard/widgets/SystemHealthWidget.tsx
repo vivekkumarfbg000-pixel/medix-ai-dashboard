@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { toast } from "sonner";
-import { ENDPOINTS, aiService } from "@/services/aiService"; // Use centralized config
+import { aiService } from "@/services/aiService";
+import { ENDPOINTS } from "@/services/ai/core"; // Use centralized config
 import { BrainCircuit } from "lucide-react";
 
 export const SystemHealthWidget = () => {

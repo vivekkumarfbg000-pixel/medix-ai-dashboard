@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { aiService, ENDPOINTS } from "@/services/aiService";
+import { aiService } from "@/services/aiService";
+import { ENDPOINTS } from "@/services/ai/core";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 

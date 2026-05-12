@@ -386,5 +386,3 @@ Return ONLY valid JSON:
         }
     }
 };
-
-export { safeJSONParse, ENDPOINTS };

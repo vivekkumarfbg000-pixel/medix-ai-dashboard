@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { safeJSONParse } from "./core";
 
 /**
  * LOCAL SUPABASE TOOLS (Client-Side Fallback)
