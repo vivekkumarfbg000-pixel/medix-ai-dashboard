@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { aiService } from '@/services/aiService';
+import { aiService, safeJSONParse } from '@/services/aiService';
 
 export interface Prediction {
     id: string;
