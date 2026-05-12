@@ -96,7 +96,7 @@ const Prescriptions = () => {
 
     const handleViewDetails = (p: Prescription) => {
         setSelectedPrescription(p);
-        setEditingMedicines(JSON.parse(JSON.stringify(p.medicines || [])));
+        setEditingMedicines(structuredClone(p.medicines || []));
     };
 
     const handlePriceChange = (index: number, price: string) => {

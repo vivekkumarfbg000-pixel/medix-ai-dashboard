@@ -79,7 +79,7 @@ const Inventory = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
 
   // VERSION CHECK LOG
-  useEffect(() => { console.log("Inventory Component v2.5 - CSV Fix + Timeout Loaded"); }, []);
+
 
   // stagingItems removed
   const [loading, setLoading] = useState(true);

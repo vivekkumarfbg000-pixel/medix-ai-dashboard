@@ -148,12 +148,8 @@ export async function callGeminiVision(prompt: string, base64Image: string, mime
         if (!response.ok) {
             const errText = await response.text();
             let errorMessage = errText;
-            try {
-                const errJson = JSON.parse(errText);
-                errorMessage = errJson.message || errJson.error || errText;
-            } catch (_e) {
-                // Not JSON
-            }
+            const errJson = errText ? (() => { try { return JSON.parse(errText); } catch { return null; } })() : null;
+            if (errJson) errorMessage = errJson.message || errJson.error || errText;
             throw new Error(`Vision API Failed (${response.status}): ${String(errorMessage).substring(0, 150)}`);
         }
 
