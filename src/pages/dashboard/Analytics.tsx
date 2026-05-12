@@ -22,6 +22,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval } from "date-fns";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 
 interface Sale {
   id: string;
@@ -92,7 +93,7 @@ export default function Analytics() {
         // @ts-ignore
         const relItemsCount = order.items_rel?.length || 0;
         // @ts-ignore
-        const jsonItems = (typeof order.items_json === 'string' ? JSON.parse(order.items_json) : (order.items_json || []));
+        const jsonItems = (typeof order.items_json === 'string' ? safeJSONParse(order.items_json, []) : (order.items_json || []));
         const jsonItemsCount = jsonItems.length || 0;
 
         // Bias towards relational data for better inventory linking, but fallback if JSON is more complete

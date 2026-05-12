@@ -22,16 +22,7 @@ interface SynthesizedAnswer {
     citations: string[];
 }
 
-const safeJSONParse = (text: string, fallback: any = null): any => {
-    try {
-        // Remove markdown code blocks if present
-        const cleaned = text.replace(/```json\s*|```\s*/g, "").trim();
-        return JSON.parse(cleaned);
-    } catch (e) {
-        logger.warn("JSON parse failed", e);
-        return fallback;
-    }
-};
+import { safeJSONParse } from "@/utils/jsonHelpers";
 
 export const medicalResearchService = {
     /**

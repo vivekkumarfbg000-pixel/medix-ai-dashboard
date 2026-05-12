@@ -11,6 +11,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/auth/useAuth";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 import { toast } from "sonner";
 
 interface Shop {
@@ -36,11 +37,7 @@ export function useUserShops(): UserShopsState {
   const { user } = useAuth();
   const [shops, setShops] = useState<Shop[]>(() => {
     const cached = localStorage.getItem("medix_cached_shops");
-    try {
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
+    return cached ? safeJSONParse(cached, []) : [];
   });
   const [currentShopId, setCurrentShopId] = useState<string | null>(() => {
     return localStorage.getItem("currentShopId");

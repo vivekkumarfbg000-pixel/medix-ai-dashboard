@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { format, differenceInDays, addMonths } from "date-fns";
 import { safeFormat } from "@/utils/dateHelpers";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 import { Download, ShieldAlert, FileText, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserShops } from "@/hooks/useUserShops";
@@ -50,11 +51,7 @@ const Compliance = () => {
                 if (Array.isArray(order.order_items)) {
                     items = order.order_items;
                 } else if (typeof order.order_items === 'string') {
-                    try {
-                        items = JSON.parse(order.order_items);
-                    } catch (e) {
-                        items = [];
-                    }
+                    items = safeJSONParse(order.order_items, []);
                 }
 
                 if (!items || !Array.isArray(items)) continue;

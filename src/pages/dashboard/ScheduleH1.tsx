@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ClipboardList, Search, Download, FileText, AlertTriangle } from "lucide-react";
 import { safeFormat } from "@/utils/dateHelpers";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 import { toast } from "sonner";
 
 import { BillViewModal } from "./compliance/BillViewModal";
@@ -53,11 +54,7 @@ const ScheduleH1 = () => {
                 if (Array.isArray(order.order_items)) {
                     items = order.order_items;
                 } else if (typeof order.order_items === 'string') {
-                    try {
-                        items = JSON.parse(order.order_items);
-                    } catch (e) {
-                        items = [];
-                    }
+                    items = safeJSONParse(order.order_items, []);
                 }
 
                 items.forEach((item: any) => {

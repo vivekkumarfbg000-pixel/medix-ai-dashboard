@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { ClinicalCommandCenter } from "./ClinicalCommandCenter";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 
 interface Customer {
     id: string;
@@ -164,9 +165,7 @@ export const PatientProfileSheet = ({ customer, open, onOpenChange, onUpdate }: 
                                                         if (Array.isArray(order.order_items)) {
                                                             items = order.order_items;
                                                         } else if (typeof order.order_items === 'string') {
-                                                            try {
-                                                                items = JSON.parse(order.order_items);
-                                                            } catch (e) { items = []; }
+                                                            items = safeJSONParse(order.order_items, []);
                                                         }
 
                                                         return (

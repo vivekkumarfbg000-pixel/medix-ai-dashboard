@@ -23,6 +23,7 @@ import {
 import { ReturnOrderModal } from "@/components/dashboard/orders/ReturnOrderModal";
 import { useUserShops } from "@/hooks/useUserShops";
 import { format } from "date-fns";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 import { whatsappService } from "@/services/whatsappService";
 import { useNavigate } from "react-router-dom";
 
@@ -147,11 +148,7 @@ const Orders = () => {
       const parsedData = (data || []).map((order: any) => {
         let items = order.order_items;
         if (typeof items === 'string') {
-          try {
-            items = JSON.parse(items);
-          } catch (e) {
-            items = [];
-          }
+          items = safeJSONParse(items, []);
         }
         return { ...order, order_items: items };
       });

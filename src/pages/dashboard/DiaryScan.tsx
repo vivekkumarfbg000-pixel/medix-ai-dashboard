@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 import {
   Upload,
   FileText,
@@ -189,7 +190,7 @@ export const DiaryScan = () => {
         else if (result?.items) items = result.items;
         else if (result?.medicines) items = result.medicines;
         else if (Array.isArray(result) && result[0]?.medicines) {
-          items = typeof result[0].medicines === 'string' ? JSON.parse(result[0].medicines) : result[0].medicines;
+          items = typeof result[0].medicines === 'string' ? safeJSONParse(result[0].medicines, []) : result[0].medicines;
         } else if (result?.prescription) items = result.prescription;
 
         if (result?.patient_name) setPatientName(result.patient_name);

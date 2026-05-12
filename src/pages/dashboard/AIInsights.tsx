@@ -33,6 +33,7 @@ import VoiceInput from "@/components/common/VoiceInput";
 import { useUserShops } from "@/hooks/useUserShops";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowRight } from "lucide-react";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 
 import { useNavigate } from "react-router-dom"; // Added for navigation
 
@@ -246,11 +247,7 @@ const AIInsights = () => {
         if (Array.isArray(order.order_items)) {
           items = order.order_items;
         } else if (typeof order.order_items === 'string') {
-          try {
-            items = JSON.parse(order.order_items);
-          } catch (e) {
-            items = [];
-          }
+          items = safeJSONParse(order.order_items, []);
         }
         if (items.length < 2) return;
 

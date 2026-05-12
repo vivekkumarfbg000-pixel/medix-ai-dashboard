@@ -465,8 +465,8 @@ const Inventory = () => {
           try {
             // Clean common Indian pharmacy formats (e.g., 12/25, Dec-25)
             let cleaned = dateStr.trim();
-            if (/^\d{1,2}[\/-]\d{2}$/.test(cleaned)) {
-              const [m, y] = cleaned.split(/[\/-]/);
+            if (/^\d{1,2}[/-]\d{2}$/.test(cleaned)) {
+              const [m, y] = cleaned.split(/[/-]/);
               cleaned = `20${y}-${m}-01`; // Convert MM/YY to YYYY-MM-DD
             }
             const date = new Date(cleaned);

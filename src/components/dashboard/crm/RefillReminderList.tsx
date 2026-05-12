@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, differenceInDays } from "date-fns";
 import { Bell, Check, MessageCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 
 interface Reminder {
     order_id: string;
@@ -56,11 +57,7 @@ export const RefillReminderList = ({ shopId }: { shopId: string }) => {
                 if (Array.isArray(o.order_items)) {
                     items = o.order_items;
                 } else if (typeof o.order_items === 'string') {
-                    try {
-                        items = JSON.parse(o.order_items);
-                    } catch (e) {
-                        items = [];
-                    }
+                    items = safeJSONParse(o.order_items, []);
                 }
 
                 // Determine main med (first item for now or logic to pick chronic)

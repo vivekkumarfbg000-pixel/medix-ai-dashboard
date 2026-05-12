@@ -326,23 +326,5 @@ export async function callGroqWhisper(audioBlob: Blob): Promise<string> {
     return data.text || "";
 }
 
-export const safeJSONParse = (text: string, fallback: any = null): any => {
-    try {
-        return JSON.parse(text);
-    } catch {
-        const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        try {
-            return JSON.parse(clean);
-        } catch {
-            try {
-                const jsonMatch = clean.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    return JSON.parse(jsonMatch[0]);
-                }
-            } catch (_e) {
-                logger.warn("JSON Parse Failed completely:", text.substring(0, 100));
-            }
-        }
-    }
-    return fallback;
-};
+import { safeJSONParse } from "@/utils/jsonHelpers";
+export { safeJSONParse };

@@ -1,6 +1,7 @@
 
 import { logger } from "@/utils/logger";
 import { aiService } from "@/services/aiService";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 
 export interface LabTestResult {
     parameter: string;
@@ -45,7 +46,7 @@ class LabService {
             // Parse raw analysis if it's a string
             let rawAnalysis = data.raw_analysis || {};
             if (typeof rawAnalysis === 'string') {
-                try { rawAnalysis = JSON.parse(rawAnalysis); } catch (e) { logger.warn("Pre-parsed rawAnalysis check failed", e); }
+                rawAnalysis = safeJSONParse(rawAnalysis, {});
             }
 
             // Map response to Frontend Model

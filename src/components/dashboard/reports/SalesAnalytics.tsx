@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { supabase } from "@/integrations/supabase/client";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Loader2, Users, ShoppingBag, CreditCard } from "lucide-react";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 
 interface SalesAnalyticsProps {
     shopId: string;
@@ -69,11 +70,7 @@ export const SalesAnalytics = ({ shopId }: SalesAnalyticsProps) => {
                 if (Array.isArray(order.order_items)) {
                     items = order.order_items;
                 } else if (typeof order.order_items === 'string') {
-                    try {
-                        items = JSON.parse(order.order_items);
-                    } catch (e) {
-                        items = [];
-                    }
+                    items = safeJSONParse(order.order_items, []);
                 }
 
                 items.forEach((item: any) => {

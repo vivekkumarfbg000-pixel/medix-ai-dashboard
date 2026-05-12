@@ -62,21 +62,21 @@ export function useBillingCart(initialCart: CartItem[] = []) {
         });
     }, []);
 
+    const removeItem = useCallback((productId: string) => {
+        setCart(prev => prev.filter(c => c.item.id !== productId));
+    }, []);
+
     const updateQuantity = useCallback((id: string, qty: number) => {
         if (qty <= 0) {
             removeItem(id);
             return;
         }
         setCart(prev => prev.map(i => i.item.id === id ? { ...i, qty } : i));
-    }, []);
+    }, [removeItem]);
 
     const updatePrice = useCallback((id: string, price: number) => {
         if (price < 0) return;
         setCart(prev => prev.map(i => i.item.id === id ? { ...i, item: { ...i.item, unit_price: price } } : i));
-    }, []);
-
-    const removeItem = useCallback((productId: string) => {
-        setCart(prev => prev.filter(c => c.item.id !== productId));
     }, []);
 
     const clearCart = useCallback(() => setCart([]), []);

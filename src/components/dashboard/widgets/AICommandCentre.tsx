@@ -91,7 +91,7 @@ export const AICommandCentre = () => {
     useEffect(() => {
         fetchPredictions();
         calculateSeason();
-    }, [currentShop?.id, fetchPredictions]);
+    }, [currentShop?.id, fetchPredictions, calculateSeason]);
 
     // 3. Trigger AI Analysis
     const runAIAnalysis = useCallback(async () => {

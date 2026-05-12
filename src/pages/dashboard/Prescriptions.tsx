@@ -9,6 +9,7 @@ import { FileText, Calendar, User, Search, Stethoscope, ScanLine, Share2, Eye, S
 import { aiService } from "@/services/aiService";
 import { useNavigate } from "react-router-dom";
 import { whatsappService } from "@/services/whatsappService";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 import { format } from "date-fns";
 import {
     Dialog,
@@ -71,9 +72,7 @@ const Prescriptions = () => {
             const parsed = data.map((p: any) => {
                 let meds = p.medicines;
                 if (typeof meds === 'string') {
-                    try {
-                        meds = JSON.parse(meds);
-                    } catch (e) { meds = []; }
+                    meds = safeJSONParse(meds, []);
                 }
                 return { ...p, medicines: meds };
             });
