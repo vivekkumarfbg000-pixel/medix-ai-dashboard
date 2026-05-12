@@ -459,6 +459,24 @@ const Inventory = () => {
           return foundKey ? row[foundKey] : null;
         };
 
+        // Helper: Safe Date Parser
+        const parseExpiryDate = (dateStr: string | null) => {
+          if (!dateStr) return null;
+          try {
+            // Clean common Indian pharmacy formats (e.g., 12/25, Dec-25)
+            let cleaned = dateStr.trim();
+            if (/^\d{1,2}[\/-]\d{2}$/.test(cleaned)) {
+              const [m, y] = cleaned.split(/[\/-]/);
+              cleaned = `20${y}-${m}-01`; // Convert MM/YY to YYYY-MM-DD
+            }
+            const date = new Date(cleaned);
+            if (isNaN(date.getTime())) return null;
+            return date.toISOString().split('T')[0];
+          } catch {
+            return null;
+          }
+        };
+
         const formattedData = rows.map((row) => {
           const name = getField(row, ["Medicine Name", "Name", "Item Name", "Medicine"]);
           if (!name) return null;
@@ -467,7 +485,7 @@ const Inventory = () => {
             shop_id: currentShop?.id,
             medicine_name: name,
             batch_number: getField(row, ["Batch Number", "Batch", "Batch No"]),
-            expiry_date: getField(row, ["Expiry Date", "Expiry", "Exp Date"]), // Date parsing needed?
+            expiry_date: parseExpiryDate(getField(row, ["Expiry Date", "Expiry", "Exp Date"])),
             quantity: parseInt(getField(row, ["Quantity", "Qty", "Stock"]) || "0"),
             unit_price: parseFloat(getField(row, ["MRP", "Unit Price", "Price", "Selling Price"]) || "0"),
             purchase_price: parseFloat(getField(row, ["Purchase Price", "Cost", "Buying Price"]) || "0"),
@@ -503,7 +521,7 @@ const Inventory = () => {
                 p_unit_price: item.unit_price,
                 p_purchase_price: item.purchase_price,
                 p_batch_number: item.batch_number,
-                p_expiry_date: item.expiry_date ? new Date(item.expiry_date).toISOString().split('T')[0] : null,
+                p_expiry_date: item.expiry_date, // Already parsed safely
                 p_manufacturer: item.manufacturer,
                 p_category: null,
                 p_generic_name: null,
@@ -521,7 +539,7 @@ const Inventory = () => {
               // Fallback to direct insert
               const { error } = await supabase.from("inventory").insert({
                 ...item,
-                expiry_date: item.expiry_date ? new Date(item.expiry_date).toISOString().split('T')[0] : null
+                expiry_date: item.expiry_date // Already parsed safely
               });
               return !error;
             }

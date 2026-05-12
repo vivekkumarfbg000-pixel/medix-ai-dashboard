@@ -78,9 +78,12 @@ export const useDemandForecast = (shopId?: string) => {
             const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
             orders?.forEach(o => {
-                const d = new Date(o.created_at);
-                const key = `${monthNames[d.getMonth()]} ${d.getFullYear()}`; // "Jan 2024"
-                monthlySales.set(key, (monthlySales.get(key) || 0) + o.total_amount);
+                try {
+                    const d = new Date(o.created_at);
+                    if (isNaN(d.getTime())) return;
+                    const key = `${monthNames[d.getMonth()]} ${d.getFullYear()}`; // "Jan 2024"
+                    monthlySales.set(key, (monthlySales.get(key) || 0) + (o.total_amount || 0));
+                } catch { /* skip invalid dates */ }
             });
 
             // Format for Recharts
@@ -181,7 +184,7 @@ export const useDemandForecast = (shopId?: string) => {
                     `;
 
                     const aiResponse = await aiService.chatWithAgent(prompt);
-                    const insights = JSON.parse(aiResponse.reply); // Hope for valid JSON, else catch
+                    const insights = safeJSONParse(aiResponse.reply, {}); 
 
                     // Merge insights
                     newPredictions?.forEach(p => {

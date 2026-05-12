@@ -47,7 +47,7 @@ class SyncService {
             for (const order of pendingOrders) {
                 // Use the atomic RPC for syncing to ensure stock deduction and ledger consistency
                 const { data, error } = await supabase.rpc('process_pos_sale', {
-                    p_transaction_id: order.id, // Keep the same ID for idempotency
+                    p_transaction_id: order.idempotency_key || crypto.randomUUID(), // Use UUID for Postgres
                     p_shop_id: order.shop_id,
                     p_customer_name: order.customer_name,
                     p_customer_phone: order.customer_phone,

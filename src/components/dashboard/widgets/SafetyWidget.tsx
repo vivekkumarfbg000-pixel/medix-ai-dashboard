@@ -51,7 +51,9 @@ export const SafetyWidget = () => {
                 const limit = Math.min(names.length, 500); 
                 
                 for (let i = 0; i < limit; i++) {
+                    if (!names[i]) continue;
                     for (let j = i + 1; j < limit; j++) {
+                        if (!names[j]) continue;
                         const dist = levenshtein(names[i].toLowerCase(), names[j].toLowerCase());
                         if (names[i].length > 4 && dist <= 2) {
                             found = { name1: names[i], name2: names[j] };

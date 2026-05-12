@@ -72,7 +72,9 @@ export const analyzeDocument = async (file: File, type: 'prescription' | 'lab_re
         reader.onloadend = () => {
             const result = reader.result;
             if (typeof result === 'string') {
-                resolve(result.split(',')[1].replace(/[\r\n\s]+/g, ''));
+                const parts = result.split(',');
+                const b64 = parts.length > 1 ? parts[1] : parts[0];
+                resolve(b64.replace(/[\r\n\s]+/g, ''));
             } else reject("Base64 conversion failed");
         };
         reader.onerror = reject;

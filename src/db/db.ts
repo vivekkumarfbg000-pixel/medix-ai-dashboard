@@ -24,6 +24,7 @@ export interface OfflineInventory {
 export interface OfflineOrder {
     id?: number; // Auto-increment (Local ID)
     shop_id: string; // Required for sync
+    idempotency_key?: string; // UUID for Postgres sync
     customer_name: string;
     customer_phone?: string;
     total_amount: number;
@@ -54,6 +55,11 @@ class MedixDatabase extends Dexie {
         this.version(3).stores({
             inventory: 'id, shop_id, [shop_id+medicine_name], batch_number, is_synced',
             orders: '++id, shop_id, created_at, is_synced'
+        });
+        // VERSION 4: Reliable Sync with Idempotency
+        this.version(4).stores({
+            inventory: 'id, shop_id, [shop_id+medicine_name], batch_number, is_synced',
+            orders: '++id, shop_id, idempotency_key, created_at, is_synced'
         });
     }
 }

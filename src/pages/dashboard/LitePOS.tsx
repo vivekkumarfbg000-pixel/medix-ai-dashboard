@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -114,7 +114,7 @@ const LitePOS = () => {
                 const inventory = await db.inventory.where('shop_id').equals(currentShop?.id).toArray();
 
                 // Create a Map for faster exact lookups
-                const inventoryMap = new Map(inventory.map(i => [i.medicine_name.toLowerCase(), i]));
+                const inventoryMap = new Map(inventory.map(i => [(i.medicine_name || "").toLowerCase(), i]));
 
                 for (const incomingItem of itemsToProcess) {
                     const searchName = incomingItem.name.toLowerCase().trim();
@@ -292,6 +292,7 @@ const LitePOS = () => {
             customer_name: name,
             customer_phone: phone || undefined,
             total_amount: amount,
+            idempotency_key: idempotencyKey, // Use UUID from billing hook
             items: cart.map(c => ({
                 id: c.item.id,
                 name: c.item.medicine_name,
@@ -538,7 +539,9 @@ const LitePOS = () => {
                 // Better: Map<name, Item>
                 const inventoryMap = new Map();
                 allItems.forEach(i => {
-                    inventoryMap.set(i.medicine_name.toLowerCase(), i);
+                    if (i.medicine_name) {
+                        inventoryMap.set(i.medicine_name.toLowerCase(), i);
+                    }
                 });
 
                 for (const imp of itemsToImport) {
@@ -793,7 +796,7 @@ const LitePOS = () => {
             }
 
             // Store ID to replace specific row
-            setAlternativeData({ name: medicineName, substitutes: substitutes as any[], targetItemId: itemId });
+            setAlternativeData({ name: medicineName, options: substitutes as any[], itemId: itemId || "" });
             toast.success(`Found ${substitutes.length} options`, { id: 'alt-search' });
         } catch (e) {
             console.error(e);
