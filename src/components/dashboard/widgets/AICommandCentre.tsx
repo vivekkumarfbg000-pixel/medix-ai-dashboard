@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ export const AICommandCentre = () => {
     const [loading, setLoading] = useState(false);
     const [predictions, setPredictions] = useState<any[]>([]);
     const [seasonalData, setSeasonalData] = useState<SeasonalInsight | null>(null);
+    const autoRunRef = useRef(false);
 
     // 1. Fetch AI Predictions (Growth Engine)
     const fetchPredictions = useCallback(async () => {
@@ -33,16 +34,8 @@ export const AICommandCentre = () => {
 
         if (!error && data) {
             setPredictions(data);
-
-            // AUTO-FIX: If we see the stale Mock Data (which matches the old hardcoded service), auto-run the new analysis
-            const hasStaleMock = data.some((p: any) => p.medicine_name === "Amoxicillin 500mg" && p.reason.includes("High seasonal"));
-            if (hasStaleMock) {
-                toast.info("Updating AI Model...");
-                runAIAnalysis();
-            }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentShop?.id]); // runAIAnalysis intentionally excluded — circular dep (fetchPredictions ↔ runAIAnalysis)
+    }, [currentShop?.id]);
 
     // 2. Calculate Seasonal Prep Logic
     const calculateSeason = () => {
@@ -82,6 +75,18 @@ export const AICommandCentre = () => {
         }
         setSeasonalData(season);
     };
+
+    // 2.5 Auto-Update Stale Data (Guarded)
+    useEffect(() => {
+        if (predictions.length > 0 && !loading && !autoRunRef.current) {
+            const hasStaleMock = predictions.some((p: any) => p.medicine_name === "Amoxicillin 500mg" && p.reason.includes("High seasonal"));
+            if (hasStaleMock) {
+                autoRunRef.current = true;
+                toast.info("Updating AI Model...");
+                runAIAnalysis();
+            }
+        }
+    }, [predictions, loading, currentShop?.id]);
 
     useEffect(() => {
         fetchPredictions();

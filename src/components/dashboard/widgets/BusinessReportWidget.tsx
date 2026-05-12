@@ -1,11 +1,12 @@
-
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, RefreshCw, Archive, Sparkles } from "lucide-react";
+import { TrendingUp, RefreshCw, Archive, Sparkles, ArrowRight, Zap } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 import { useUserShops } from "@/hooks/useUserShops";
+import { aiService } from "@/services/aiService";
 
 export const BusinessReportWidget = () => {
     const { currentShop } = useUserShops();
