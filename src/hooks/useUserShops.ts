@@ -8,7 +8,7 @@
  *  - Bug F: Replaced window.location.reload() in switchShop with event dispatch
  */
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/auth/useAuth";
 import { toast } from "sonner";
