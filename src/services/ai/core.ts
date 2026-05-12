@@ -326,5 +326,4 @@ export async function callGroqWhisper(audioBlob: Blob): Promise<string> {
     return data.text || "";
 }
 
-import { safeJSONParse } from "@/utils/jsonHelpers";
-export { safeJSONParse };
+

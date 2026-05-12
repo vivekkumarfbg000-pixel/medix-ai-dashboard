@@ -6,9 +6,9 @@ import {
     callGroqAI, 
     callGeminiVision, 
     callGroqWhisper,
-    safeJSONParse, 
     ENDPOINTS 
 } from "./ai/core";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 import { 
     SYSTEM_PROMPT_PHARMACIST, 
     SYSTEM_PROMPT_ROUTER, 

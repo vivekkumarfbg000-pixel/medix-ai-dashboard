@@ -5,9 +5,9 @@ import {
     checkConnectivity, 
     fetchWithTimeout, 
     ENDPOINTS, 
-    callGeminiVision, 
-    safeJSONParse 
+    callGeminiVision 
 } from "./core";
+import { safeJSONParse } from "@/utils/jsonHelpers";
 import { 
     LAB_REPORT_PROMPT, 
     PRESCRIPTION_ANALYSIS_PROMPT, 
