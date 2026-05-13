@@ -97,8 +97,8 @@ const ScheduleH1 = () => {
     }, [currentShop?.id]);
 
     const filtered = records.filter(r =>
-        r.medicine.toLowerCase().includes(search.toLowerCase()) ||
-        r.patient.toLowerCase().includes(search.toLowerCase())
+        String(r.medicine || "").toLowerCase().includes(String(search || "").toLowerCase()) ||
+        String(r.patient || "").toLowerCase().includes(String(search || "").toLowerCase())
     );
 
     const handleExport = () => {

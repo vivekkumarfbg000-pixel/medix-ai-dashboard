@@ -147,7 +147,7 @@ const Customers = () => {
     };
 
     const filtered = customers.filter(c =>
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        String(c.name || "").toLowerCase().includes(String(search || "").toLowerCase()) ||
         (c.phone && c.phone.includes(search))
     );
 

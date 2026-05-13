@@ -49,7 +49,7 @@ export function UpsellWidget({ cartItems, onAddItem }: UpsellWidgetProps) {
                 // Fuzzy search in local DB
                 const match = await db.inventory
                     .filter(i =>
-                        i.medicine_name.toLowerCase().includes(name.toLowerCase()) &&
+                        String(i.medicine_name || "").toLowerCase().includes(String(name || "").toLowerCase()) &&
                         i.quantity > 0 &&
                         !cartItems.find(c => c.item.id === i.id)
                     )

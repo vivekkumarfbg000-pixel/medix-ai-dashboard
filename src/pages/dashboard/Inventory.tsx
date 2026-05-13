@@ -247,9 +247,9 @@ const Inventory = () => {
   const filteredInventory = useMemo(() => {
     return inventory.filter(item => {
     // 1. Text Search
-    const matchesSearch = item.medicine_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.generic_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.category?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = String(item.medicine_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(item.generic_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(item.category || "").toLowerCase().includes(searchQuery.toLowerCase());
 
     // 2. Expiry Filter (90 Days)
     if (isExpiryFilter) {

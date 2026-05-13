@@ -147,7 +147,7 @@ export const QuickActions = () => {
 
         // Calculate demand score for each low stock item
         const enrichedItems: LowStockItem[] = lowItems.map(item => {
-            const sold = salesMap.get(item.medicine_name.toLowerCase()) || 0;
+            const sold = salesMap.get(String(item.medicine_name || "").toLowerCase()) || 0;
             const score = Math.round((sold / maxSales) * 100);
             let label = "Slow";
             if (score >= 60) label = "🔥 Hot";

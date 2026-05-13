@@ -107,8 +107,8 @@ export function ReviewInvoiceModal({
       const matchedItems: InvoiceItem[] = parsedItems.map((item, i) => {
         // Find best match in inventory (case-insensitive partial match)
         const match = inventory.find(inv => {
-          const invName = inv.medicine_name.toLowerCase().trim();
-          const itemName = item.name.toLowerCase().trim();
+          const invName = String(inv.medicine_name || "").toLowerCase().trim();
+          const itemName = String(item.name || "").toLowerCase().trim();
           return invName.includes(itemName) || itemName.includes(invName);
         });
 

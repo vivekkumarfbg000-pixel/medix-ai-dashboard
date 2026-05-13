@@ -117,12 +117,12 @@ const LitePOS = () => {
                 const inventoryMap = new Map(inventory.map(i => [(i.medicine_name || "").toLowerCase(), i]));
 
                 for (const incomingItem of itemsToProcess) {
-                    const searchName = incomingItem.name.toLowerCase().trim();
+                    const searchName = String(incomingItem.name || "").toLowerCase().trim();
                     let match = inventoryMap.get(searchName);
 
                     // 1. Exact Match Failed? Try Partial Match
                     if (!match) {
-                        match = inventory.find(i => i.medicine_name.toLowerCase().includes(searchName));
+                        match = inventory.find(i => String(i.medicine_name || "").toLowerCase().includes(searchName));
                     }
 
                     if (match) {
@@ -540,17 +540,17 @@ const LitePOS = () => {
                 const inventoryMap = new Map();
                 allItems.forEach(i => {
                     if (i.medicine_name) {
-                        inventoryMap.set(i.medicine_name.toLowerCase(), i);
+                        inventoryMap.set(String(i.medicine_name || "").toLowerCase(), i);
                     }
                 });
 
                 for (const imp of itemsToImport) {
-                    const impName = imp.name.toLowerCase().trim();
+                    const impName = String(imp.name || "").toLowerCase().trim();
                     let found = inventoryMap.get(impName);
 
                     // Fallback: Partial Match (Slower, but in-memory now so okay)
                     if (!found) {
-                        found = allItems.find(i => i.medicine_name.toLowerCase().includes(impName));
+                        found = allItems.find(i => String(i.medicine_name || "").toLowerCase().includes(impName));
                     }
 
                     if (found) {
@@ -606,7 +606,7 @@ const LitePOS = () => {
             if (debouncedSearch) {
                 // OPTIMIZATION: Use Compound Index [shop_id+medicine_name] for fast prefix search
                 // This prevents scanning the entire shop inventory
-                const lowerSearch = debouncedSearch.toLowerCase();
+                const lowerSearch = String(debouncedSearch || "").toLowerCase();
 
                 // Note: Dexie compound indexes work best when values are exact. 
                 // For 'startsWith' on the second part of a compound index, we use 'between'.
@@ -625,7 +625,7 @@ const LitePOS = () => {
                 return db.inventory
                     .where('shop_id')
                     .equals(currentShop?.id)
-                    .filter(i => i.medicine_name.toLowerCase().includes(lowerSearch)) // Includes is better than startsWith for users
+                    .filter(i => String(i.medicine_name || "").toLowerCase().includes(lowerSearch)) // Includes is better than startsWith for users
                     .limit(20)
                     .toArray();
             }
@@ -1006,11 +1006,11 @@ const LitePOS = () => {
                                 : [{ name: txt.trim(), quantity: 1, intent: 'add' as const }];
 
                             for (const pItem of itemsToAdd) {
-                                const searchName = pItem.name.toLowerCase().trim();
+                                const searchName = String(pItem.name || "").toLowerCase().trim();
                                 // Try exact match, then partial match
-                                let match = inventory.find(i => i.medicine_name.toLowerCase() === searchName);
-                                if (!match) match = inventory.find(i => i.medicine_name.toLowerCase().includes(searchName));
-                                if (!match) match = inventory.find(i => searchName.includes(i.medicine_name.toLowerCase()));
+                                let match = inventory.find(i => String(i.medicine_name || "").toLowerCase() === searchName);
+                                if (!match) match = inventory.find(i => String(i.medicine_name || "").toLowerCase().includes(searchName));
+                                if (!match) match = inventory.find(i => searchName.includes(String(i.medicine_name || "").toLowerCase()));
 
                                 if (match) {
                                     addToCart(match, pItem.quantity || 1);
@@ -1065,12 +1065,12 @@ const LitePOS = () => {
                                             if (e.key === 'Enter' && search.trim()) {
                                                 e.preventDefault();
                                                 const searchTerm = search.trim();
-                                                const searchLower = searchTerm.toLowerCase();
+                                                const searchLower = String(searchTerm || "").toLowerCase();
                                                 let match;
                                                 const currentProducts = products || [];
                                                 // Try exact -> partial -> first result
-                                                match = currentProducts.find(i => i.medicine_name.toLowerCase() === searchLower);
-                                                if (!match) match = currentProducts.find(i => i.medicine_name.toLowerCase().includes(searchLower));
+                                                match = currentProducts.find(i => String(i.medicine_name || "").toLowerCase() === searchLower);
+                                                if (!match) match = currentProducts.find(i => String(i.medicine_name || "").toLowerCase().includes(searchLower));
                                                 if (!match && currentProducts.length > 0) match = currentProducts[0];
                                                 
                                                 if (match) {
@@ -1118,12 +1118,12 @@ const LitePOS = () => {
 
                                             // Match against inventory
                                             const inventory = await db.inventory.where('shop_id').equals(currentShop?.id || '').toArray();
-                                            const searchLower = spokenName.toLowerCase();
+                                            const searchLower = String(spokenName || "").toLowerCase();
 
                                             // Try exact → partial → reverse partial
-                                            let match = inventory.find(i => i.medicine_name.toLowerCase() === searchLower);
-                                            if (!match) match = inventory.find(i => i.medicine_name.toLowerCase().includes(searchLower));
-                                            if (!match) match = inventory.find(i => searchLower.includes(i.medicine_name.toLowerCase()));
+                                            let match = inventory.find(i => String(i.medicine_name || "").toLowerCase() === searchLower);
+                                            if (!match) match = inventory.find(i => String(i.medicine_name || "").toLowerCase().includes(searchLower));
+                                            if (!match) match = inventory.find(i => searchLower.includes(String(i.medicine_name || "").toLowerCase()));
 
                                             if (match) {
                                                 addToCart(match, 1);

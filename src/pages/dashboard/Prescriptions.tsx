@@ -165,8 +165,8 @@ const Prescriptions = () => {
     }, []);
 
     const filtered = prescriptions.filter(p =>
-        p.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.doctor_name?.toLowerCase().includes(searchQuery.toLowerCase())
+        p.customer_name?.toLowerCase().includes(String(searchQuery || "").toLowerCase()) ||
+        p.doctor_name?.toLowerCase().includes(String(searchQuery || "").toLowerCase())
     );
 
     return (

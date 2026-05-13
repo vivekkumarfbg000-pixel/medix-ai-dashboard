@@ -75,8 +75,8 @@ export default function Suppliers({ embedded = false }: { embedded?: boolean }) 
     };
 
     const filteredSuppliers = suppliers.filter(s =>
-        s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.gstin?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(s.name || "").toLowerCase().includes(String(searchTerm || "").toLowerCase()) ||
+        s.gstin?.toLowerCase().includes(String(searchTerm || "").toLowerCase()) ||
         s.phone?.includes(searchTerm)
     );
 

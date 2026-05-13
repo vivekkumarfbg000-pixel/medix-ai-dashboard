@@ -36,8 +36,8 @@ export default function Purchases({ embedded = false }: { embedded?: boolean }) 
     }, [currentShop?.id]);
 
     const filteredPurchases = purchases.filter(p =>
-        p.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.suppliers?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+        p.invoice_number?.toLowerCase().includes(String(searchTerm || "").toLowerCase()) ||
+        p.suppliers?.name?.toLowerCase().includes(String(searchTerm || "").toLowerCase())
     );
 
     return (

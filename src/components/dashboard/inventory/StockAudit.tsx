@@ -63,7 +63,7 @@ export const StockAudit = ({ open, onOpenChange, shopId, onComplete }: StockAudi
         e.preventDefault();
         if (!search.trim()) return;
 
-        const term = search.toLowerCase().trim();
+        const term = String(search || "").toLowerCase().trim();
 
         // Find item matches (Name or Barcode)
         const matches = allItems.filter(i =>

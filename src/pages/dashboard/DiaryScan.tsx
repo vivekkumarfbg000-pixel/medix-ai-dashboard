@@ -561,7 +561,7 @@ export const DiaryScan = () => {
                 onAcceptSuggestion={() => {
                   toast.success("Switched to Generic!");
                   setExtractedItems(prev => prev.map(i =>
-                    (i.medication_name.toLowerCase().includes("pan") || i.medication_name.toLowerCase().includes("pantop"))
+                    (String(i.medication_name || "").toLowerCase().includes("pan") || String(i.medication_name || "").toLowerCase().includes("pantop"))
                       ? { ...i, medication_name: suggestion.suggested.name, notes: "Switched to Generic via Smart-Opt" }
                       : i
                   ));

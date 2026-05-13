@@ -50,8 +50,8 @@ export const SalesAnalytics = ({ shopId }: SalesAnalyticsProps) => {
                 // Payment Mode
                 const mode = order.payment_mode || 'Cash';
                 // Normalize legacy modes
-                const cleanMode = mode.toLowerCase().includes('upi') ? 'UPI' :
-                    mode.toLowerCase().includes('card') ? 'Card' :
+                const cleanMode = String(mode || "").toLowerCase().includes('upi') ? 'UPI' :
+                    String(mode || "").toLowerCase().includes('card') ? 'Card' :
                         'Cash';
                 paymentMap.set(cleanMode, (paymentMap.get(cleanMode) || 0) + (order.total_amount || 0));
 

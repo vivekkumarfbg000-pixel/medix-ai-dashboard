@@ -110,8 +110,8 @@ const Marketplace = () => {
                     console.error("Search Error:", error);
                     // Fallback to local filtering if RPC fails (e.g. offline or missing function)
                     const localResults = sampleItems.filter(item =>
-                        item.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        item.drug_name.toLowerCase().includes(searchQuery.toLowerCase())
+                        String(item.brand || "").toLowerCase().includes(String(searchQuery || "").toLowerCase()) ||
+                        String(item.drug_name || "").toLowerCase().includes(String(searchQuery || "").toLowerCase())
                     );
                     setFilteredItems(localResults);
                     return;
