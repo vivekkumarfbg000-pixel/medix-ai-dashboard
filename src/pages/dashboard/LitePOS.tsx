@@ -262,7 +262,8 @@ const LitePOS = () => {
                         name: c.item.medicine_name,
                         qty: c.qty,
                         price: c.item.unit_price,
-                        cost_price: c.item.purchase_price || 0
+                        purchase_price: c.item.purchase_price || 0, // Canonical key
+                        cost_price: c.item.purchase_price || 0      // Legacy key for safety
                     }))
                 });
 
@@ -298,7 +299,8 @@ const LitePOS = () => {
                 name: c.item.medicine_name,
                 qty: c.qty,
                 price: c.item.unit_price,
-                cost_price: c.item.purchase_price || 0
+                purchase_price: c.item.purchase_price || 0, // Canonical key
+                cost_price: c.item.purchase_price || 0      // Legacy key
             })),
             created_at: new Date().toISOString(),
             is_synced: 0

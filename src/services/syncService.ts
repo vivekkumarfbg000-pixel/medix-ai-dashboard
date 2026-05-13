@@ -60,7 +60,8 @@ class SyncService {
                         name: c.name,
                         qty: c.qty,
                         price: c.price,
-                        cost_price: c.cost_price || 0
+                        purchase_price: c.purchase_price || c.cost_price || 0,
+                        cost_price: c.cost_price || c.purchase_price || 0
                     }))
                 });
 

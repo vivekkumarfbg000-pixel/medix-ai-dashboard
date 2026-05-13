@@ -45,7 +45,7 @@ export default function Reports() {
             setReportData(data);
         } catch (error: any) {
             console.error("Report Error:", error);
-            toast.error("Failed to load report");
+            toast.error(error.message || "Failed to load report");
         } finally {
             setLoading(false);
         }
