@@ -16,10 +16,6 @@ export const SalesAnalytics = ({ shopId }: SalesAnalyticsProps) => {
     const [topCustomers, setTopCustomers] = useState<any[]>([]);
     const [paymentStats, setPaymentStats] = useState<any[]>([]);
 
-    useEffect(() => {
-        if (shopId) fetchAnalytics();
-    }, [shopId, fetchAnalytics]);
-
     const fetchAnalytics = useCallback(async () => {
         setLoading(true);
         try {
@@ -106,6 +102,10 @@ export const SalesAnalytics = ({ shopId }: SalesAnalyticsProps) => {
             setLoading(false);
         }
     }, [shopId]);
+
+    useEffect(() => {
+        if (shopId) fetchAnalytics();
+    }, [shopId, fetchAnalytics]);
 
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28'];
 

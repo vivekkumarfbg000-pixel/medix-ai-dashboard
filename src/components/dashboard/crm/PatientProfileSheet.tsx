@@ -38,14 +38,6 @@ export const PatientProfileSheet = ({ customer, open, onOpenChange, onUpdate }: 
     const [tags, setTags] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
-        if (customer && open) {
-            fetchDetails();
-            setNotes(customer.notes || "");
-            setTags(customer.tags || []);
-        }
-    }, [customer, open, fetchDetails]);
-
     const fetchDetails = useCallback(async () => {
         if (!customer) return;
         setLoading(true);

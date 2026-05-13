@@ -68,13 +68,7 @@ const Customers = () => {
         if (currentShop?.id) fetchCustomers();
     }, [currentShop?.id, fetchCustomers]);
 
-    // Fetch Ledger History when a customer is selected for Khata view
-    // (Note: PatientSheet fetches its own purchase history, this ledger is for credit)
-    useEffect(() => {
-        if (selectedCustomerId) fetchLedger(selectedCustomerId);
-    }, [selectedCustomerId]);
-
-    const fetchLedger = async (customerId: string) => {
+    const fetchLedger = useCallback(async (customerId: string) => {
         setLedgerLoading(true);
         const { data } = await supabase
             .from('ledger_entries')
@@ -83,7 +77,13 @@ const Customers = () => {
             .order('created_at', { ascending: false });
         if (data) setLedgerEntries(data);
         setLedgerLoading(false);
-    };
+    }, []);
+
+    // Fetch Ledger History when a customer is selected for Khata view
+    // (Note: PatientSheet fetches its own purchase history, this ledger is for credit)
+    useEffect(() => {
+        if (selectedCustomerId) fetchLedger(selectedCustomerId);
+    }, [selectedCustomerId, fetchLedger]);
 
     const handleAddTransaction = async () => {
         if (!selectedCustomer || !transaction.amount) return;

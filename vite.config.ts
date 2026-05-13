@@ -161,7 +161,7 @@ export default defineConfig(({ mode }) => {
     drop: ['debugger']
   },
   build: {
-    minify: 'esbuild',
+    minify: 'esbuild', sourcemap: true,
     rollupOptions: {
       output: {
         manualChunks: {

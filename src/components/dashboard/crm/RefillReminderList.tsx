@@ -20,10 +20,6 @@ export const RefillReminderList = ({ shopId }: { shopId: string }) => {
     const [reminders, setReminders] = useState<Reminder[]>([]);
     const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
-        if (shopId) fetchReminders();
-    }, [shopId, fetchReminders]);
-
     const fetchReminders = useCallback(async () => {
         setLoading(true);
         // Logic: Find orders where refill_due_date is in the past (or next 3 days)
@@ -79,6 +75,10 @@ export const RefillReminderList = ({ shopId }: { shopId: string }) => {
         }
         setLoading(false);
     }, [shopId]);
+
+    useEffect(() => {
+        if (shopId) fetchReminders();
+    }, [shopId, fetchReminders]);
 
     const sendReminder = async (r: Reminder) => {
         if (!r.customer_phone) {

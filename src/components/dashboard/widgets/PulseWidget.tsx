@@ -16,11 +16,6 @@ export const PulseWidget = () => {
 
     const [aiInsight, setAiInsight] = useState<{ insight: string; action: string } | null>(null);
 
-    useEffect(() => {
-        if (!currentShop?.id) return;
-        fetchSalesPulse();
-    }, [currentShop?.id, fetchSalesPulse]);
-
     const fetchSalesPulse = useCallback(async () => {
         setLoading(true);
         const today = new Date();
@@ -79,6 +74,11 @@ export const PulseWidget = () => {
         }
         setLoading(false);
     }, [currentShop?.id]);
+
+    useEffect(() => {
+        if (!currentShop?.id) return;
+        fetchSalesPulse();
+    }, [currentShop?.id, fetchSalesPulse]);
 
     return (
         <div className="space-y-6 h-full flex flex-col">

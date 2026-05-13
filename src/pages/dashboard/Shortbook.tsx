@@ -24,13 +24,6 @@ const Shortbook = () => {
     const [aiInsight, setAiInsight] = useState<{ insight: string; action: string } | null>(null);
     const [analyzingPulse, setAnalyzingPulse] = useState(false);
 
-    useEffect(() => {
-        if (currentShop?.id) {
-            fetchShortbook();
-            fetchDistributors();
-        }
-    }, [currentShop?.id, fetchShortbook, fetchDistributors]);
-
     const fetchShortbook = useCallback(async () => {
         setLoading(true);
         const { data } = await supabase
@@ -50,6 +43,13 @@ const Shortbook = () => {
             .eq('shop_id', currentShop?.id);
         if (data) setDistributors(data);
     }, [currentShop?.id]);
+
+    useEffect(() => {
+        if (currentShop?.id) {
+            fetchShortbook();
+            fetchDistributors();
+        }
+    }, [currentShop?.id, fetchShortbook, fetchDistributors]);
 
     const addItem = async () => {
         if (!newItem.product_name) return toast.error("Product name is required");

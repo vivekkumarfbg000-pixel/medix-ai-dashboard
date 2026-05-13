@@ -57,12 +57,6 @@ export default function AuditLogs({ embedded = false }: { embedded?: boolean }) 
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
-  useEffect(() => {
-    if (currentShop?.id) {
-      fetchLogs();
-    }
-  }, [currentShop?.id, fetchLogs]);
-
   const fetchLogs = useCallback(async () => {
     if (!currentShop?.id) return;
     setLoading(true);
@@ -82,6 +76,12 @@ export default function AuditLogs({ embedded = false }: { embedded?: boolean }) 
       setLoading(false);
     }
   }, [currentShop?.id]);
+
+  useEffect(() => {
+    if (currentShop?.id) {
+      fetchLogs();
+    }
+  }, [currentShop?.id, fetchLogs]);
 
   const filteredLogs = logs.filter((log) => {
     const matchesSearch =

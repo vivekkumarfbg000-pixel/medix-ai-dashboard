@@ -75,11 +75,6 @@ const Forecasting = () => {
     }
   }, [salesTrend]);
 
-  useEffect(() => {
-    if (!currentShop?.id) return;
-    fetchExpiryRisks();
-  }, [currentShop?.id, fetchExpiryRisks]);
-
   const fetchExpiryRisks = useCallback(async () => {
     if (!currentShop?.id) return;
 
@@ -109,6 +104,10 @@ const Forecasting = () => {
       setExpiryRisks(risks);
     }
   }, [currentShop?.id]);
+
+  useEffect(() => {
+    fetchExpiryRisks();
+  }, [currentShop?.id, fetchExpiryRisks]);
 
 
 

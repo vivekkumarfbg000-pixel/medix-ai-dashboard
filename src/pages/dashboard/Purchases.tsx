@@ -18,22 +18,28 @@ export default function Purchases({ embedded = false }: { embedded?: boolean }) 
     const [searchTerm, setSearchTerm] = useState("");
     const [isEntryOpen, setIsEntryOpen] = useState(false);
 
+    const fetchPurchases = useCallback(async () => {
+        if (!currentShop?.id) return;
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from("purchases")
+                .select("*, suppliers(name)")
+                .eq("shop_id", currentShop?.id)
+                .order("invoice_date", { ascending: false });
+
+            if (error) throw error;
+            setPurchases(data || []);
+        } catch (error: any) {
+            toast.error("Failed to load purchases: " + error.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [currentShop?.id]);
+
     useEffect(() => {
         if (currentShop?.id) fetchPurchases();
     }, [currentShop?.id, fetchPurchases]);
-
-    const fetchPurchases = useCallback(async () => {
-        setLoading(true);
-        const { data, error } = await supabase
-            .from("purchases")
-            .select("*, suppliers(name)")
-            .eq("shop_id", currentShop?.id)
-            .order("invoice_date", { ascending: false });
-
-        if (error) toast.error("Failed to fetch purchases");
-        else setPurchases(data || []);
-        setLoading(false);
-    }, [currentShop?.id]);
 
     const filteredPurchases = purchases.filter(p =>
         p.invoice_number?.toLowerCase().includes(String(searchTerm || "").toLowerCase()) ||

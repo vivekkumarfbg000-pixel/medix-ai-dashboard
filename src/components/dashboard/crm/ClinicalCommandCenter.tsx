@@ -27,10 +27,6 @@ export const ClinicalCommandCenter = ({ customerId, customerName }: { customerId
         alerts: [] as string[]
     });
 
-    useEffect(() => {
-        fetchClinicalData();
-    }, [customerId, fetchClinicalData]);
-
     const fetchClinicalData = useCallback(async () => {
         setLoading(true);
         try {
@@ -103,6 +99,10 @@ export const ClinicalCommandCenter = ({ customerId, customerName }: { customerId
             setLoading(false);
         }
     }, [customerId, customerName]);
+
+    useEffect(() => {
+        fetchClinicalData();
+    }, [customerId, fetchClinicalData]);
 
     if (loading) return <div className="p-10 text-center animate-pulse text-blue-500 font-medium">Synthesizing Patient Clinical Pulse...</div>;
 

@@ -21,10 +21,6 @@ const ScheduleH1 = () => {
     // Modal State
     const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
 
-    useEffect(() => {
-        if (currentShop?.id) fetchH1Records();
-    }, [currentShop?.id, fetchH1Records]);
-
     const fetchH1Records = useCallback(async () => {
         setLoading(true);
         // In a real app, we would join with inventory to check 'schedule_h1' flag
@@ -95,6 +91,10 @@ const ScheduleH1 = () => {
             setLoading(false);
         }
     }, [currentShop?.id]);
+
+    useEffect(() => {
+        if (currentShop?.id) fetchH1Records();
+    }, [currentShop?.id, fetchH1Records]);
 
     const filtered = records.filter(r =>
         String(r.medicine || "").toLowerCase().includes(String(search || "").toLowerCase()) ||

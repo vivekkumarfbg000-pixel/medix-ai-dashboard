@@ -32,13 +32,6 @@ export const StockAudit = ({ open, onOpenChange, shopId, onComplete }: StockAudi
     const [submitting, setSubmitting] = useState(false);
     const scanInputRef = useRef<HTMLInputElement>(null);
 
-    // Fetch Inventory on Open
-    useEffect(() => {
-        if (open && shopId) {
-            loadInventory();
-        }
-    }, [open, shopId, loadInventory]);
-
     const loadInventory = useCallback(async () => {
         setLoading(true);
         const { data, error } = await supabase
@@ -58,6 +51,13 @@ export const StockAudit = ({ open, onOpenChange, shopId, onComplete }: StockAudi
         // Focus scan input
         setTimeout(() => scanInputRef.current?.focus(), 100);
     }, [shopId]);
+
+    // Fetch Inventory on Open
+    useEffect(() => {
+        if (open && shopId) {
+            loadInventory();
+        }
+    }, [open, shopId, loadInventory]);
 
     const handleScan = (e: React.FormEvent) => {
         e.preventDefault();

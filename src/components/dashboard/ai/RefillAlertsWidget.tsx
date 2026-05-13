@@ -24,11 +24,6 @@ export const RefillAlertsWidget = () => {
     const [loading, setLoading] = useState(true);
     const [candidates, setCandidates] = useState<RefillCandidate[]>([]);
 
-    useEffect(() => {
-        if (!currentShop?.id) return;
-        fetchRefillCandidates();
-    }, [currentShop?.id, fetchRefillCandidates]);
-
     const fetchRefillCandidates = useCallback(async () => {
         setLoading(true);
         try {
@@ -97,6 +92,10 @@ export const RefillAlertsWidget = () => {
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentShop?.id]); // currentShop object excluded — only .id is used, avoiding object reference churn
+
+    useEffect(() => {
+        if (currentShop?.id) fetchRefillCandidates();
+    }, [currentShop?.id, fetchRefillCandidates]);
 
     const handleSendReminder = (candidate: RefillCandidate) => {
         if (!candidate.customer_phone) {
