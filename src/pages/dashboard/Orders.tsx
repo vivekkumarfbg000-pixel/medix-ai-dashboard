@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,38 +62,34 @@ const Orders = () => {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [newPhone, setNewPhone] = useState("");
 
-  const updateCustomerPhone = async () => {
-    if (!editingOrder || !newPhone) return;
+  const fetchOrders = useCallback(async (shopId?: string | object) => {
+    // FIX: Handle both direct string call and Event object from click
+    const idToUse = typeof shopId === 'string' ? shopId : currentShop?.id;
+    if (!idToUse) return;
 
-    // Auto-prefix 91 if length is 10
-    let finalPhone = newPhone.replace(/\D/g, '');
-    if (finalPhone.length === 10) finalPhone = `91${finalPhone}`;
-
-    const { error } = await supabase
+    setLoading(true);
+    const { data, error } = await supabase
       .from('orders')
-      .update({ customer_phone: finalPhone })
-      .eq('id', editingOrder.id);
+      .select('*')
+      .eq('shop_id', idToUse)
+      .order('created_at', { ascending: false });
 
     if (error) {
-      toast.error("Failed to update phone number");
+      console.error("Orders Load Error:", error);
+      toast.error("Failed to load orders");
     } else {
-      toast.success("Phone updated!");
-
-      // Update local state immediately
-      setOrders(prev => prev.map(o =>
-        o.id === editingOrder.id ? { ...o, customer_phone: finalPhone } : o
-      ));
-
-      // Auto-trigger WhatsApp after successful update
-      const updatedOrder = { ...editingOrder, customer_phone: finalPhone };
-      setEditingOrder(null);
-
-      // Small delay to allow dialog to close
-      setTimeout(() => {
-        handleWhatsAppShare(updatedOrder);
-      }, 300);
+      // Safe Parsing for JSONB columns which might be returned as strings
+      const parsedData = (data || []).map((order: any) => {
+        let items = order.order_items;
+        if (typeof items === 'string') {
+          items = safeJSONParse(items, []);
+        }
+        return { ...order, order_items: items };
+      });
+      setOrders(parsedData as Order[]);
     }
-  };
+    setLoading(false);
+  }, [currentShop?.id]);
 
   useEffect(() => {
     const backupId = localStorage.getItem("currentShopId");
@@ -128,43 +124,9 @@ const Orders = () => {
     }
   }, [currentShop?.id, fetchOrders]);
 
-  const fetchOrders = useCallback(async (shopId?: string | object) => {
-    // FIX: Handle both direct string call and Event object from click
-    const idToUse = typeof shopId === 'string' ? shopId : currentShop?.id;
-    if (!idToUse) return;
-
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('shop_id', idToUse)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error("Orders Load Error:", error);
-      toast.error("Failed to load orders");
-    } else {
-      // Safe Parsing for JSONB columns which might be returned as strings
-      const parsedData = (data || []).map((order: any) => {
-        let items = order.order_items;
-        if (typeof items === 'string') {
-          items = safeJSONParse(items, []);
-        }
-        return { ...order, order_items: items };
-      });
-      setOrders(parsedData as Order[]);
-    }
-    setLoading(false);
-  }, [currentShop?.id]);
-
   const filteredOrders = orders.filter(o =>
     filter === 'all' ? true : o.status === filter
   );
-
-  const handleOpenReturn = (order: Order) => {
-    setSelectedOrderForReturn(order);
-    setReturnModalOpen(true);
-  };
 
   const handlePrintInvoice = (order: Order) => {
     // Build a printable invoice and use window.print()
@@ -250,6 +212,44 @@ const Orders = () => {
     } else {
       toast.success("WhatsApp invoice opened in new tab!");
     }
+  };
+
+  const updateCustomerPhone = async () => {
+    if (!editingOrder || !newPhone) return;
+
+    // Auto-prefix 91 if length is 10
+    let finalPhone = newPhone.replace(/\D/g, '');
+    if (finalPhone.length === 10) finalPhone = `91${finalPhone}`;
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ customer_phone: finalPhone })
+      .eq('id', editingOrder.id);
+
+    if (error) {
+      toast.error("Failed to update phone number");
+    } else {
+      toast.success("Phone updated!");
+
+      // Update local state immediately
+      setOrders(prev => prev.map(o =>
+        o.id === editingOrder.id ? { ...o, customer_phone: finalPhone } : o
+      ));
+
+      // Auto-trigger WhatsApp after successful update
+      const updatedOrder = { ...editingOrder, customer_phone: finalPhone };
+      setEditingOrder(null);
+
+      // Small delay to allow dialog to close
+      setTimeout(() => {
+        handleWhatsAppShare(updatedOrder);
+      }, 300);
+    }
+  };
+
+  const handleOpenReturn = (order: Order) => {
+    setSelectedOrderForReturn(order);
+    setReturnModalOpen(true);
   };
 
 

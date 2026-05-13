@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUserShops } from "@/hooks/useUserShops";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

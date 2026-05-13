@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { ShieldAlert, AlertTriangle, Pill, CheckCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserShops } from "@/hooks/useUserShops";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
@@ -24,6 +24,23 @@ export const SafetyWidget = () => {
         // It freezes the UI for large inventories.
         // if (currentShop?.id) checkLASA();
     }, [currentShop]);
+
+    // Helper: Levenshtein Distance
+    const levenshtein = (a: string, b: string) => {
+        const matrix = [];
+        for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+        for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+        for (let i = 1; i <= b.length; i++) {
+            for (let j = 1; j <= a.length; j++) {
+                if (b.charAt(i - 1) == a.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
+                }
+            }
+        }
+        return matrix[b.length][a.length];
+    };
 
     const checkLASA = async () => {
         if (!currentShop?.id) {
@@ -73,23 +90,6 @@ export const SafetyWidget = () => {
         } finally {
             setScanning(false);
         }
-    };
-
-    // Helper: Levenshtein Distance
-    const levenshtein = (a: string, b: string) => {
-        const matrix = [];
-        for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-        for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
-        for (let i = 1; i <= b.length; i++) {
-            for (let j = 1; j <= a.length; j++) {
-                if (b.charAt(i - 1) == a.charAt(j - 1)) {
-                    matrix[i][j] = matrix[i - 1][j - 1];
-                } else {
-                    matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
-                }
-            }
-        }
-        return matrix[b.length][a.length];
     };
 
     const handleCheck = async () => {
