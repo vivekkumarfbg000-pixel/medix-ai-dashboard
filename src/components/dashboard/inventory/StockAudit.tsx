@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,29 @@ export const StockAudit = ({ open, onOpenChange, shopId, onComplete }: StockAudi
         }
     }, [open, shopId, loadInventory]);
 
+    const incrementCount = (item: any) => {
+        setAuditItems(prev => {
+            const existing = prev.find(i => i.id === item.id);
+            if (existing) {
+                return prev.map(i => i.id === item.id ? {
+                    ...i,
+                    countedQty: i.countedQty + 1,
+                    status: (i.countedQty + 1) === i.systemQty ? 'matched' : 'mismatched'
+                } : i);
+            } else {
+                return [{
+                    id: item.id,
+                    name: item.medicine_name,
+                    batch: item.batch_number || 'N/A',
+                    systemQty: item.quantity,
+                    countedQty: 1,
+                    status: 1 === item.quantity ? 'matched' : 'mismatched'
+                }, ...prev];
+            }
+        });
+        toast.success("Counted +1", { duration: 500, position: 'bottom-center' }); // Subtle feedback
+    };
+
     const handleScan = (e: React.FormEvent) => {
         e.preventDefault();
         if (!search.trim()) return;
@@ -87,29 +110,6 @@ export const StockAudit = ({ open, onOpenChange, shopId, onComplete }: StockAudi
             incrementCount(matches[0]);
             setSearch("");
         }
-    };
-
-    const incrementCount = (item: any) => {
-        setAuditItems(prev => {
-            const existing = prev.find(i => i.id === item.id);
-            if (existing) {
-                return prev.map(i => i.id === item.id ? {
-                    ...i,
-                    countedQty: i.countedQty + 1,
-                    status: (i.countedQty + 1) === i.systemQty ? 'matched' : 'mismatched'
-                } : i);
-            } else {
-                return [{
-                    id: item.id,
-                    name: item.medicine_name,
-                    batch: item.batch_number || 'N/A',
-                    systemQty: item.quantity,
-                    countedQty: 1,
-                    status: 1 === item.quantity ? 'matched' : 'mismatched'
-                }, ...prev];
-            }
-        });
-        toast.success("Counted +1", { duration: 500, position: 'bottom-center' }); // Subtle feedback
     };
 
     const updateQtyManual = (id: string, newQty: number) => {

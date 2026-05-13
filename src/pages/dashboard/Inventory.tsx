@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense, useRef, useCallback, useMemo } from "react";
+import React, { useEffect, useState, lazy, Suspense, useRef, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useUserShops } from "@/hooks/useUserShops";
@@ -78,7 +78,7 @@ interface StagingItem {
 const Inventory = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
 
-  // VERSION CHECK LOG
+
 
 
   // stagingItems removed
@@ -389,11 +389,6 @@ const Inventory = () => {
     }
   };
 
-  // ... imports
-  // ... imports
-
-
-  // ... inside Inventory component
 
   // Feature: Barcode Scanning (HANDHELD Scanners)
   const barcodeRef = useRef("");
