@@ -46,8 +46,11 @@ interface HeldBill {
 const LitePOS = () => {
     const navigate = useNavigate();
     const { currentShop } = useUserShops();
-    const { cart, setCart, discountPercentage, setDiscountPercentage, totals: billingTotals, idempotencyKey, resetCart } = useBillingCart();
-    const { total, subtotal, discount, totalProfit, margin, gst } = billingTotals;
+    const { 
+        cart, setCart, discountPercentage, setDiscountPercentage, 
+        totals, idempotencyKey, resetCart 
+    } = useBillingCart();
+    const { total, subtotal, discount, totalProfit, margin, gst } = totals;
 
     const [search, setSearch] = useState("");
     const [paymentMode, setPaymentMode] = useState<string>("cash");
@@ -64,13 +67,7 @@ const LitePOS = () => {
     const [showScanner, setShowScanner] = useState(false);
 
     // Held Bills State
-    const [heldBills, setHeldBills] = useState<{
-        id: string;
-        customer: Customer | null;
-        cart: { item: OfflineInventory; qty: number }[];
-        timestamp: Date;
-        note?: string;
-    }[]>([]);
+    const [heldBills, setHeldBills] = useState<HeldBill[]>([]);
 
     const [lastOrderDetails, setLastOrderDetails] = useState<any>(null);
     const [showProfitMode, setShowProfitMode] = useState(false); // F8 Toggle
@@ -356,10 +353,10 @@ const LitePOS = () => {
                 amount: c.item.unit_price * c.qty
             })),
             totals: {
-                subtotal: billingTotals.subtotal,
-                discount: billingTotals.discount,
+                subtotal: totals.subtotal,
+                discount: totals.discount,
                 total: totalAmount,
-                gst: billingTotals.gst
+                gst: totals.gst
             }
         });
 
@@ -373,8 +370,8 @@ const LitePOS = () => {
         });
 
         // WhatsApp Invoice - Always show option
-        const gstData = billingTotals.gst;
-        const discountData = billingTotals.discount;
+        const gstData = totals.gst;
+        const discountData = totals.discount;
 
         const buildWaLink = (targetPhone: string) => whatsappService.generateInvoiceLink(targetPhone, {
             invoice_number: invoiceId.slice(0, 8).toUpperCase(),
@@ -1501,7 +1498,7 @@ const LitePOS = () => {
                                                     }
 
                                                     // 2. Re-trigger interactions check if needed
-                                                    // (Profit is already reactive from billingTotals)
+                                                    // (Profit is already reactive from totals)
 
                                                 } catch (e) {
                                                     console.error("Sync Error", e);
