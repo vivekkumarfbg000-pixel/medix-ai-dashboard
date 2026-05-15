@@ -15,7 +15,7 @@ export const BusinessReportWidget = () => {
     const [loading, setLoading] = useState(true);
 
     const fetchAnalytics = useCallback(async () => {
-        if (!currentShop?.id) return;
+        if (!currentShop?.id || !aiService) return;
         setLoading(true);
         
         try {
@@ -36,7 +36,7 @@ export const BusinessReportWidget = () => {
                 .eq('shop_id', currentShop.id)
                 .limit(20);
 
-            if (sales && sales.length > 5) {
+            if (sales && sales.length > 5 && aiService?.analyzeSalesPulse) {
                 const pulseResult = await aiService.analyzeSalesPulse(sales);
                 setPulse(pulseResult);
             }

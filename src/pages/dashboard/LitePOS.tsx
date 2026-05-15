@@ -32,6 +32,7 @@ import { ScannerModal } from "@/components/pos/ScannerModal";
 import { CheckoutDialogs } from "@/components/pos/CheckoutDialogs";
 import { AlternativeDialog } from "@/components/pos/AlternativeDialog";
 
+
 interface HeldBill {
     id: string;
     customer_name: string;
@@ -1186,7 +1187,7 @@ const LitePOS = () => {
                         <div className="flex-1 overflow-y-auto p-2 space-y-1">
                             {!products ? (
                                 // SKELETON LOADER STATE
-                                Array.from({ length: 8 }).map((_, i) => (
+                                Array.from({ length: 8 }).map((unused, i) => (
                                     <div key={i} className="flex flex-col p-3 rounded-md bg-slate-900 border border-slate-800 space-y-2">
                                         <Skeleton className="h-4 w-3/4 bg-slate-800" />
                                         <div className="flex justify-between">
