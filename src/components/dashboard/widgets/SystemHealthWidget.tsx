@@ -68,27 +68,29 @@ export const SystemHealthWidget = () => {
     const handleRetry = async (job: any) => {
         toast.info("Retrying job...");
         try {
-            // Simple logic to route retry based on payload content
-            let url = "";
-            if (job.payload?.drugs) url = ENDPOINTS.INTERACTIONS;
-            else if (job.payload?.drugName) url = ENDPOINTS.OPS; // Fallback or specific compliance endpoint
-            else if (job.payload?.salesHistory) url = ENDPOINTS.OPS; // Assume Ops handles forecast for now
-
-            if (url) {
-                await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(job.payload)
-                });
-                await supabase.from('retry_queue').update({ status: 'retried' }).eq('id', job.id);
-                toast.success("Job resubmitted successfully");
-                fetchDetails();
-                checkHealth();
-            } else {
-                toast.error("Could not determine retry endpoint for this job");
-            }
+            // Use aiService instead of direct fetch to handle proxying and auth
+            await aiService.runGenericAnalysis(
+                `Retry background job: ${job.workflow_name}`,
+                JSON.stringify(job.payload)
+            );
+            
+            await supabase.from('retry_queue').update({ status: 'retried' }).eq('id', job.id);
+            toast.success("Job resubmitted successfully");
+            fetchDetails();
+            checkHealth();
         } catch (e) {
             toast.error("Retry failed");
+        }
+    };
+
+    const handleAnalyzeError = async (job: any) => {
+        toast.info("AI analyzing failure pattern...");
+        try {
+            const analysis = await aiService.analyzeSystemError(job.error_message, job.payload);
+            toast.success("Analysis complete", { description: analysis.substring(0, 100) + "..." });
+            alert(`AI Diagnostic:\n\n${analysis}`);
+        } catch (e) {
+            toast.error("AI Analysis failed");
         }
     };
 

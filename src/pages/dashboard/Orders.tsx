@@ -156,8 +156,8 @@ const Orders = () => {
       <h2>${currentShop?.name || 'Pharmacy'}</h2>
       <div class="shop-info">${currentShop?.address || ''}<br/>${currentShop?.phone || ''}</div>
       <hr/>
-      <p><strong>Invoice:</strong> #${order.invoice_number || 'NA'} &nbsp; <strong>Date:</strong> ${format(new Date(order.created_at), 'PP p')}</p>
-      <p><strong>Patient:</strong> ${order.customer_name}</p>
+      <p><strong>Invoice:</strong> #${order.invoice_number || 'NA'} &nbsp; <strong>Date:</strong> ${order.created_at ? format(new Date(order.created_at), 'PP p') : 'NA'}</p>
+      <p><strong>Patient:</strong> ${order.customer_name || 'Walk-in'}</p>
       <table><thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
       <tbody>${itemRows}</tbody></table>
       <div class="total">Grand Total: ₹${(order.total_amount || 0).toFixed(2)}</div>
@@ -328,15 +328,18 @@ const Orders = () => {
                         {order.order_items && Array.isArray(order.order_items) && (
                           <div className="flex gap-2 flex-wrap">
                             {(order.order_items as any[]).map((item, idx) => (
-                              <Badge key={idx} variant="outline">{item.name || item} {item.qty ? `x${item.qty}` : ''}</Badge>
+                              <Badge key={idx} variant="outline">
+                                {typeof item === 'string' ? item : (item?.name || 'Unknown')} 
+                                {item?.qty ? ` x${item.qty}` : ''}
+                              </Badge>
                             ))}
                           </div>
                         )}
                       </div>
 
                       <div className="text-right flex flex-col items-end gap-2">
-                        <p className="text-xl font-bold">₹{order.total_amount?.toLocaleString() || '-'}</p>
-                        <p className="text-xs text-muted-foreground">{format(new Date(order.created_at), 'PP p')}</p>
+                        <p className="text-xl font-bold">₹{order.total_amount?.toLocaleString() || '0'}</p>
+                        <p className="text-xs text-muted-foreground">{order.created_at ? format(new Date(order.created_at), 'PP p') : 'No Date'}</p>
                         <div className="flex gap-2">
                           <Button size="sm" variant="outline" onClick={() => handlePrintInvoice(order)}>
                             <FileText className="w-4 h-4 mr-1" /> Print

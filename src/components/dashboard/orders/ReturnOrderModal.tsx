@@ -73,9 +73,9 @@ export function ReturnOrderModal({ open, onOpenChange, order, onSuccess }: Retur
                 await supabase.from("sales_return_items").insert({
                     return_id: returnRecord.id,
                     inventory_id: item.inventory_id, // Might be null if legacy data
-                    medicine_name: item.name,
+                    medicine_name: item.name || "Unknown",
                     quantity: qty,
-                    refund_price: item.price
+                    refund_price: item.price || 0
                 });
 
                 // Restore Stock Integration
@@ -84,7 +84,7 @@ export function ReturnOrderModal({ open, onOpenChange, order, onSuccess }: Retur
                         p_inventory_id: item.inventory_id,
                         p_quantity_change: qty,
                         p_movement_type: 'IN', // Stock IN for returns
-                        p_reason: `Return: Sales Order #${order.invoice_number || order.id.slice(0, 6)}`
+                        p_reason: `Return: Sales Order #${order.invoice_number || (typeof order.id === 'string' ? order.id.slice(0, 6) : 'ID-NA')}`
                     });
                 }
             }

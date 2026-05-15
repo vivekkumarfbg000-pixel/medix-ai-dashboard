@@ -32,6 +32,16 @@ import { ScannerModal } from "@/components/pos/ScannerModal";
 import { CheckoutDialogs } from "@/components/pos/CheckoutDialogs";
 import { AlternativeDialog } from "@/components/pos/AlternativeDialog";
 
+interface HeldBill {
+    id: string;
+    customer_name: string;
+    items: { item: OfflineInventory; qty: number }[];
+    timestamp: string;
+    note?: string;
+    customer?: Customer | null;
+    cart?: { item: OfflineInventory; qty: number }[];
+}
+
 const LitePOS = () => {
     const navigate = useNavigate();
     const { currentShop } = useUserShops();
@@ -66,6 +76,7 @@ const LitePOS = () => {
     const [receiptMethod, setReceiptMethod] = useState<'whatsapp' | 'print'>('print');
     const [showCheckoutOptions, setShowCheckoutOptions] = useState(false);
     const receiptRef = useRef<HTMLDivElement>(null);
+    const [profitStats, setProfitStats] = useState({ totalProfit: 0, margin: 0 });
 
     const location = useLocation(); // Hook to get navigation state
 
@@ -345,10 +356,10 @@ const LitePOS = () => {
                 amount: c.item.unit_price * c.qty
             })),
             totals: {
-                subtotal: calculateTotals().subtotal,
-                discount: calculateTotals().discount,
+                subtotal: totals.subtotal,
+                discount: totals.discount,
                 total: totalAmount,
-                gst: calculateTotals().gst
+                gst: totals.gst
             }
         });
 
@@ -362,8 +373,8 @@ const LitePOS = () => {
         });
 
         // WhatsApp Invoice - Always show option
-        const gstData = calculateTotals().gst;
-        const discountData = calculateTotals().discount;
+        const gstData = totals.gst;
+        const discountData = totals.discount;
 
         const buildWaLink = (targetPhone: string) => whatsappService.generateInvoiceLink(targetPhone, {
             invoice_number: invoiceId.slice(0, 8).toUpperCase(),
@@ -859,12 +870,15 @@ const LitePOS = () => {
             id: Date.now().toString(),
             customer_name: selectedCustomer?.name || "Guest",
             items: cart,
-            timestamp: new Date().toISOString()
+            cart: cart, // For compatibility with resumeBill
+            customer: selectedCustomer,
+            timestamp: new Date().toISOString(),
+            note: `Bill for ${selectedCustomer?.name || "Walk-in"}`
         };
         setHeldBills(prev => [...prev, newBill]);
-        clearCart();
+        resetCart(); // FIX: Use resetCart instead of clearCart
         setSelectedCustomer(null);
-    }, [cart, selectedCustomer]);
+    }, [cart, selectedCustomer, resetCart]);
 
     const handleResumeBill = (billId: string) => {
         const bill = heldBills.find(b => b.id === billId);
@@ -1487,8 +1501,8 @@ const LitePOS = () => {
                                                     }
 
                                                     // 2. Recalculate Profit
-                                                    const { totalProfit, margin } = calculateTotals();
-                                                    setProfitStats({ totalProfit, margin });
+                                                    const { totalProfit: tp, margin: m } = totals;
+                                                    setProfitStats({ totalProfit: tp, margin: m });
 
                                                 } catch (e) {
                                                     console.error("Sync Error", e);

@@ -54,9 +54,11 @@ export const whatsappService = {
      */
     generateInvoiceLink(phone: string | null, order: WhatsAppOrder): string {
         const items = Array.isArray(order.items) ? order.items : [];
-        const itemsList = items.map((item, idx) =>
-            `${idx + 1}. ${item.name} x${item.qty || 1} = ₹${(item.price * (item.qty || 1)).toFixed(2)}`
-        ).join('\n');
+        const itemsList = items.map((item, idx) => {
+            const price = Number(item.price || 0);
+            const qty = Number(item.qty || 1);
+            return `${idx + 1}. ${item.name} x${qty} = ₹${(price * qty).toFixed(2)}`;
+        }).join('\n');
 
         const subtotal = items.reduce((sum, i) => sum + (i.price * (i.qty || 1)), 0);
         const discountAmt = order.discount || 0;
@@ -69,8 +71,13 @@ export const whatsappService = {
         if (order.shop_phone) message += `📞 ${order.shop_phone}\n`;
         if (order.shop_gstin) message += `🔖 GSTIN: ${order.shop_gstin}\n`;
         message += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        const orderDate = order.created_at ? new Date(order.created_at) : new Date();
+        const dateStr = !isNaN(orderDate.getTime()) 
+            ? `${orderDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} ${orderDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`
+            : "NA";
+
         message += `📋 Invoice: *#${order.invoice_number || 'NA'}*\n`;
-        message += `📅 Date: ${new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} ${new Date(order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}\n`;
+        message += `📅 Date: ${dateStr}\n`;
         message += `👤 Patient: ${order.customer_name}\n`;
         if (order.doctor_name) message += `👨‍⚕️ Dr: ${order.doctor_name}\n`;
         message += `💳 Payment: ${(order.payment_mode || order.status).toUpperCase()}\n`;
