@@ -50,7 +50,7 @@ const LitePOS = () => {
         cart, setCart, discountPercentage, setDiscountPercentage, 
         totals, idempotencyKey, resetCart 
     } = useBillingCart();
-    const { total, subtotal, discount, totalProfit, margin, gst } = totals;
+    // Use totals.subtotal, totals.total, etc. directly to prevent initialization race conditions (_)
 
     const [search, setSearch] = useState("");
     const [paymentMode, setPaymentMode] = useState<string>("cash");
@@ -204,7 +204,7 @@ const LitePOS = () => {
         toast.loading("Processing Order...");
 
         // LINKED CUSTOMER CREDIT CHECK
-        const finalTotal = total;
+        const finalTotal = totals.total;
         if (paymentMode === 'credit' && selectedCustomer) {
             const currentBal = selectedCustomer.credit_balance || 0;
             const limit = selectedCustomer.credit_limit || 5000;
@@ -263,7 +263,7 @@ const LitePOS = () => {
                     p_customer_phone: finalPhone,
                     p_customer_id: finalCustomerId,
                     p_doctor_name: doctorName,
-                    p_total_amount: total,
+                    p_total_amount: totals.total,
                     p_payment_mode: paymentMode,
                     p_items: cart.map(c => ({
                         id: c.item.id,
@@ -280,11 +280,11 @@ const LitePOS = () => {
                 }
 
                 // Success Online
-                await finalizeSuccess(finalName, finalPhone, data.order_id, true, total);
+                await finalizeSuccess(finalName, finalPhone, data.order_id, true, totals.total);
 
             } else {
                 // Offline immediately
-                await performOfflineCheckout(finalName, finalPhone, total);
+                await performOfflineCheckout(finalName, finalPhone, totals.total);
             }
 
         } catch (err: any) {
@@ -1465,9 +1465,9 @@ const LitePOS = () => {
                                 <div className="flex flex-col gap-1">
                                     <span className="text-[9px] text-slate-500 font-mono uppercase tracking-widest">Est. Profit</span>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-bold text-emerald-500 font-mono">₹{Math.round(totalProfit)}</span>
-                                        <span className={`text-[10px] px-1 rounded ${margin > 20 ? 'bg-emerald-950 text-emerald-400 border border-emerald-900' : 'bg-yellow-950 text-yellow-400 border border-yellow-900'}`}>
-                                            {Math.round(margin)}%
+                                        <span className="text-sm font-bold text-emerald-500 font-mono">₹{Math.round(totals.totalProfit)}</span>
+                                        <span className={`text-[10px] px-1 rounded ${totals.margin > 20 ? 'bg-emerald-950 text-emerald-400 border border-emerald-900' : 'bg-yellow-950 text-yellow-400 border border-yellow-900'}`}>
+                                            {Math.round(totals.margin)}%
                                         </span>
                                         {/* Profit Mode Toggle Icon */}
                                         <button onClick={() => setShowProfitMode(!showProfitMode)} className={`ml-2 p-1 rounded ${showProfitMode ? 'bg-purple-900/50 text-purple-300' : 'text-slate-600 hover:text-slate-400'}`}>
@@ -1606,7 +1606,7 @@ const LitePOS = () => {
                                         <span className="text-[10px] text-slate-500">%</span>
                                     </div>
                                     <div className="text-3xl font-black text-white font-mono leading-none tracking-tighter">
-                                        <span className="text-lg text-slate-600 align-top mr-0.5">₹</span>{total}
+                                        <span className="text-lg text-slate-600 align-top mr-0.5">₹</span>{totals.total}
                                     </div>
                                 </div>
                             </div>
@@ -1672,7 +1672,7 @@ const LitePOS = () => {
             <CheckoutDialogs 
                 open={showCheckoutOptions}
                 onOpenChange={setShowCheckoutOptions}
-                total={total}
+                total={totals.total}
                 paymentMode={paymentMode}
                 setPaymentMode={setPaymentMode}
                 onConfirm={confirmCheckout}
