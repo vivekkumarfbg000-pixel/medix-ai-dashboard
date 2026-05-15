@@ -66,7 +66,7 @@ export default defineConfig(({ mode }) => {
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt', // Changed from autoUpdate to prompt to force user awareness if a cache is stubborn
+      registerType: 'autoUpdate', // Forced update to clear stubborn production crashes
       includeAssets: ['favicon.ico', 'robots.txt', 'placeholder.svg'],
       manifest: {
         name: 'MedixAI (v1.2)', // Versioned manifest name
