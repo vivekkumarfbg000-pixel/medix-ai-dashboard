@@ -44,7 +44,8 @@ interface HeldBill {
 }
 
 const LitePOS = () => {
-    const navigate = useNavigate();
+    const goto = useNavigate();
+    const loc = useLocation();
     const { currentShop } = useUserShops();
     const { 
         cart, setCart, discountPercentage, setDiscountPercentage, 
@@ -75,12 +76,12 @@ const LitePOS = () => {
     const [showCheckoutOptions, setShowCheckoutOptions] = useState(false);
     const receiptRef = useRef<HTMLDivElement>(null);
 
-    const location = useLocation(); // Hook to get navigation state
+    // Navigation/Loc state
 
     // --- VOICE & SCAN COMMAND HANDLER ---
     useEffect(() => {
         const handleIncomingData = async () => {
-            const state = location.state as {
+            const state = loc.state as {
                 voiceItems?: { name: string, quantity: number }[],
                 voiceTranscription?: string,
                 importItems?: { name: string, quantity: number }[],
@@ -180,16 +181,16 @@ const LitePOS = () => {
 
         handleIncomingData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [location.state, currentShop?.id, setCart]); // quickAddToShortbook/selectedCustomer intentionally excluded — URL state import, stale deps would cause re-runs
+    }, [loc.state, currentShop?.id, setCart]); // quickAddToShortbook/selectedCustomer intentionally excluded — URL state import, stale deps would cause re-runs
 
     // Handle Deep Linking for Customer (e.g. from Customers Page)
     useEffect(() => {
-        const state = location.state as { customer?: Customer };
+        const state = loc.state as { customer?: Customer };
         if (state?.customer) {
             setSelectedCustomer(state.customer);
             toast.success(`Customer Selected: ${state.customer.name}`);
         }
-    }, [location.state]); // Navigation state change only
+    }, [loc.state]); // Navigation state change only
 
     // --- CHECKOUT LOGIC ---
     const handleCheckout = useCallback(async () => {
@@ -523,7 +524,7 @@ const LitePOS = () => {
     }, [currentShop?.id, syncInventory]);
 
     // --- PARCHA IMPORT LOGIC ---
-    // const location = useLocation(); // Removed duplicate
+    // Loc hook already initialized at top
 
     const hasImported = useRef(false);
 
@@ -531,7 +532,7 @@ const LitePOS = () => {
         const processImport = async () => {
             // FIX: Support both keys for backward compatibility
             // @ts-ignore
-            const state = location.state as { importItems: any[], cartItems: any[], customerName: string } | null;
+            const state = loc.state as { importItems: any[], cartItems: any[], customerName: string } | null;
             const itemsToImport = state?.importItems || state?.cartItems; // Support both
 
             if (itemsToImport && itemsToImport.length > 0 && !hasImported.current && currentShop?.id) {
@@ -596,7 +597,7 @@ const LitePOS = () => {
         };
 
         processImport();
-    }, [location.state, currentShop?.id, setCart, setSearch]);
+    }, [loc.state, currentShop?.id, setCart, setSearch]);
 
     // --- DEBOUNCE SEARCH ---
     const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -937,7 +938,7 @@ const LitePOS = () => {
 
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-cyan-400" onClick={() => navigate("/dashboard")}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-cyan-400" onClick={() => goto("/dashboard")}>
                                 <ArrowLeft className="w-5 h-5" />
                             </Button>
                             <div className="leading-tight">
@@ -984,7 +985,7 @@ const LitePOS = () => {
                                                         <div className="flex justify-between items-start mb-2">
                                                             <div>
                                                                 <div className="font-bold text-sm text-white">{bill.note}</div>
-                                                                <div className="text-xs text-slate-500">{bill.timestamp.toLocaleTimeString()}</div>
+                                                                <div className="text-xs text-slate-500">{new Date(bill.timestamp).toLocaleTimeString()}</div>
                                                             </div>
                                                             <Badge variant="outline" className="text-yellow-500 border-yellow-500/20">{bill.cart.length} Items</Badge>
                                                         </div>
