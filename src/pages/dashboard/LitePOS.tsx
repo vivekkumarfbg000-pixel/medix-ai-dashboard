@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -19,29 +19,24 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SalesReturnModal } from "@/components/dashboard/SalesReturnModal";
 import { ThermalReceipt } from "@/components/pos/ThermalReceipt";
 import { useNavigate, useLocation } from "react-router-dom";
-import { VoiceCommandBar } from "@/components/dashboard/VoiceCommandBar";
-import { useUserShops } from "@/hooks/useUserShops";
-import { aiService } from "@/services/aiService";
-import { CustomerSearch, Customer } from "@/components/dashboard/CustomerSearch";
+import { db, OfflineInventory } from "@/db/db";
 import { supabase } from "@/integrations/supabase/client";
-import VoiceInput from "@/components/common/VoiceInput";
-import { whatsappService } from "@/services/whatsappService";
-import { drugService } from "@/services/drugService";
+import { useUserShops } from "@/hooks/useUserShops";
 import { useBillingCart } from "@/hooks/useBillingCart";
+import { aiService } from "@/services/aiService";
+import { drugService } from "@/services/drugService";
+import { whatsappService } from "@/services/whatsappService";
+
+import { CustomerSearch, Customer } from "@/components/dashboard/CustomerSearch";
+import { VoiceCommandBar } from "@/components/dashboard/VoiceCommandBar";
+import { ThermalReceipt } from "@/components/pos/ThermalReceipt";
+import { SalesReturnModal } from "@/components/pos/SalesReturnModal";
 import { ScannerModal } from "@/components/pos/ScannerModal";
 import { CheckoutDialogs } from "@/components/pos/CheckoutDialogs";
 import { AlternativeDialog } from "@/components/pos/AlternativeDialog";
+import VoiceInput from "@/components/common/VoiceInput";
 
-
-interface HeldBill {
-    id: string;
-    customer_name: string;
-    items: { item: OfflineInventory; qty: number }[];
-    timestamp: string;
-    note?: string;
-    customer?: Customer | null;
-    cart?: { item: OfflineInventory; qty: number }[];
-}
+import { HeldBill } from "@/types/pos";
 
 const LitePOS = () => {
     const goto = useNavigate();
