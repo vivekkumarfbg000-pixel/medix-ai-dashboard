@@ -45,8 +45,8 @@ interface HeldBill {
 const LitePOS = () => {
     const navigate = useNavigate();
     const { currentShop } = useUserShops();
-    const { cart, setCart, discountPercentage, setDiscountPercentage, totals, idempotencyKey, resetCart } = useBillingCart();
-    const { total, subtotal, discount, totalProfit, margin, gst } = totals;
+    const { cart, setCart, discountPercentage, setDiscountPercentage, totals: billingTotals, idempotencyKey, resetCart } = useBillingCart();
+    const { total, subtotal, discount, totalProfit, margin, gst } = billingTotals;
 
     const [search, setSearch] = useState("");
     const [paymentMode, setPaymentMode] = useState<string>("cash");
@@ -76,7 +76,6 @@ const LitePOS = () => {
     const [receiptMethod, setReceiptMethod] = useState<'whatsapp' | 'print'>('print');
     const [showCheckoutOptions, setShowCheckoutOptions] = useState(false);
     const receiptRef = useRef<HTMLDivElement>(null);
-    const [profitStats, setProfitStats] = useState({ totalProfit: 0, margin: 0 });
 
     const location = useLocation(); // Hook to get navigation state
 
@@ -356,10 +355,10 @@ const LitePOS = () => {
                 amount: c.item.unit_price * c.qty
             })),
             totals: {
-                subtotal: totals.subtotal,
-                discount: totals.discount,
+                subtotal: billingTotals.subtotal,
+                discount: billingTotals.discount,
                 total: totalAmount,
-                gst: totals.gst
+                gst: billingTotals.gst
             }
         });
 
@@ -373,8 +372,8 @@ const LitePOS = () => {
         });
 
         // WhatsApp Invoice - Always show option
-        const gstData = totals.gst;
-        const discountData = totals.discount;
+        const gstData = billingTotals.gst;
+        const discountData = billingTotals.discount;
 
         const buildWaLink = (targetPhone: string) => whatsappService.generateInvoiceLink(targetPhone, {
             invoice_number: invoiceId.slice(0, 8).toUpperCase(),
@@ -1468,9 +1467,9 @@ const LitePOS = () => {
                                 <div className="flex flex-col gap-1">
                                     <span className="text-[9px] text-slate-500 font-mono uppercase tracking-widest">Est. Profit</span>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-bold text-emerald-500 font-mono">₹{Math.round(profitStats.totalProfit)}</span>
-                                        <span className={`text-[10px] px-1 rounded ${profitStats.margin > 20 ? 'bg-emerald-950 text-emerald-400 border border-emerald-900' : 'bg-yellow-950 text-yellow-400 border border-yellow-900'}`}>
-                                            {Math.round(profitStats.margin)}%
+                                        <span className="text-sm font-bold text-emerald-500 font-mono">₹{Math.round(totalProfit)}</span>
+                                        <span className={`text-[10px] px-1 rounded ${margin > 20 ? 'bg-emerald-950 text-emerald-400 border border-emerald-900' : 'bg-yellow-950 text-yellow-400 border border-yellow-900'}`}>
+                                            {Math.round(margin)}%
                                         </span>
                                         {/* Profit Mode Toggle Icon */}
                                         <button onClick={() => setShowProfitMode(!showProfitMode)} className={`ml-2 p-1 rounded ${showProfitMode ? 'bg-purple-900/50 text-purple-300' : 'text-slate-600 hover:text-slate-400'}`}>
@@ -1500,9 +1499,8 @@ const LitePOS = () => {
                                                         toast.dismiss(toastId);
                                                     }
 
-                                                    // 2. Recalculate Profit
-                                                    const { totalProfit: tp, margin: m } = totals;
-                                                    setProfitStats({ totalProfit: tp, margin: m });
+                                                    // 2. Re-trigger interactions check if needed
+                                                    // (Profit is already reactive from billingTotals)
 
                                                 } catch (e) {
                                                     console.error("Sync Error", e);
