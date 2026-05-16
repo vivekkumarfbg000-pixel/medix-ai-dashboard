@@ -36,9 +36,14 @@ import VoiceInput from "@/components/common/VoiceInput";
 
 import { HeldBill } from "@/types/pos";
 
-const CACHE_BUSTER = "20260516_STABILITY_V7_EAGER_FIXED"; 
-
 const LitePOS = () => {
+    const CACHE_BUSTER = "20260516_STABILITY_V8_GUARDED";
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
     const goto = useNavigate();
     const loc = useLocation();
     const { currentShop } = useUserShops();
@@ -923,7 +928,11 @@ const LitePOS = () => {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [cart, selectedCustomer, heldBills, paymentMode, showProfitMode, handleCheckout, handleHoldBill]); // Added missing dependencies
+    }, [cart, selectedCustomer, heldBills, paymentMode, showProfitMode, handleCheckout, handleHoldBill]); 
+
+    if (!isMounted) {
+        return <div className="h-screen w-full bg-slate-950 flex items-center justify-center text-slate-500 font-mono text-xs animate-pulse">INITIALIZING...</div>;
+    }
 
     return (
         <>
