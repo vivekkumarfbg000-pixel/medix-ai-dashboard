@@ -1,0 +1,43 @@
+{
+    "parameters": {
+        "tableId": "notifications",
+        "operation": "create",
+        "columnsUi": {
+            "columnValues": [
+                {
+                    "fieldId": "shop_id",
+                    "value": "={{ $json.shop_id }}"
+                },
+                {
+                    "fieldId": "type",
+                    "value": "expiry"
+                },
+                {
+                    "fieldId": "title",
+                    "value": "={{ 'Expiring: ' + $json.medicine_name }}"
+                },
+                {
+                    "fieldId": "message",
+                    "value": "={{ 'Expires on ' + $json.expiry_date + '. Quantity: ' + $json.quantity }}"
+                },
+                {
+                    "fieldId": "is_read",
+                    "value": "false"
+                }
+            ]
+        }
+    },
+    "name": "Save Expiry Notification",
+    "type": "n8n-nodes-base.supabase",
+    "typeVersion": 1,
+    "position": [
+        900,
+        1400
+    ],
+    "credentials": {
+        "supabaseApi": {
+            "id": "SUPABASE_CREDENTIAL_ID",
+            "name": "Supabase account"
+        }
+    }
+}
