@@ -38,7 +38,7 @@ import VoiceInput from "@/components/common/VoiceInput";
 
 import { HeldBill } from "@/types/pos";
 
-const CACHE_BUSTER = "20260516_STABILITY_V5"; 
+const CACHE_BUSTER = "20260516_STABILITY_V6_EAGER"; 
 
 const LitePOS = () => {
     const goto = useNavigate();

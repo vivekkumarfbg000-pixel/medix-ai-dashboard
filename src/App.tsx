@@ -81,7 +81,7 @@ const AIInsights = lazy(() => import("./pages/dashboard/AIInsights"));
 const Forecasting = lazy(() => import("./pages/dashboard/Forecasting"));
 const Alerts = lazy(() => import("./pages/dashboard/Alerts"));
 const Settings = lazy(() => import("./pages/dashboard/Settings"));
-const LitePOS = lazy(() => import("./pages/dashboard/LitePOS"));
+import LitePOS from "./pages/dashboard/LitePOS";
 const Marketplace = lazy(() => import("./pages/dashboard/Marketplace"));
 const Prescriptions = lazy(() => import("./pages/dashboard/Prescriptions"));
 const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
