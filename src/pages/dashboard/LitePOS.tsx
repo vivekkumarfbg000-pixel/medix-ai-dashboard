@@ -29,8 +29,6 @@ import { whatsappService } from "@/services/whatsappService";
 
 import { CustomerSearch, Customer } from "@/components/dashboard/CustomerSearch";
 import { VoiceCommandBar } from "@/components/dashboard/VoiceCommandBar";
-import { ThermalReceipt } from "@/components/pos/ThermalReceipt";
-import { SalesReturnModal } from "@/components/pos/SalesReturnModal";
 import { ScannerModal } from "@/components/pos/ScannerModal";
 import { CheckoutDialogs } from "@/components/pos/CheckoutDialogs";
 import { AlternativeDialog } from "@/components/pos/AlternativeDialog";
@@ -38,7 +36,7 @@ import VoiceInput from "@/components/common/VoiceInput";
 
 import { HeldBill } from "@/types/pos";
 
-const CACHE_BUSTER = "20260516_STABILITY_V6_EAGER"; 
+const CACHE_BUSTER = "20260516_STABILITY_V7_EAGER_FIXED"; 
 
 const LitePOS = () => {
     const goto = useNavigate();
