@@ -10,14 +10,19 @@ interface ScannerModalProps {
     onScan: (barcode: string) => void;
 }
 
-export function ScannerModal({ open, onOpenChange, onScan }: ScannerModalProps) {
+export function ScannerModal(props: ScannerModalProps) {
     const [isMounted, setIsMounted] = useState(false);
+    useEffect(() => { setIsMounted(true); }, []);
+    if (!isMounted) return null;
+    return <ScannerModalContent {...props} />;
+}
+
+function ScannerModalContent({ open, onOpenChange, onScan }: ScannerModalProps) {
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const [isScanning, setIsScanning] = useState(false);
 
-    useEffect(() => {
-        setIsMounted(true);
-    }, []);
+    const [isMountedInternal, setIsMountedInternal] = useState(false);
+    useEffect(() => { setIsMountedInternal(true); }, []);
 
     const startScanner = useCallback(async () => {
         try {
@@ -67,7 +72,7 @@ export function ScannerModal({ open, onOpenChange, onScan }: ScannerModalProps) 
         return () => stopScanner();
     }, [open, startScanner, stopScanner]);
 
-    if (!isMounted) return null;
+    if (!isMountedInternal) return null;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>

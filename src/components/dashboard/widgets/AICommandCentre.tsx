@@ -19,7 +19,11 @@ interface SeasonalInsight {
 export const AICommandCentre = () => {
     const [isMounted, setIsMounted] = useState(false);
     useEffect(() => { setIsMounted(true); }, []);
-    
+    if (!isMounted) return null;
+    return <AICommandCentreContent />;
+};
+
+const AICommandCentreContent = () => {
     const [command, setCommand] = useState("");
     const { currentShop } = useUserShops();
     const [loading, setLoading] = useState(false);
@@ -168,8 +172,6 @@ export const AICommandCentre = () => {
         fetchPredictions();
         calculateSeason();
     }, [currentShop?.id, fetchPredictions, calculateSeason]);
-
-    if (!isMounted) return null;
 
     return (
         <Card className="glass-card border-slate-800 bg-slate-950/40 backdrop-blur-xl overflow-hidden group hover:border-cyan-500/30 transition-all duration-500">
