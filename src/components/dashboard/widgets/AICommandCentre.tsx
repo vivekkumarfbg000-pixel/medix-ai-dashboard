@@ -18,7 +18,10 @@ interface SeasonalInsight {
 
 export const AICommandCentre = () => {
     const [isMounted, setIsMounted] = useState(false);
-    useEffect(() => { setIsMounted(true); }, []);
+    useEffect(() => { 
+        const timer = setTimeout(() => setIsMounted(true), 100);
+        return () => clearTimeout(timer);
+    }, []);
     if (!isMounted) return null;
     return <AICommandCentreContent />;
 };
