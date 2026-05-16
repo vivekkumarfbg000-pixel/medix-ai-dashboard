@@ -87,23 +87,6 @@ const AICommandCentreContent = () => {
         setSeasonalData(season);
     }, []);
 
-    // 2.5 Auto-Update Stale Data (Guarded)
-    useEffect(() => {
-        if (predictions.length > 0 && !loading && !autoRunRef.current) {
-            const hasStaleMock = predictions.some((p: any) => p.medicine_name === "Amoxicillin 500mg" && p.reason.includes("High seasonal"));
-            if (hasStaleMock) {
-                autoRunRef.current = true;
-                toast.info("Updating AI Model...");
-                runAIAnalysis();
-            }
-        }
-    }, [predictions, loading, runAIAnalysis]);
-
-    useEffect(() => {
-        fetchPredictions();
-        calculateSeason();
-    }, [currentShop?.id, fetchPredictions, calculateSeason]);
-
     // 3. Trigger AI Analysis
     const runAIAnalysis = useCallback(async () => {
         if (!currentShop?.id) return;
@@ -111,21 +94,13 @@ const AICommandCentreContent = () => {
         toast.loading("AI Engine: Analyzing Sales Patterns...");
 
         try {
-            // Fetch recent sales for context
-            const { data: salesHistory } = await supabase
-                .from('orders')
-                .select('order_items, created_at')
-                .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-                .eq('shop_id', currentShop?.id)
-                .limit(50);
-
             // Fetch current inventory for forecasting
             const { data: inventory } = await supabase
                 .from('inventory')
                 .select('medicine_name, quantity')
                 .eq('shop_id', currentShop?.id);
 
-            // Call Native AI Service (No N8N)
+            // Call Native AI Service
             const aiResponse = await aiService.getInventoryForecast(inventory || []);
 
             if (aiResponse && aiResponse.forecast) {
@@ -159,7 +134,7 @@ const AICommandCentreContent = () => {
         }
     }, [currentShop?.id, fetchPredictions]);
 
-    // 2.5 Auto-Update Stale Data (Guarded)
+    // 4. Lifecycle & Auto-Update Logic
     useEffect(() => {
         if (predictions.length > 0 && !loading && !autoRunRef.current) {
             const hasStaleMock = predictions.some((p: any) => p.medicine_name === "Amoxicillin 500mg" && p.reason.includes("High seasonal"));
