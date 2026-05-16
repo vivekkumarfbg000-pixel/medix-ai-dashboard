@@ -84,6 +84,11 @@ export const supabase = createClient<Database>(FINAL_SUPABASE_URL, SUPABASE_ANON
     // in GoogleCallback.tsx. Our hash router prevents this from working reliably anyway.
     detectSessionInUrl: false,
   },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  },
   db: { schema: 'public' },
   global: {
     headers: { 'x-application-name': 'medix-ai-dashboard' },

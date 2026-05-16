@@ -16,6 +16,8 @@ import { Activity } from "lucide-react";
 // immediately wipes out the query parameters!
 // We must parse the `?code=` or `#access_token=` right here, right now, and
 // rewrite the hash artificially so HashRouter picks it up when it finally loads.
+const CACHE_BUSTER = "20260516_APP_V9_REALTIME_FIX";
+
 if (typeof window !== "undefined") {
   const hash = window.location.hash;
   const search = window.location.search;
@@ -81,7 +83,7 @@ const AIInsights = lazy(() => import("./pages/dashboard/AIInsights"));
 const Forecasting = lazy(() => import("./pages/dashboard/Forecasting"));
 const Alerts = lazy(() => import("./pages/dashboard/Alerts"));
 const Settings = lazy(() => import("./pages/dashboard/Settings"));
-import LitePOS from "./pages/dashboard/LitePOS";
+const LitePOS = lazy(() => import("./pages/dashboard/LitePOS"));
 const Marketplace = lazy(() => import("./pages/dashboard/Marketplace"));
 const Prescriptions = lazy(() => import("./pages/dashboard/Prescriptions"));
 const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
