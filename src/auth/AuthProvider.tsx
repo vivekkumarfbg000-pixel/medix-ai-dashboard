@@ -63,16 +63,38 @@ export const AuthContext = createContext<AuthContextValue | null>(null);
 
 // ─── Provider component ─────────────────────────────────────────────────────
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
-    const [session, setSession] = useState<Session | null>(null);
-    const [loading, setLoading] = useState(() => {
-        // OPTIMISTIC: If we have an auth-token marker in localStorage, 
-        // assume we are authenticated until getSession() proves otherwise.
-        if (typeof window !== "undefined") {
-            return !Object.keys(localStorage).some(key => key.startsWith('sb-') && key.includes('-auth-token'));
+    // ─── Synchronous Initial State (CTO TASK FORCE: ZERO FLASH) ──────────────
+    // We parse the Supabase session from localStorage BEFORE the first render.
+    // This prevents the "AuthGuard -> Login -> Dashboard" redirect loop.
+    const initialAuth = (() => {
+        if (typeof window === "undefined") return { user: null, session: null, loading: true };
+        
+        // Find Supabase token key dynamically
+        const sbKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.includes('-auth-token'));
+        if (sbKey) {
+            try {
+                const raw = localStorage.getItem(sbKey);
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    if (data?.user) {
+                        console.log("⚡ [AuthProvider] Synchronous session detected for user:", data.user.id);
+                        return { user: data.user, session: data, loading: false };
+                    }
+                }
+            } catch (e) {
+                console.error("⚠️ [AuthProvider] Failed to parse initial session:", e);
+            }
+            // If key exists but parse failed, stay in loading state until getSession() confirms
+            return { user: null, session: null, loading: true };
         }
-        return true;
-    });
+        
+        // No token found — definitely logged out
+        return { user: null, session: null, loading: false };
+    })();
+
+    const [user, setUser] = useState<User | null>(initialAuth.user);
+    const [session, setSession] = useState<Session | null>(initialAuth.session);
+    const [loading, setLoading] = useState(initialAuth.loading);
 
     // Bootstrap — check for existing session on mount
     useEffect(() => {
