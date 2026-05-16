@@ -17,6 +17,10 @@ interface SeasonalInsight {
 }
 
 export const AICommandCentre = () => {
+    const [isMounted, setIsMounted] = useState(false);
+    useEffect(() => { setIsMounted(true); }, []);
+    
+    const [command, setCommand] = useState("");
     const { currentShop } = useUserShops();
     const [loading, setLoading] = useState(false);
     const [predictions, setPredictions] = useState<any[]>([]);
@@ -148,8 +152,27 @@ export const AICommandCentre = () => {
         }
     }, [currentShop?.id, fetchPredictions]);
 
+    // 2.5 Auto-Update Stale Data (Guarded)
+    useEffect(() => {
+        if (predictions.length > 0 && !loading && !autoRunRef.current) {
+            const hasStaleMock = predictions.some((p: any) => p.medicine_name === "Amoxicillin 500mg" && p.reason.includes("High seasonal"));
+            if (hasStaleMock) {
+                autoRunRef.current = true;
+                toast.info("Updating AI Model...");
+                runAIAnalysis();
+            }
+        }
+    }, [predictions, loading, runAIAnalysis]);
+
+    useEffect(() => {
+        fetchPredictions();
+        calculateSeason();
+    }, [currentShop?.id, fetchPredictions, calculateSeason]);
+
+    if (!isMounted) return null;
+
     return (
-        <Card className="h-full border-none shadow-md bg-gradient-to-br from-slate-900 to-slate-950 text-white overflow-hidden relative group">
+        <Card className="glass-card border-slate-800 bg-slate-950/40 backdrop-blur-xl overflow-hidden group hover:border-cyan-500/30 transition-all duration-500">
             <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:20px_20px]" />
             <div className="absolute -right-20 -top-20 h-[200px] w-[200px] bg-purple-500/20 blur-[100px] rounded-full group-hover:bg-purple-500/30 transition-all duration-1000" />
 

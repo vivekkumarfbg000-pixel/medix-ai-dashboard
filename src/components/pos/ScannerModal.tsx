@@ -11,18 +11,13 @@ interface ScannerModalProps {
 }
 
 export function ScannerModal({ open, onOpenChange, onScan }: ScannerModalProps) {
+    const [isMounted, setIsMounted] = useState(false);
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const [isScanning, setIsScanning] = useState(false);
 
     useEffect(() => {
-        if (open) {
-            startScanner();
-        } else {
-            stopScanner();
-        }
-
-        return () => stopScanner();
-    }, [open, startScanner, stopScanner]);
+        setIsMounted(true);
+    }, []);
 
     const startScanner = useCallback(async () => {
         try {
@@ -61,6 +56,18 @@ export function ScannerModal({ open, onOpenChange, onScan }: ScannerModalProps) 
             }).catch(console.error);
         }
     }, [isScanning]);
+
+    useEffect(() => {
+        if (open) {
+            startScanner();
+        } else {
+            stopScanner();
+        }
+
+        return () => stopScanner();
+    }, [open, startScanner, stopScanner]);
+
+    if (!isMounted) return null;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
