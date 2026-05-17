@@ -1,5 +1,5 @@
 # Medix-AI Ultimate Multi-Agent Tech Team Pipeline
-> **METRICS SPECIFICATION (v3.0):** This document defines the formal orchestration standard for all AI agents and engineering tasks in the Medix-AI repository. By dividing concerns into three specialized roles, we eliminate hallucination, guarantee type integrity, and prevent regressions.
+> **METRICS SPECIFICATION (v4.0):** This document defines the formal orchestration standard for all AI agents and engineering tasks in the Medix-AI repository. By dividing concerns into four specialized roles, we eliminate hallucination, guarantee type integrity, secure databases, and prevent regressions.
 
 ---
 
@@ -15,7 +15,10 @@ graph TD
     B1 -->|Applies surgical micro-patches| B2[Compile & Type-Check: tsc/eslint]
     B2 -->|Build Fails| B3[HARD REVERT to REVERT_ANCHOR]
     B3 -->|Formulate new hypothesis| B1
-    B2 -->|Build Passes| C[3. GitOps Guardian]
+    B2 -->|Build Passes| D[3. SecOps & DB Sentry]
+    D -->|Audits schemas & triggers| D1[Validate RLS & Invoker permissions]
+    D1 -->|Ensures strict tenant isolation| D2[Approve SQL Migrations]
+    D2 --> C[4. GitOps Guardian]
     C -->|Credential & Secret Audit| C1[Pre-Flight Security Scan]
     C1 -->|PWA precaching & routing check| C2[Verify sw.js & Manifest]
     C2 -->|Locks pipeline with Husky hooks| C3[Execute git commit & push]
@@ -31,7 +34,7 @@ graph TD
 *   **Directive:** Act as a firewall against scope-creep. You do **not** write or modify application code. You analyze schemas and isolate file bounds.
 *   **Deliverable:** Generates or updates [architect_blueprint.md](file:///c:/Users/vivek/PharmaAssist.AI%20Dashboard/medix-ai-dashboard-main/medix-ai-dashboard-main/architect_blueprint.md) defining:
     - **Target Files to Edit:** Absolute boundaries for file modification.
-    - **No-Fly Zones:** Unrelated files that must remain unmodified.
+    - **No-Fly Zones:** Unrelated files that must remain untouched to prevent collateral damage.
     - **Data shapes:** Strong TypeScript types (no `any`) and database schema parameters.
     - **Defensive Pass Criteria:** The strict compilation, lint, test, and telemetry gates required for success.
 
@@ -45,7 +48,15 @@ graph TD
     4.  **Test:** Run `npx tsc --noEmit` and `npx eslint . --quiet`.
     5.  **Gate check:** If build succeeds, transition to deployment. If it fails, trigger a **hard revert** back to `[REVERT_ANCHOR]` immediately. Never try to patch a broken patch.
 
-### 🦅 Role 3: GitOps Guardian (The Sentry)
+### 🔑 Role 3: SecOps & Database Reliability Sentry (The Compliance Guard)
+*   **Location of Rules:** [.agents/skills/secops-sentry.md](file:///c:/Users/vivek/PharmaAssist.AI%20Dashboard/medix-ai-dashboard-main/medix-ai-dashboard-main/.agents/skills/secops-sentry.md)
+*   **Directive:** Secure all database schemas, RLS barriers, and key mappings to prevent access leaks.
+*   **Audits Performed:**
+    - **RLS verification:** Verify Row-Level Security is active on all new/modified tables.
+    - **Tenant Isolation:** Enforce that queries/triggers partition data strictly by the user's authenticated shop context.
+    - **Function Invoker Privilege:** Audit `SECURITY DEFINER` functions, granting execution permissions exclusively to `authenticated` roles and revoking from `public`.
+
+### 🦅 Role 4: GitOps Guardian (The Sentry)
 *   **Location of Rules:** [.agents/skills/gitops-guardian.md](file:///c:/Users/vivek/PharmaAssist.AI%20Dashboard/medix-ai-dashboard-main/medix-ai-dashboard-main/.agents/skills/gitops-guardian.md)
 *   **Directive:** Secure release boundaries, prevent key leaks, verify precaching, and synchronize safely.
 *   **Audits Performed:**
@@ -53,7 +64,6 @@ graph TD
     - **Build verification:** Compile clean production bundles (`npm run build`).
     - **E2E Smoke Verification:** Verify dynamic page mounting, element mapping, and check for zero runtime JS exceptions using the automated headless browser smoke runner (`node scripts/verify_ui_e2e.js`).
     - **Commit Hook enforcement:** Link Husky hooks to enforce pre-commit testing checks (`npm run test && node scripts/verify_ui_e2e.js && node scripts/diagnose_telemetry.js`).
-
     - **Push Gate:** Execute secure commits and synchronize with the remote master repository.
 
 ---
@@ -67,4 +77,5 @@ Whenever you want the tech team to resolve an issue or write a feature, simply i
 The agent will execute:
 1.  **Step 1:** Act as the **Systems Architect** and create/update [architect_blueprint.md](file:///c:/Users/vivek/PharmaAssist.AI%20Dashboard/medix-ai-dashboard-main/medix-ai-dashboard-main/architect_blueprint.md).
 2.  **Step 2:** Act as the **CTO Task Force**, initialize the anchoring point, and apply the surgical patch.
-3.  **Step 3:** Act as the **GitOps Guardian**, run secret scanners, execute the build test suite, and push.
+3.  **Step 3:** Act as the **SecOps DB Sentry**, audit migrations, enforce RLS policies, and harden function privileges.
+4.  **Step 4:** Act as the **GitOps Guardian**, run secret scanners, execute build E2E test suites, and push.
