@@ -54,6 +54,8 @@ You must write your entire output directly to `architect_blueprint.md` using thi
 
 ## 4. VERIFICATION METRICS (THE DEFENSIVE PASS CRITERIA)
 *   The system is considered functional if and only if:
-    1. [Condition 1: e.g., Build compiles with zero type errors]
-    2. [Condition 2: e.g., API endpoint returns 200 OK with the exact output shape specified above]
-    3. [Condition 3: e.g., No new console errors are generated on the testing URL]
+    1. **Type Safety & Build Gates**: Code compiles with zero errors using `npx tsc --noEmit` and passes linting using `npx eslint . --quiet`.
+    2. **Automated Regression Coverage**: A corresponding test file (located in `src/__tests__/`) is created or updated to test the features, and `npm run test` executes successfully with 100% passing tests.
+    3. **Telemetry & Integrity Scans**: Running `node scripts/diagnose_telemetry.js` returns clean execution without introducing database schema sequence or fallback warnings.
+    4. **Functional Correctness**: [Define specific behavioral condition: e.g. alternate drugs are successfully sorted by higher margin]
+

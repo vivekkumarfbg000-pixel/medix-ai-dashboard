@@ -8,6 +8,7 @@
     "build": "npx rimraf public/_redirects dist/_redirects && vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "test": "vitest run",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -100,6 +101,7 @@
     "typescript-eslint": "^8.38.0",
     "vite": "^6.4.1",
     "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^3.0.0",
     "wrangler": "^4.73.0"
   }
 }
