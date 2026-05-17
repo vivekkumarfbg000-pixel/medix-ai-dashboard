@@ -1,0 +1,2 @@
+echo "🚀 Running Git Pre-Commit Stability Guard..."
+npm run test && node scripts/diagnose_telemetry.js

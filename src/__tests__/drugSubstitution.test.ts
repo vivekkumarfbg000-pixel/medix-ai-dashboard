@@ -1,32 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// Mock client-side globals to support safe headless Node execution
-global.localStorage = {
-  getItem: vi.fn(() => null),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
-  key: vi.fn(() => null),
-  length: 0
-};
-
-global.window = {
-  location: {
-    origin: 'http://localhost:5173',
-    search: ''
-  },
-  addEventListener: vi.fn(),
-  removeEventListener: vi.fn()
-} as any;
-
-Object.defineProperty(global, 'navigator', {
-  value: {
-    onLine: true
-  },
-  configurable: true,
-  writable: true
-});
-
 // Dynamically import drugService AFTER global environment mocks are in place
 const { drugService } = await import('../services/drugService');
 

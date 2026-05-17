@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import https from 'https';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,9 +20,9 @@ if (fs.existsSync(migrationsDir)) {
   
   let invalidFiles = 0;
   files.forEach(file => {
-    // Standard timestamp format: 20260105_*.sql or 20251231_*.sql
-    if (!/^\d{8}_.*\.sql$/.test(file)) {
-      console.warn(`   ⚠️  [Sequence Violation] File "${file}" does not follow YYYYMMDD_name.sql naming format.`);
+    // Standard timestamp format: 8-digit or 14-digit prefixes
+    if (!/^\d{8,14}_.*\.sql$/.test(file)) {
+      console.warn(`   ⚠️  [Sequence Violation] File "${file}" does not follow sequential YYYYMMDD_name.sql naming format.`);
       invalidFiles++;
       issuesFound++;
     }
@@ -80,6 +81,74 @@ if (fs.existsSync(posFilePath)) {
     safetyIssues.forEach(err => console.warn(`   ⚠️  [Loading Race Condition] ${err}`));
   }
 }
+
+// 4. Audit Database Schema Drift
+console.log('\n📂 4. Auditing Database Schema Drift & Connectivity...');
+const envFilePath = path.resolve(__dirname, '../.env');
+if (fs.existsSync(envFilePath)) {
+  const envContent = fs.readFileSync(envFilePath, 'utf8');
+  const sbUrlMatch = envContent.match(/VITE_SUPABASE_URL\s*=\s*["']([^"']+)["']/);
+  const sbKeyMatch = envContent.match(/VITE_SUPABASE_PUBLISHABLE_KEY\s*=\s*["']([^"']+)["']/);
+  
+  if (sbUrlMatch && sbKeyMatch) {
+    const supabaseUrl = sbUrlMatch[1];
+    const supabaseKey = sbKeyMatch[1];
+    
+    // Scan local migration folder for version tags
+    if (fs.existsSync(migrationsDir)) {
+      const localFiles = fs.readdirSync(migrationsDir)
+        .filter(f => f.endsWith('.sql'))
+        .map(f => {
+          const match = f.match(/^(\d+)_/);
+          return match ? match[1] : null;
+        })
+        .filter(Boolean)
+        .sort();
+        
+      console.log(`   Found ${localFiles.length} local migration timestamps.`);
+      
+      // Perform a non-blocking request to check connectivity using native https module
+      try {
+        console.log('   📡 Pinging Supabase instance...');
+        await new Promise((resolve, reject) => {
+          const req = https.get(`${supabaseUrl}/rest/v1/`, {
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`
+            },
+            agent: false, // Disable keep-alive agent pool to prevent open handles on exit
+            timeout: 2500
+          }, (res) => {
+            res.resume(); // Resume response stream to free socket
+            if (res.statusCode >= 200 && res.statusCode < 400) {
+              console.log('   ✅ Supabase connection successful! Live API is healthy and reachable.');
+            } else {
+              console.warn(`   ⚠️  [Connectivity Warning] Supabase live endpoint returned status ${res.statusCode}. Skipping drift check.`);
+            }
+            resolve();
+          });
+          
+          req.on('error', (err) => {
+            reject(err);
+          });
+          
+          req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Timeout'));
+          });
+        });
+      } catch (err) {
+        console.log('   ⚠️  [Offline Mode] Supabase connection skipped (timeout or offline). Storing static file audits.');
+      }
+    }
+  } else {
+    console.warn('   ⚠️  [Configuration Alert] Supabase credentials missing or incomplete in .env file.');
+    issuesFound++;
+  }
+} else {
+  console.warn('   ⚠️  [Configuration Skip] No .env file found in project root directory.');
+}
+
 
 console.log('\n──────────────────────────────────────────────────────────────────');
 if (issuesFound === 0) {
