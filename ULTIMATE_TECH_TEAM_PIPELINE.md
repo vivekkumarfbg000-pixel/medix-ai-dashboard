@@ -51,7 +51,9 @@ graph TD
 *   **Audits Performed:**
     - **Secret Scanning:** Scan files and `.env` properties to ensure zero keys or credentials are committed.
     - **Build verification:** Compile clean production bundles (`npm run build`).
-    - **Commit Hook enforcement:** Link Husky hooks to enforce pre-commit testing checks (`npm run test && node scripts/diagnose_telemetry.js`).
+    - **E2E Smoke Verification:** Verify dynamic page mounting, element mapping, and check for zero runtime JS exceptions using the automated headless browser smoke runner (`node scripts/verify_ui_e2e.js`).
+    - **Commit Hook enforcement:** Link Husky hooks to enforce pre-commit testing checks (`npm run test && node scripts/verify_ui_e2e.js && node scripts/diagnose_telemetry.js`).
+
     - **Push Gate:** Execute secure commits and synchronize with the remote master repository.
 
 ---
