@@ -761,11 +761,11 @@ const LitePOS = () => {
         }
     };
 
-    const showAlternatives = async (medicineName: string, itemId?: string) => {
+    const showAlternatives = async (medicineName: string, itemId?: string, itemDirect?: OfflineInventory) => {
         toast.loading(`Finding alternatives for ${medicineName}...`, { id: 'alt-search' });
         try {
             // Use local DB first for matches
-            const currentItem = cart.find(c => c.item.medicine_name === medicineName)?.item;
+            const currentItem = itemDirect || cart.find(c => c.item.medicine_name === medicineName)?.item;
             const allItems = await db.inventory.where('shop_id').equals(currentShop?.id || '').toArray();
 
             let substitutes: any[] = [];
@@ -835,27 +835,29 @@ const LitePOS = () => {
     };
 
     // --- SUBSTITUTE LOGIC ---
-    const handleSubstituteSelect = (sub: any) => {
+    const handleSubstituteSelect = (itemId: string, sub: any) => {
         if (!alternativeData) return;
 
-        setCart(prev => prev.map(c => {
-            // FIX: Replace specific item ID if available, else fallback to name
-            const isMatch = alternativeData.targetItemId
-                ? c.item.id === alternativeData.targetItemId
-                : c.item.medicine_name === alternativeData.name;
+        const isItemInCart = cart.some(c => c.item.id === itemId);
+        if (isItemInCart) {
+            setCart(prev => prev.map(c => {
+                if (c.item.id === itemId) {
+                    return {
+                        ...c,
+                        item: sub, // Replace item structure with the inventory item
+                        qty: c.qty // Retain quantity
+                    };
+                }
+                return c;
+            }));
+            toast.success(`Swapped '${alternativeData.name}' with '${sub.medicine_name}'`);
+        } else {
+            // If the item wasn't already in the cart, add the substitute as a new item
+            addToCart(sub, 1);
+            toast.success(`Added alternative '${sub.medicine_name}' to cart`);
+        }
 
-            if (isMatch) {
-                return {
-                    ...c,
-                    item: sub, // Direct replacement with the inventory item
-                    qty: c.qty // Keep quantity
-                };
-            }
-            return c;
-        }));
-
-        toast.success(`Swapped '${alternativeData.name}' with '${sub.medicine_name}'`);
-        setAlternativeData(null); // Close dialog
+        setAlternativeData(null); // Close the dialog
     };
 
 
@@ -1226,8 +1228,7 @@ const LitePOS = () => {
                                                 <button
                                                     onClick={(e) => { 
                                                         e.stopPropagation();
-                                                        const subs = drugService.findBetterMarginSubstitutes(p, products);
-                                                        setAlternativeData({ itemId: p.id, name: p.medicine_name, options: subs });
+                                                        showAlternatives(p.medicine_name, p.id, p);
                                                     }}
                                                     className="w-6 h-6 flex items-center justify-center rounded-full bg-slate-800 hover:bg-purple-900/50 text-purple-400 transition-colors"
                                                     title="Find Substitutes"
@@ -1336,11 +1337,8 @@ const LitePOS = () => {
                                                 {/* Alternative Option Button */}
                                                 <button
                                                     onClick={() => {
-                                                        // Fallback for cart items, scan entire local Dexie if necessary
-                                                        // (Simplified: relies on alternativeData handling)
                                                         const p = c.item;
-                                                        const subs = products ? drugService.findBetterMarginSubstitutes(p, products) : [];
-                                                        setAlternativeData({ itemId: p.id, name: p.medicine_name, options: subs });
+                                                        showAlternatives(p.medicine_name, p.id, p);
                                                     }}
                                                     className="text-[9px] bg-purple-900/40 text-purple-300 px-2 py-0.5 rounded border border-purple-700/30 hover:bg-purple-800/60 hover:border-purple-600/50 flex items-center gap-1 shrink-0 transition-all"
                                                     title="Find Better Margin Alternatives"
@@ -1422,48 +1420,6 @@ const LitePOS = () => {
                                 </Dialog>
                             )}
 
-                            {/* ALTERNATIVE MEDICINE POPUP */}
-                            {alternativeData && (
-                                <Dialog open={!!alternativeData} onOpenChange={(o) => !o && setAlternativeData(null)}>
-                                    <DialogContent className="glass-card border-purple-500/30 text-white max-w-md">
-                                        <DialogHeader>
-                                            <DialogTitle className="flex items-center gap-2 text-purple-400">
-                                                <Sparkles className="w-5 h-5" /> Alternatives for {alternativeData.name}
-                                            </DialogTitle>
-                                        </DialogHeader>
-                                        <div className="space-y-2 mt-2 max-h-[60vh] overflow-y-auto">
-                                            {alternativeData.substitutes.length === 0 ? (
-                                                <div className="text-center p-4 text-slate-500">
-                                                    No direct substitutes found in inventory.
-                                                </div>
-                                            ) : (
-                                                alternativeData.substitutes.map((sub: any, i: number) => {
-                                                    const profit = sub.unit_price - (sub.purchase_price || 0);
-                                                    return (
-                                                        <div
-                                                            key={sub.id || i}
-                                                            className="p-3 bg-slate-900/50 border border-purple-500/20 rounded-lg flex justify-between items-center group hover:bg-purple-900/10 cursor-pointer transition-all"
-                                                            onClick={() => handleSubstituteSelect(sub)}
-                                                        >
-                                                            <div>
-                                                                <div className="font-bold text-slate-200">{sub.medicine_name}</div>
-                                                                <div className="text-xs text-slate-500">{sub.composition || sub.generic_name}</div>
-                                                            </div>
-                                                            <div className="text-right">
-                                                                <div className="font-bold text-lg text-purple-400">₹{sub.unit_price}</div>
-                                                                <div className="text-[10px] text-emerald-400 font-medium">
-                                                                    Profit: ₹{profit.toFixed(1)}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })
-                                            )}
-                                        </div>
-                                        <p className="text-[10px] text-slate-500 text-center mt-2">Tap to replace item in cart</p>
-                                    </DialogContent>
-                                </Dialog>
-                            )}
 
                             {/* Top: Stats & Discounts */}
                             <div className="flex justify-between items-end mb-3">
