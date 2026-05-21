@@ -5,6 +5,9 @@ interface TTSOptions {
     pitch?: number; // 0 to 2
     volume?: number; // 0 to 1
     lang?: string; // 'en-IN', 'hi-IN'
+    onStart?: () => void;
+    onEnd?: () => void;
+    onError?: (e: any) => void;
 }
 
 /**
@@ -22,12 +25,14 @@ export const isVoiceEnabled = (): boolean => {
 export const speak = (text: string, options: TTSOptions = {}) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
         logger.warn("TTS not supported in this browser.");
+        if (options.onError) options.onError(new Error("TTS not supported"));
         return;
     }
 
     // ✅ CRITICAL FIX: Respect the global voice toggle from Settings
     if (!isVoiceEnabled()) {
         logger.log("[TTS] Voice is muted by user preference. Skipping.");
+        if (options.onEnd) options.onEnd();
         return;
     }
 
@@ -53,8 +58,8 @@ export const speak = (text: string, options: TTSOptions = {}) => {
     
     // Priority: 1. Hindi India (hi-IN), 2. English India (en-IN), 3. Female UK (often sounds better than default US)
     const preferredVoice = voices.find(v => v.lang === 'hi-IN') || 
-                          voices.find(v => v.lang === 'en-IN') ||
-                          voices.find(v => v.lang.includes('en-GB') && v.name.includes('Female'));
+                           voices.find(v => v.lang === 'en-IN') ||
+                           voices.find(v => v.lang.includes('en-GB') && v.name.includes('Female'));
 
     if (preferredVoice) {
         utterance.voice = preferredVoice;
@@ -64,8 +69,18 @@ export const speak = (text: string, options: TTSOptions = {}) => {
     }
 
     // 4. Logging & Execution
-    utterance.onstart = () => logger.log("[TTS] Speaking:", cleanText.substring(0, 40) + "...");
-    utterance.onerror = (e) => logger.error("[TTS] Error:", e);
+    utterance.onstart = () => {
+        logger.log("[TTS] Speaking:", cleanText.substring(0, 40) + "...");
+        if (options.onStart) options.onStart();
+    };
+    utterance.onend = () => {
+        logger.log("[TTS] Finished speaking.");
+        if (options.onEnd) options.onEnd();
+    };
+    utterance.onerror = (e) => {
+        logger.error("[TTS] Error:", e);
+        if (options.onError) options.onError(e);
+    };
 
     window.speechSynthesis.speak(utterance);
 };

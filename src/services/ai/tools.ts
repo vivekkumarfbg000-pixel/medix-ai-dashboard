@@ -75,16 +75,46 @@ export const tool_getLowStock = async (shopId: string, threshold: number = 10) =
 };
 
 export const tool_getSalesReport = async (shopId: string) => {
-    const today = new Date().toISOString().split('T')[0];
-    const { data } = await supabase
-        .from('orders')
-        .select('total_amount')
-        .eq('shop_id', shopId)
-        .gte('created_at', today);
+    try {
+        const fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - 30); // 30-day chronological context
+        const toDate = new Date();
 
-    const total = data?.reduce((sum, order) => sum + Number(order.total_amount || 0), 0) || 0;
-    const count = data?.length || 0;
-    return `Today's Sales: ₹${total} (${count} orders)`;
+        // Query the live robust sales report RPC in Supabase
+        const { data, error } = await supabase.rpc('get_sales_report', {
+            start_date: fromDate.toISOString(),
+            end_date: toDate.toISOString(),
+            query_shop_id: shopId
+        });
+
+        // Query today's orders as a fallback/additional metric
+        const today = new Date().toISOString().split('T')[0];
+        const { data: todayOrders } = await supabase
+            .from('orders')
+            .select('total_amount')
+            .eq('shop_id', shopId)
+            .gte('created_at', today);
+
+        const todayTotal = todayOrders?.reduce((sum, order) => sum + Number(order.total_amount || 0), 0) || 0;
+        const todayCount = todayOrders?.length || 0;
+
+        if (error || !data) {
+            return `Today's Sales: ₹${todayTotal} (${todayCount} orders).\n(AI Analytics note: detailed 30-day trend is currently offline due to DB sync).`;
+        }
+
+        const totalSales = Number(data.total_sales || 0);
+        const totalProfit = Number(data.total_profit || 0);
+        const margin = totalSales > 0 ? ((totalProfit / totalSales) * 100).toFixed(1) : "0.0";
+
+        return `📊 Financial Performance Report:
+• Today's Sales: ₹${todayTotal} (${todayCount} orders)
+• 30-Day Gross Sales: ₹${totalSales.toLocaleString()}
+• 30-Day Net Profit: ₹${totalProfit.toLocaleString()}
+• 30-Day Profit Margin: ${margin}%
+• Active sales days: ${data.sales_by_date?.length || 0} days.`;
+    } catch (e: any) {
+        return `Unable to compile sales report: ${e.message}`;
+    }
 };
 
 export const tool_addInventory = async (shopId: string, name: string, qty: number) => {

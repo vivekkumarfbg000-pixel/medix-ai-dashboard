@@ -200,13 +200,14 @@ const LitePOS = () => {
         setShowCheckoutOptions(true);
     }, [currentShop?.id, cart.length]);
 
-    const confirmCheckout = async (finalPaymentMode: string, splits?: any[]) => {
+    const confirmCheckout = async (finalPaymentMode?: string, splits?: any[]) => {
+        const actualPaymentMode = finalPaymentMode || paymentMode || "cash";
         setShowGuestDialog(false); // Close dialog if open
         toast.loading("Processing Order...");
 
         // LINKED CUSTOMER CREDIT CHECK
         const finalTotal = totals.total;
-        if (paymentMode === 'credit' && selectedCustomer) {
+        if (actualPaymentMode === 'credit' && selectedCustomer) {
             const currentBal = selectedCustomer.credit_balance || 0;
             const limit = selectedCustomer.credit_limit || 5000;
 
@@ -226,7 +227,7 @@ const LitePOS = () => {
             // 1. Try Online Checkout First
             if (navigator.onLine) {
                 // AUTO-CREATE CUSTOMER FOR CREDIT (Udhaar)
-                if (paymentMode === 'credit' && !finalCustomerId) {
+                if (actualPaymentMode === 'credit' && !finalCustomerId) {
                     if (!finalName || finalName === "Walk-in Customer") {
                         toast.error("Customer Name is required for Credit (Udhaar)!");
                         return;
@@ -265,7 +266,7 @@ const LitePOS = () => {
                     p_customer_id: finalCustomerId,
                     p_doctor_name: doctorName,
                     p_total_amount: totals.total,
-                    p_payment_mode: paymentMode,
+                    p_payment_mode: actualPaymentMode,
                     p_items: cart.map(c => ({
                         id: c.item.id,
                         name: c.item.medicine_name,
@@ -281,11 +282,11 @@ const LitePOS = () => {
                 }
 
                 // Success Online
-                await finalizeSuccess(finalName, finalPhone, data.order_id, true, totals.total);
+                await finalizeSuccess(finalName, finalPhone, data.order_id, true, totals.total, actualPaymentMode);
 
             } else {
                 // Offline immediately
-                await performOfflineCheckout(finalName, finalPhone, totals.total);
+                await performOfflineCheckout(finalName, finalPhone, totals.total, actualPaymentMode);
             }
 
         } catch (err: any) {
@@ -295,7 +296,8 @@ const LitePOS = () => {
         }
     };
 
-    const performOfflineCheckout = async (name: string, phone: string | null, amount: number) => {
+    const performOfflineCheckout = async (name: string, phone: string | null, amount: number, finalPaymentMode?: string) => {
+        const actualPaymentMode = finalPaymentMode || paymentMode || "cash";
         // Save to IndexedDB
         const orderId = await db.orders.add({
             shop_id: currentShop?.id || 'OFFLINE',
@@ -323,10 +325,11 @@ const LitePOS = () => {
             }
         }
 
-        await finalizeSuccess(name, phone, `OFF-${orderId}`, false, amount);
+        await finalizeSuccess(name, phone, `OFF-${orderId}`, false, amount, actualPaymentMode);
     };
 
-    const finalizeSuccess = async (name: string, phone: string | null, invoiceId: string, isOnline: boolean, totalAmount: number) => {
+    const finalizeSuccess = async (name: string, phone: string | null, invoiceId: string, isOnline: boolean, totalAmount: number, finalPaymentMode?: string) => {
+        const actualPaymentMode = finalPaymentMode || paymentMode || "cash";
         toast.dismiss();
 
         // 1. Set Receipt Data for Printing
@@ -340,7 +343,7 @@ const LitePOS = () => {
             order: {
                 invoice_number: invoiceId.length > 12 ? invoiceId.slice(0, 12) : invoiceId,
                 date: new Date(),
-                payment_mode: paymentMode
+                payment_mode: actualPaymentMode
             },
             customer: {
                 name: name,
@@ -384,8 +387,8 @@ const LitePOS = () => {
             doctor_name: doctorName || undefined,
             created_at: new Date().toISOString(),
             total_amount: totalAmount,
-            payment_mode: paymentMode,
-            status: paymentMode === 'credit' ? 'pending' : 'paid',
+            payment_mode: actualPaymentMode,
+            status: actualPaymentMode === 'credit' ? 'pending' : 'paid',
             items: cart.map(c => ({ name: c.item.medicine_name, qty: c.qty, price: c.item.unit_price })),
             gst: gstData,
             discount: discountData
@@ -1549,7 +1552,7 @@ const LitePOS = () => {
                                                 />
                                                 <p className="text-[10px] text-slate-500">Required for sending digital invoice.</p>
                                             </div>
-                                            <Button className="w-full bg-cyan-600 hover:bg-cyan-500 text-black font-bold" onClick={confirmCheckout}>
+                                            <Button className="w-full bg-cyan-600 hover:bg-cyan-500 text-black font-bold" onClick={() => confirmCheckout()}>
                                                 Confirm & Print Bill
                                             </Button>
                                         </div>

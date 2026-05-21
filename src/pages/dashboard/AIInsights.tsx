@@ -137,7 +137,13 @@ const AIInsights = () => {
         sources: ["Stock Analysis", "Expiry Check"]
       }]);
 
-      if (ttsEnabled) speak(briefing);
+      if (ttsEnabled) {
+        speak(briefing, {
+          onStart: () => setIsSpeaking(true),
+          onEnd: () => setIsSpeaking(false),
+          onError: () => setIsSpeaking(false)
+        });
+      }
     } catch (e) {
       toast.error("Failed to get briefing");
     }
@@ -207,7 +213,13 @@ const AIInsights = () => {
       }]);
 
       // Speak the response
-      if (ttsEnabled) speak(response.reply);
+      if (ttsEnabled) {
+        speak(response.reply, {
+          onStart: () => setIsSpeaking(true),
+          onEnd: () => setIsSpeaking(false),
+          onError: () => setIsSpeaking(false)
+        });
+      }
 
     } catch (error) {
       setChatMessages(prev => [...prev, {
