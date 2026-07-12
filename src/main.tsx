@@ -1,6 +1,22 @@
 import { createRoot } from "react-dom/client";
 import "./index.css"; 
 
+// DEV ONLY: Auto-unregister stale production service workers
+if (import.meta.env.DEV) {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+            if (registrations.length > 0) {
+                console.warn('🛠️ [Dev] Active Service Worker detected in development. Unregistering to prevent HMR crashes...');
+                for (const registration of registrations) {
+                    registration.unregister();
+                }
+                // Force a hard reload to clear intercepting cache handlers
+                window.location.reload();
+            }
+        });
+    }
+}
+
 // PWA Service Worker: Let VitePWA manage registration.
 // Only clear stale caches from previous buggy builds (one-time cleanup).
 if ('caches' in window && sessionStorage.getItem('medix_cache_v3_cleaned') !== '1') {

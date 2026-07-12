@@ -24,7 +24,8 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Pill, ShieldCheck, TrendingUp, Users, WifiOff, RefreshCw, Wifi } from "lucide-react";
+import { Pill, ShieldCheck, TrendingUp, Users, WifiOff, RefreshCw, Wifi, Sparkles } from "lucide-react";
+import { seedOfflineInventory } from "../db/seed";
 
 // Feature bullets for the branding panel
 const features = [
@@ -85,6 +86,54 @@ export default function LoginPage() {
         localStorage.removeItem("medix_force_no_proxy");
         toast.info("Restored Proxy Connection. Reloading...");
         setTimeout(() => window.location.reload(), 1000);
+    };
+
+    const handleLaunchSandbox = () => {
+        console.warn("⚡ [Login] User initiated Offline Sandbox Mode.");
+        const mockUser = {
+            id: "mock-developer-user-id",
+            email: "doctor@medixai.shop",
+            email_confirmed_at: new Date().toISOString(),
+            user_metadata: { name: "Dr. Sandbox Developer" },
+            aud: "authenticated",
+            role: "authenticated"
+        };
+        const mockSession = {
+            access_token: "mock-token",
+            token_type: "bearer",
+            expires_in: 3600,
+            refresh_token: "mock-refresh-token",
+            user: mockUser
+        };
+        const mockShop = {
+            id: "mock-shop-uuid-123",
+            name: "Dr. Sandbox Pharmacy",
+            address: "123 Dev Street, Sandbox City",
+            phone: "9876543210",
+            gst_no: "27AAAAA0000A1Z5",
+            dl_number: "DL-12345",
+            license_number: "LIC-12345",
+            is_primary: true
+        };
+        localStorage.setItem("sb-ykrqpxbbyfipjqhpaszf-auth-token", JSON.stringify(mockSession));
+        localStorage.setItem("medix_cached_shops", JSON.stringify([mockShop]));
+        localStorage.setItem("currentShopId", "mock-shop-uuid-123");
+        localStorage.setItem("medix_sandbox_mode", "true"); // Tell AuthProvider to skip network auth
+        
+        toast.loading("Provisioning local sandbox data...", { id: "sandbox-seeding" });
+        
+        seedOfflineInventory("mock-shop-uuid-123").then(() => {
+            toast.success("Sandbox ready! Redirecting...", { id: "sandbox-seeding" });
+            setTimeout(() => {
+                window.location.replace('/#/dashboard');
+            }, 1000);
+        }).catch(err => {
+            console.error("Failed to seed sandbox database:", err);
+            toast.error("Seeding failed, launching anyway...", { id: "sandbox-seeding" });
+            setTimeout(() => {
+                window.location.replace('/#/dashboard');
+            }, 1000);
+        });
     };
 
     const isProxyBypassed = localStorage.getItem("medix_force_no_proxy") === "true";
@@ -350,6 +399,26 @@ export default function LoginPage() {
                                             <RefreshCw className="h-4 w-4 animate-spin" />
                                         ) : "Sign In to MedixAI"}
                                     </Button>
+
+                                    {isOffline ? (
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            onClick={handleLaunchSandbox}
+                                            className="w-full h-12 font-bold bg-cyan-600 hover:bg-cyan-500 text-black shadow-lg transition-all duration-500 active:scale-[0.98] mt-3 flex items-center justify-center"
+                                        >
+                                            <Sparkles className="w-5 h-5 mr-2 animate-pulse text-yellow-300" /> Launch Offline Sandbox Mode
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            onClick={handleLaunchSandbox}
+                                            className="w-full h-11 text-xs text-muted-foreground hover:text-foreground transition-all duration-300 mt-2 flex items-center justify-center gap-1.5"
+                                        >
+                                            <Sparkles className="w-4 h-4 text-cyan-500 animate-pulse" /> Try Demo Sandbox Mode
+                                        </Button>
+                                    )}
                                 </form>
 
                                 {/* Link to Sign Up */}

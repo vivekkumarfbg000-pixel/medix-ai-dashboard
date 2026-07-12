@@ -27,7 +27,6 @@ const InventoryDrafts = lazy(() => import("@/components/dashboard/inventory/Inve
 import { aiService } from "@/services/aiService";
 import { logger } from "@/utils/logger";
 import { format, differenceInDays } from "date-fns";
-import { useSearchParams } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FileText as FileTextIcon, History, Scan } from "lucide-react";
 const AuditLogs = lazy(() => import("@/pages/dashboard/AuditLogs"));
@@ -220,9 +219,14 @@ const Inventory = () => {
 
   // handleApproveDraft and handleRejectDraft removed
 
-  /* Expiry Filter Logic */
-  const [searchParams] = useSearchParams();
-  const filterType = searchParams.get("filter");
+  /* Expiry Filter Logic (Manually parsed to bypass react-router-dom hook mismatch issues) */
+  const getFilterType = () => {
+    const hashParts = window.location.hash.split("?");
+    const queryStr = hashParts.length > 1 ? hashParts[1] : "";
+    const params = new URLSearchParams(queryStr);
+    return params.get("filter") || "";
+  };
+  const filterType = getFilterType();
   const isExpiryFilter = filterType === "expiring";
 
   /* Bulk Actions State */

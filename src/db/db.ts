@@ -18,6 +18,7 @@ export interface OfflineInventory {
     shop_id?: string; // Critical for isolation
     schedule_h1?: boolean;
     manufacturer?: string;
+    barcode?: string;
     is_synced: number; // 1 = Synced, 0 = Pending Upload
 }
 

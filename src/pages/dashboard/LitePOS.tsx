@@ -457,6 +457,11 @@ const LitePOS = () => {
                     batch_number: item.batch_number,
                     expiry_date: item.expiry_date,
                     rack_number: item.rack_number,
+                    shelf_number: item.shelf_number,
+                    gst_rate: item.gst_rate,
+                    hsn_code: item.hsn_code,
+                    description: item.description,
+                    barcode: item.barcode,
                     // FIX: Map cost_price from DB to purchase_price in local Dexie
                     purchase_price: item.cost_price || item.purchase_price || 0,
                     generic_name: item.generic_name,
@@ -508,6 +513,11 @@ const LitePOS = () => {
                             batch_number: item.batch_number,
                             expiry_date: item.expiry_date,
                             rack_number: item.rack_number,
+                            shelf_number: item.shelf_number,
+                            gst_rate: item.gst_rate,
+                            hsn_code: item.hsn_code,
+                            description: item.description,
+                            barcode: item.barcode,
                             purchase_price: item.cost_price || item.purchase_price || 0,
                             generic_name: item.generic_name,
                             composition: item.composition,
@@ -639,7 +649,11 @@ const LitePOS = () => {
                 return db.inventory
                     .where('shop_id')
                     .equals(currentShop?.id)
-                    .filter(i => String(i.medicine_name || "").toLowerCase().includes(lowerSearch)) // Includes is better than startsWith for users
+                    .filter(i => 
+                        String(i.medicine_name || "").toLowerCase().includes(lowerSearch) ||
+                        String(i.barcode || "").toLowerCase().includes(lowerSearch) ||
+                        String(i.batch_number || "").toLowerCase().includes(lowerSearch)
+                    )
                     .limit(20)
                     .toArray();
             }

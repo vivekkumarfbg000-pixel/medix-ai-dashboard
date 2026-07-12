@@ -11,6 +11,7 @@ const ALLOWED_ORIGINS = [
   'https://medixai.shop',
   'https://www.medixai.shop',
   'http://localhost:5173',
+  'http://localhost:3000',
   'http://localhost:4173',
   'capacitor://localhost',       // iOS Capacitor
   'http://localhost',            // Android Capacitor

@@ -98,6 +98,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Bootstrap — check for existing session on mount
     useEffect(() => {
+        const isSandbox = localStorage.getItem('medix_sandbox_mode') === 'true';
+
+        // SANDBOX MODE: Skip ALL Supabase network calls entirely.
+        // The synchronous initialAuth already parsed the mock session from localStorage.
+        if (isSandbox && initialAuth.user) {
+            console.log('🧪 [AuthProvider] Sandbox mode active — skipping network auth entirely.');
+            setLoading(false);
+            return; // No subscription either — nothing to unsubscribe from
+        }
+
         const init = async () => {
             try {
                 const { data } = await supabase.auth.getSession();

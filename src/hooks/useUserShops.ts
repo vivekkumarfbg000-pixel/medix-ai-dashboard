@@ -115,6 +115,21 @@ export function useUserShops(): UserShopsState {
     }
 
     async function fetchShops() {
+      // SANDBOX MODE: If sandbox mode is active, load cached mock shops directly
+      // and skip all Supabase network calls (which would fail without a backend).
+      if (localStorage.getItem('medix_sandbox_mode') === 'true') {
+        console.log('🧪 [useUserShops] Sandbox mode active — loading cached mock shop details.');
+        const cached = localStorage.getItem("medix_cached_shops");
+        const parsed = cached ? safeJSONParse(cached, []) : [];
+        if (parsed.length > 0) {
+          setShops(parsed);
+          const savedShopId = localStorage.getItem("currentShopId") || parsed[0].id;
+          setCurrentShopId(savedShopId);
+        }
+        setLoading(false);
+        return;
+      }
+
       const maxAttempts = 3;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {

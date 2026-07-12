@@ -32,6 +32,33 @@ function DashboardContent() {
   const { role } = useUserRole(currentShop?.id);
   const { state, openMobile } = useSidebar();
   const lastBackPressRef = useRef(0);
+  const [isAiWarmingUp, setIsAiWarmingUp] = useState(false);
+
+  // Background AI pre-warming check (Hugging Face cold starts)
+  useEffect(() => {
+    const pingBackend = async () => {
+      const aiUrl = import.meta.env.VITE_AI_URL;
+      if (!aiUrl) return;
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        setIsAiWarmingUp(true);
+      }, 1800);
+
+      try {
+        await fetch(aiUrl, {
+          signal: controller.signal,
+          mode: 'cors'
+        });
+        clearTimeout(timeoutId);
+        setIsAiWarmingUp(false);
+      } catch (err) {
+        // Silence: if offline or sleeping, let warning display
+      }
+    };
+    
+    pingBackend();
+  }, []);
 
   // Handle Back Navigation Logic
   useEffect(() => {
@@ -99,12 +126,26 @@ function DashboardContent() {
 
           {/* Header */}
           <header
-            className="border-b border-border/50 glass-card flex items-center justify-between px-4 lg:px-6 sticky top-0 z-50 gap-4 transition-all duration-200"
+            className="border-b border-border/50 glass-card flex flex-col sticky top-0 z-50 gap-0 transition-all duration-200"
             style={{
-              paddingTop: 'max(1rem, var(--safe-area-top))',
-              height: 'calc(4rem + var(--safe-area-top))'
+              paddingTop: 'max(0.5rem, var(--safe-area-top))'
             }}
           >
+            {isAiWarmingUp && (
+              <div className="bg-amber-500/10 border-b border-amber-500/20 text-amber-500 py-1.5 px-4 text-[11px] font-medium flex items-center justify-between animate-pulse w-full">
+                <span className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                  ⚡ Waking up AI Clinical Assistant on Hugging Face Spaces (takes ~15 seconds on first launch)...
+                </span>
+                <button 
+                  onClick={() => setIsAiWarmingUp(false)} 
+                  className="hover:text-amber-600 transition-colors font-bold uppercase tracking-wider text-[9px]"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+            <div className="flex items-center justify-between px-4 lg:px-6 h-14 gap-4 w-full">
             <div className="flex items-center gap-4">
               <SidebarTrigger className="lg:hidden" />
               <ShopSwitcher />
@@ -142,6 +183,7 @@ function DashboardContent() {
                   {role && <Badge variant="secondary" className="text-xs w-fit capitalize glass-card">{role}</Badge>}
                 </div>
               </div>
+            </div>
             </div>
           </header>
           <main className="flex-1 p-4 lg:p-6 overflow-auto"><Outlet /></main>

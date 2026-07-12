@@ -13,7 +13,7 @@
                    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
                    img-src 'self' data: https: blob:; 
                    font-src 'self' data: https://fonts.gstatic.com;
-                   connect-src 'self' https://medixai.shop https://*.supabase.co https://*.app.n8n.cloud https://n8n.medixai.shop wss://*.supabase.co https://api.groq.com https://generativelanguage.googleapis.com https://api.fda.gov;
+                   connect-src 'self' https://medixai.shop https://*.supabase.co https://*.app.n8n.cloud https://n8n.medixai.shop wss://*.supabase.co https://api.groq.com https://generativelanguage.googleapis.com https://api.fda.gov ws://localhost:* ws://127.0.0.1:* ws: wss:;
                    media-src 'self' blob: https://ssl.gstatic.com;
                    worker-src 'self' blob:;" />
 
@@ -31,6 +31,29 @@
     <meta name="twitter:image" content="/medix-logo.jpg" />
 
     <script>
+        // DEV ONLY: Auto-unregister active service workers on localhost to prevent RefreshRuntime HMR crashes
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                    if (regs.length > 0) {
+                        console.warn('[Dev] Active Service Worker detected. Unregistering and clearing cache for HMR...');
+                        for (var i = 0; i < regs.length; i++) {
+                            regs[i].unregister();
+                        }
+                        if ('caches' in window) {
+                            caches.keys().then(function(keys) {
+                                Promise.all(keys.map(function(k) { return caches.delete(k); })).then(function() {
+                                    window.location.reload();
+                                });
+                            });
+                        } else {
+                            window.location.reload();
+                        }
+                    }
+                });
+            }
+        }
+
         // ─── NUCLEAR VERSION LOCK ──────────────────────────────────────────
         // This script MUST run before any module imports or PWA registration.
         // It forcibly invalidates stale caches if the build version changes.

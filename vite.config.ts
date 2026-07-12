@@ -11,10 +11,10 @@ export default defineConfig(({ mode }) => {
   return {
     server: {
       host: "0.0.0.0",
-      port: 5173,
+      port: 3000,
       proxy: {
       // Reverse proxy to bypass ISP blocks on *.supabase.co (Jio/Airtel India)
-      // Browser hits localhost:5173/supabase-proxy/* → Vite forwards server-side to supabase.co
+      // Browser hits localhost:3000/supabase-proxy/* → Vite forwards server-side to supabase.co
       '/supabase-proxy': {
         target: 'https://medixai.shop',
         changeOrigin: true,
@@ -65,97 +65,7 @@ export default defineConfig(({ mode }) => {
   },
   },
   plugins: [
-    react(),
-    VitePWA({
-      registerType: 'autoUpdate', // Forced update to clear stubborn production crashes
-      includeAssets: ['favicon.ico', 'robots.txt', 'placeholder.svg'],
-      manifest: {
-        name: 'MedixAI (v1.2)', // Versioned manifest name
-        short_name: 'MedixAI',
-        description: 'AI-Powered Manager for Medical Shops',
-        theme_color: '#0ea5e9',
-        background_color: '#ffffff',
-        display: 'standalone',
-        orientation: 'portrait',
-        icons: [
-          {
-            src: 'medix-logo.jpg',
-            sizes: '64x64 32x32 24x24 16x16',
-            type: 'image/jpeg'
-        },
-          {
-            src: 'medix-logo.jpg',
-            sizes: '192x192',
-            type: 'image/jpeg'
-        },
-          {
-            src: 'medix-logo.jpg',
-            sizes: '512x512',
-            type: 'image/jpeg',
-            purpose: 'any maskable'
-          }
-        ]
-    },
-      workbox: {
-        cleanupOutdatedCaches: true,
-        skipWaiting: true,
-        clientsClaim: true,
-        // CRITICAL: Prevent the Service Worker from intercepting OAuth redirects via proxy
-        navigateFallbackDenylist: [/^\/supabase-proxy/],
-        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'], // REMOVED .html to prevent it from being cached as a shell
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) => url.pathname === '/' || url.pathname.endsWith('index.html'),
-            handler: 'NetworkFirst', // FORCE NetworkFirst for index.html
-            options: {
-              cacheName: 'html-cache',
-            }
-        },
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365
-            },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-        },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'gstatic-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365
-            },
-              cacheableResponse: {
-                statuses: [0, 200]
-            },
-            }
-        },
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/rest/v1/'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 5 
-            },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          }
-        ]
-      }
-    }),
+    react()
   ],
   esbuild: {
     pure: ['console.log', 'console.info', 'console.debug'],
