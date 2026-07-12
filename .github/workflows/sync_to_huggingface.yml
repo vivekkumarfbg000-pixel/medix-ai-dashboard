@@ -18,7 +18,7 @@ jobs:
       - name: Push to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_SPACE_REPO: ${{ secrets.HF_SPACE_REPO }}
+          HF_SPACE_REPO: "medixai-dashboard/medixai"
         run: |
           # 1. Setup git user details
           git config --global user.name "github-actions[bot]"
