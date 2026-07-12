@@ -20,15 +20,15 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE_REPO: "medixai-dashboard/medixai"
         run: |
-          # 1. Setup git user details
+          # Verify token is set
+          if [ -z "$HF_TOKEN" ]; then
+            echo "Error: HF_TOKEN secret is not set"
+            exit 1
+          fi
+          
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 2. Add Hugging Face Space repository as a remote with oauth2 token authentication
-          git remote add hf "https://oauth2:$HF_TOKEN@huggingface.co/spaces/$HF_SPACE_REPO.git"
-          
-          # 3. Split the backend subdirectory into a temporary branch
+          git remote add hf "https://oauth2:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_REPO}.git"
           git subtree split --prefix medix-ai-backend -b hf-deploy
-          
-          # 4. Force push the temporary branch to the main branch of Hugging Face Spaces
           git push --force hf hf-deploy:main
