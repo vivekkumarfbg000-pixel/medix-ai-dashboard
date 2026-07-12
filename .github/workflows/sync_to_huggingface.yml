@@ -24,12 +24,13 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 2. Configure git credentials helper
+          # 2. Configure git to use token-based authentication
           git config --global credential.helper store
           echo "https://git:${HF_TOKEN}@huggingface.co" > ~/.git-credentials
+          chmod 600 ~/.git-credentials
           
-          # 3. Add Hugging Face Space repository as a remote
-          git remote add hf https://huggingface.co/spaces/$HF_SPACE_REPO.git
+          # 3. Add Hugging Face Space repository as a remote with embedded credentials
+          git remote add hf "https://git:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_REPO}.git"
           
           # 4. Split the backend subdirectory into a temporary branch
           git subtree split --prefix medix-ai-backend -b hf-deploy
